@@ -124,19 +124,19 @@ fn main() {
 			return
 		}
 		if s.nb_files == 0 {
-			tcc_error_noabort(c'no input files')
+			_tcc_error_noabort(c'no input files')
 		} else if s.output_type == 5 {
 			if s.outfile && 0 != C.strcmp(c'-', s.outfile) {
 				ppfp = C.fopen(s.outfile, c'w')
 				if !ppfp {
-					tcc_error_noabort(c"could not write '%s'", s.outfile)
+					_tcc_error_noabort(c"could not write '%s'", s.outfile)
 				}
 			}
 		} else if s.output_type == 3 && !s.option_r {
 			if s.nb_libraries {
-				tcc_error_noabort(c'cannot specify libraries with -c')
+				_tcc_error_noabort(c'cannot specify libraries with -c')
 			} else if s.nb_files > 1 && s.outfile {
-				tcc_error_noabort(c'cannot specify output file with -c many files')
+				_tcc_error_noabort(c'cannot specify output file with -c many files')
 			}
 		}
 		if s.nb_errors {
