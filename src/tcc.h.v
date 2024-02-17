@@ -1,6 +1,77 @@
 @[translated]
 module main
 
+pub struct TokenSym {
+	hash_next      &TokenSym
+	sym_define     &Sym
+	sym_label      &Sym
+	sym_struct     &Sym
+	sym_identifier &Sym
+	tok            int
+	len            int
+	str            [1]i8
+}
+
+pub type Nwchar_t = int
+
+pub struct CString {
+	size           int
+	data           voidptr
+	size_allocated int
+}
+
+pub struct CType {
+	t   int
+	ref &Sym
+}
+
+pub union CValue {
+	ld  f64
+	d   f64
+	f   f32
+	i   u64
+	str struct {
+		size int
+		data voidptr
+	}
+
+	tab [4]int
+}
+
+pub struct SValue {
+	type_ CType
+	r     u16
+	r2    u16
+}
+
+pub struct SymAttr {
+	aligned    u16
+	packed     u16
+	weak       u16
+	visibility u16
+	dllexport  u16
+	nodecorate u16
+	dllimport  u16
+	unused     u16
+}
+
+pub struct FuncAttr {
+	func_call     u32
+	func_type     u32
+	func_noreturn u32
+	xxxx          u32
+	func_args     u32
+}
+
+pub struct Sym {
+	v        int
+	r        u16
+	a        SymAttr
+	type_    CType
+	prev     &Sym
+	prev_tok &Sym
+}
+
 pub struct Section {
 	data_offset    u32
 	data           &u8

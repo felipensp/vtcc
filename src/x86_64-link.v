@@ -1,6 +1,53 @@
 @[translated]
 module main
 
+pub const fp_int_upward = 0
+pub const fp_int_downward = 1
+pub const fp_int_towardzero = 2
+pub const fp_int_tonearestfromzero = 3
+pub const fp_int_tonearest = 4
+
+pub const fp_nan = 0
+pub const fp_infinite = 1
+pub const fp_zero = 2
+pub const fp_subnormal = 3
+pub const fp_normal = 4
+
+pub struct Dl_info {
+	dli_fname &i8
+	dli_fbase voidptr
+	dli_sname &i8
+	dli_saddr voidptr
+}
+
+// empty enum
+pub const rtld_dl_syment = 1
+pub const rtld_dl_linkmap = 2
+
+// empty enum
+pub const rtld_di_lmid = 1
+pub const rtld_di_linkmap = 2
+pub const rtld_di_configaddr = 3
+pub const rtld_di_serinfo = 4
+pub const rtld_di_serinfosize = 5
+pub const rtld_di_origin = 6
+pub const rtld_di_profilename = 7
+pub const rtld_di_profileout = 8
+pub const rtld_di_tls_modid = 9
+pub const rtld_di_tls_data = 10
+pub const rtld_di_max = 10
+
+pub struct Dl_serpath {
+	dls_name  &i8
+	dls_flags u32
+}
+
+pub struct Dl_serinfo {
+	dls_size    usize
+	dls_cnt     u32
+	dls_serpath [1]Dl_serpath
+}
+
 enum __stab_debug_code {
 	n_gsym                = 32
 	n_fname               = 34
