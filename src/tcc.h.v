@@ -1478,8 +1478,6 @@ __global (
 	lbounds_section &Section
 )
 
-fn tccelf_bounds_new(s &TCCState)
-
 @[weak]
 __global (
 	symtab_section &Section
