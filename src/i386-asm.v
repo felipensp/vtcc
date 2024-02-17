@@ -1,3 +1,21 @@
+module main
+
+pub struct ASMInstr {
+	sym        u16
+	opcode     u16
+	instr_type u16
+	nb_ops     u8
+	op_type    [3]u8
+}
+
+pub struct Operand {
+	type_ u32
+	reg   Int8_t
+	reg2  Int8_t
+	shift u8
+	e     ExprValue
+}
+
 @[export: 'asm_instrs']
 pub const asm_instrs = [
 	ASMInstr{
