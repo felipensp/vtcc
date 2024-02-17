@@ -12,12 +12,12 @@ pub struct TokenSym {
 	str            [1]i8
 }
 
-pub type Nwchar_t = int
+type Nwchar_t = int
 
 pub struct CString {
 	size           int
-	data           voidptr
 	size_allocated int
+	data           voidptr
 }
 
 pub struct CType {
@@ -31,8 +31,8 @@ pub union CValue {
 	f   f32
 	i   u64
 	str struct {
-		size int
 		data voidptr
+		size int
 	}
 
 	tab [4]int
@@ -52,15 +52,20 @@ pub struct SymAttr {
 	dllexport  u16
 	nodecorate u16
 	dllimport  u16
-	unused     u16
+	addrtaken  u16
+	nodebug    u16
+	xxxx       u16
 }
 
 pub struct FuncAttr {
 	func_call     u32
 	func_type     u32
 	func_noreturn u32
-	xxxx          u32
+	func_ctor     u32
+	func_dtor     u32
 	func_args     u32
+	func_alwinl   u32
+	xxxx          u32
 }
 
 pub struct Sym {
@@ -76,6 +81,7 @@ pub struct Section {
 	data_offset    u32
 	data           &u8
 	data_allocated u32
+	s1             &TCCState
 	sh_name        int
 	sh_num         int
 	sh_type        int
@@ -94,13 +100,15 @@ pub struct Section {
 	name           [1]i8
 }
 
-struct DLLReference {
+pub struct DLLReference {
 	level  int
 	handle voidptr
+	found  u8
+	index  u8
 	name   [1]i8
 }
 
-struct BufferedFile {
+pub struct BufferedFile {
 	buf_ptr            &u8
 	buf_end            &u8
 	fd                 int
@@ -117,7 +125,7 @@ struct BufferedFile {
 	buffer             [1]u8
 }
 
-struct TokenString {
+pub struct TokenString {
 	str           &int
 	len           int
 	lastlen       int
@@ -129,7 +137,7 @@ struct TokenString {
 	alloc         i8
 }
 
-struct AttributeDef {
+pub struct AttributeDef {
 	a            SymAttr
 	f            FuncAttr
 	section      &Section
@@ -139,28 +147,28 @@ struct AttributeDef {
 	attr_mode    i8
 }
 
-struct InlineFunc {
+pub struct InlineFunc {
 	func_str &TokenString
 	sym      &Sym
 	filename [1]i8
 }
 
-struct CachedInclude {
+pub struct CachedInclude {
 	ifndef_macro int
 	once         int
 	hash_next    int
 	filename     [1]i8
 }
 
-struct ExprValue {
+pub struct ExprValue {
 	v     u64
 	sym   &Sym
 	pcrel int
 }
 
-struct ASMOperand {
+pub struct ASMOperand {
 	id          int
-	constraint  &i8
+	constraint  [16]i8
 	asm_str     [16]i8
 	vt          &SValue
 	ref_index   int
@@ -170,16 +178,17 @@ struct ASMOperand {
 	is_llong    int
 	is_memory   int
 	is_rw       int
+	is_label    int
 }
 
-struct Sym_attr {
+pub struct Sym_attr {
 	got_offset u32
 	plt_offset u32
 	plt_sym    int
 	dyn_index  int
 }
 
-struct Filespec {
+pub struct Filespec {
 	type_ i8
 	name  [1]i8
 }
@@ -203,6 +212,7 @@ enum Tcc_token as u16 {
 	tok_continue
 	tok_switch
 	tok_case
+	tok__atomic
 	tok_const1
 	tok_const2
 	tok_const3
@@ -222,11 +232,13 @@ enum Tcc_token as u16 {
 	tok_restrict2
 	tok_restrict3
 	tok_extension
+	tok_thread_local
 	tok_generic
 	tok_static_assert
 	tok_float
 	tok_double
 	tok_bool
+	tok_complex
 	tok_short
 	tok_struct
 	tok_union
@@ -267,10 +279,14 @@ enum Tcc_token as u16 {
 	tok___function__
 	tok___va_args__
 	tok___counter__
+	tok___has_include
+	tok___has_include_next
 	tok___func__
 	tok___nan__
 	tok___snan__
 	tok___inf__
+	tok___mzerosf
+	tok___mzerodf
 	tok_section1
 	tok_section2
 	tok_aligned1
@@ -283,6 +299,8 @@ enum Tcc_token as u16 {
 	tok_alias2
 	tok_unused1
 	tok_unused2
+	tok_nodebug1
+	tok_nodebug2
 	tok_cdecl1
 	tok_cdecl2
 	tok_cdecl3
@@ -296,6 +314,12 @@ enum Tcc_token as u16 {
 	tok_regparm2
 	tok_cleanup1
 	tok_cleanup2
+	tok_constructor1
+	tok_constructor2
+	tok_destructor1
+	tok_destructor2
+	tok_always_inline1
+	tok_always_inline2
 	tok_mode
 	tok_mode_qi
 	tok_mode_di
@@ -317,6 +341,22 @@ enum Tcc_token as u16 {
 	tok_builtin_return_address
 	tok_builtin_expect
 	tok_builtin_va_arg_types
+	tok___atomic_store
+	tok___atomic_load
+	tok___atomic_exchange
+	tok___atomic_compare_exchange
+	tok___atomic_fetch_add
+	tok___atomic_fetch_sub
+	tok___atomic_fetch_or
+	tok___atomic_fetch_xor
+	tok___atomic_fetch_and
+	tok___atomic_fetch_nand
+	tok___atomic_add_fetch
+	tok___atomic_sub_fetch
+	tok___atomic_or_fetch
+	tok___atomic_xor_fetch
+	tok___atomic_and_fetch
+	tok___atomic_nand_fetch
 	tok_pack
 	tok_comment
 	tok_lib
@@ -351,8 +391,15 @@ enum Tcc_token as u16 {
 	tok___bound_main_arg
 	tok___bound_local_new
 	tok___bound_local_delete
-	tok_strlen
-	tok_strcpy
+	tok___bound_setjmp
+	tok___bound_longjmp
+	tok___bound_new_region
+	tok_sigsetjmp
+	tok___sigsetjmp
+	tok_siglongjmp
+	tok_setjmp
+	tok__setjmp
+	tok_longjmp
 	tok_asmdir_byte
 	tok_asmdir_word
 	tok_asmdir_align
@@ -803,6 +850,18 @@ enum Tcc_token as u16 {
 	tok_asm_btcl
 	tok_asm_btcq
 	tok_asm_btc
+	tok_asm_popcntw
+	tok_asm_popcntl
+	tok_asm_popcntq
+	tok_asm_popcnt
+	tok_asm_tzcntw
+	tok_asm_tzcntl
+	tok_asm_tzcntq
+	tok_asm_tzcnt
+	tok_asm_lzcntw
+	tok_asm_lzcntl
+	tok_asm_lzcntq
+	tok_asm_lzcnt
 	tok_asm_larw
 	tok_asm_larl
 	tok_asm_larq
@@ -959,6 +1018,9 @@ enum Tcc_token as u16 {
 	tok_asm_int3
 	tok_asm_into
 	tok_asm_iret
+	tok_asm_iretw
+	tok_asm_iretl
+	tok_asm_iretq
 	tok_asm_rsm
 	tok_asm_hlt
 	tok_asm_wait
@@ -1020,6 +1082,10 @@ enum Tcc_token as u16 {
 	tok_asm_fxch
 	tok_asm_fnstsw
 	tok_asm_emms
+	tok_asm_vmcall
+	tok_asm_vmlaunch
+	tok_asm_vmresume
+	tok_asm_vmxoff
 	tok_asm_sysretq
 	tok_asm_ljmpw
 	tok_asm_ljmpl
@@ -1153,6 +1219,8 @@ enum Tcc_token as u16 {
 	tok_asm_punpcklwd
 	tok_asm_punpckldq
 	tok_asm_pxor
+	tok_asm_ldmxcsr
+	tok_asm_stmxcsr
 	tok_asm_movups
 	tok_asm_movaps
 	tok_asm_movhps
@@ -1174,6 +1242,9 @@ enum Tcc_token as u16 {
 	tok_asm_rsqrtps
 	tok_asm_sqrtps
 	tok_asm_subps
+	tok_asm_movnti
+	tok_asm_movntil
+	tok_asm_movntiq
 	tok_asm_prefetchnta
 	tok_asm_prefetcht0
 	tok_asm_prefetcht1
@@ -1187,27 +1258,22 @@ enum Tcc_token as u16 {
 
 @[weak]
 __global (
-	gnu_ext int
-)
-
-@[weak]
-__global (
-	tcc_ext int
-)
-
-@[weak]
-__global (
 	tcc_state &TCCState
 )
 
 @[weak]
 __global (
-	file &BufferedFile
+	stk_data &voidptr
 )
 
 @[weak]
 __global (
-	ch int
+	nb_stk_data int
+)
+
+@[weak]
+__global (
+	file &BufferedFile
 )
 
 @[weak]
@@ -1242,16 +1308,6 @@ __global (
 
 @[weak]
 __global (
-	total_lines int
-)
-
-@[weak]
-__global (
-	total_bytes int
-)
-
-@[weak]
-__global (
 	tok_ident int
 )
 
@@ -1259,6 +1315,13 @@ __global (
 __global (
 	table_ident &&TokenSym
 )
+
+enum Line_macro_output_format {
+	line_macro_output_format_gcc
+	line_macro_output_format_none
+	line_macro_output_format_std
+	line_macro_output_format_p10  = 11
+}
 
 fn is_space(ch int) int {
 	return ch == ` ` || ch == `\x09` || ch == `\x0b` || ch == `\x0c` || ch == `\x0a`
@@ -1279,21 +1342,6 @@ fn isoct(c int) int {
 fn toup(c int) int {
 	return if (c >= `a` && c <= `z`) { c - `a` + `A` } else { c }
 }
-
-@[weak]
-__global (
-	sym_free_first &Sym
-)
-
-@[weak]
-__global (
-	sym_pools &voidptr
-)
-
-@[weak]
-__global (
-	nb_sym_pools int
-)
 
 @[weak]
 __global (
@@ -1322,7 +1370,7 @@ __global (
 
 @[weak]
 __global (
-	char_pointer_type CType
+	int_type CType
 )
 
 @[weak]
@@ -1332,27 +1380,12 @@ __global (
 
 @[weak]
 __global (
-	int_type CType
-)
-
-@[weak]
-__global (
-	size_type CType
-)
-
-@[weak]
-__global (
-	__vstack [257]SValue
+	char_pointer_type CType
 )
 
 @[weak]
 __global (
 	vtop &SValue
-)
-
-@[weak]
-__global (
-	pvtop &SValue
 )
 
 @[weak]
@@ -1377,7 +1410,7 @@ __global (
 
 @[weak]
 __global (
-	const_wanted int
+	debug_modes i8
 )
 
 @[weak]
@@ -1407,16 +1440,6 @@ __global (
 
 @[weak]
 __global (
-	last_line_num int
-)
-
-@[weak]
-__global (
-	last_ind int
-)
-
-@[weak]
-__global (
 	func_ind int
 )
 
@@ -1427,10 +1450,10 @@ __global (
 
 @[weak]
 __global (
-	g_debug int
+	func_bound_add_epilog int
 )
 
-struct Stab_Sym {
+pub struct Stab_Sym {
 	n_strx  u32
 	n_type  u8
 	n_other u8
@@ -1438,67 +1461,17 @@ struct Stab_Sym {
 	n_value u32
 }
 
-@[weak]
-__global (
-	text_section &Section
-)
-
-@[weak]
-__global (
-	data_section &Section
-)
-
-@[weak]
-__global (
-	bss_section &Section
-)
-
-@[weak]
-__global (
-	common_section &Section
-)
-
-@[weak]
-__global (
-	cur_text_section &Section
-)
-
-@[weak]
-__global (
-	last_text_section &Section
-)
-
-@[weak]
-__global (
-	bounds_section &Section
-)
-
-@[weak]
-__global (
-	lbounds_section &Section
-)
-
-@[weak]
-__global (
-	symtab_section &Section
-)
-
-@[weak]
-__global (
-	stab_section &Section
-)
-
-@[weak]
-__global (
-	stabstr_section &Section
-)
-
 enum Gotplt_entry {
 	no_gotplt_entry
 	build_got_only
 	auto_gotplt_entry
 	always_gotplt_entry
 }
+
+@[weak]
+__global (
+	target_machine_defs &char
+)
 
 @[weak]
 __global (
@@ -1540,17 +1513,7 @@ fn add64le(p &u8, x i64) {
 	write64le(p, read64le(p) + x)
 }
 
-@[weak]
-__global (
-	rt_num_callers int
-)
-
-@[weak]
-__global (
-	rt_bound_error_msg &&u8
-)
-
-@[weak]
-__global (
-	rt_prog_main voidptr
-)
+pub struct TCCSem {
+	init int
+	sem  Sem_t
+}
