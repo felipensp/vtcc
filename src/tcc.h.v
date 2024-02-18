@@ -39,9 +39,14 @@ pub union CValue {
 }
 
 pub struct SValue {
-	type_ CType
-	r     u16
-	r2    u16
+	type_  CType
+	r      u16
+	r2     u16
+	jtrue  int
+	jfalse int
+	c      CValue
+	cmp_op u8
+	cmp_r  u8
 }
 
 pub struct SymAttr {
@@ -193,7 +198,7 @@ pub struct Filespec {
 	name  [1]i8
 }
 
-enum Tcc_token as u16 {
+enum Tcc_token {
 	tok_last                       = 256 - 1
 	tok_int
 	tok_void

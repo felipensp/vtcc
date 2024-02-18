@@ -1551,18 +1551,22 @@ fn pragma_parse(s1 &TCCState)  {
 v := 0
 		
 		s := &Sym(0)
-		if next() , tok != `(` {
+		next() 
+		if  tok != `(` {
 		goto pragma_err // id: 0x7ffff20bf2d0
 		}
-		if next() , tok != 185 {
+		 next()
+		if tok != 185 {
 		goto pragma_err // id: 0x7ffff20bf2d0
 		}
 		v = tok_alloc(tokc.str.data, tokc.str.size - 1).tok
-		if next() , tok != `)` {
+		next() 
+		if tok != `)` {
 		goto pragma_err // id: 0x7ffff20bf2d0
 		}
 		if t == Tcc_token.tok_push_macro {
-			for (voidptr(0)) == (s = define_find(v)) {
+			for {
+				 (voidptr(0)) == () {
 			define_push(v, 0, (voidptr(0)), (voidptr(0)))
 			}
 			s.type_.ref = s
