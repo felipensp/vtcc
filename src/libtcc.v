@@ -60,7 +60,7 @@ fn post_sem(p &TCCSem) {
 	sem_post(&p.sem)
 }
 
-fn tcc_enter_state(s1 &TCCState) {
+pub fn tcc_enter_state(s1 &TCCState) {
 	if s1.error_set_jmp_enabled {
 		return
 	}
@@ -68,7 +68,7 @@ fn tcc_enter_state(s1 &TCCState) {
 	tcc_state = s1
 }
 
-fn tcc_exit_state(s1 &TCCState) {
+pub fn tcc_exit_state(s1 &TCCState) {
 	if s1.error_set_jmp_enabled {
 		return
 	}
@@ -111,7 +111,7 @@ fn pstrncpy(out &i8, in_ &i8, num usize) &i8 {
 	return out
 }
 
-fn tcc_basename(name &i8) &i8 {
+pub fn tcc_basename(name &i8) &i8 {
 	p := C.strchr(name, 0)
 	for p > name && !(p[-1] == `/`) {
 		p--
@@ -119,13 +119,13 @@ fn tcc_basename(name &i8) &i8 {
 	return p
 }
 
-fn tcc_fileextension(name &i8) &i8 {
+pub fn tcc_fileextension(name &i8) &i8 {
 	b := tcc_basename(name)
 	e := C.strrchr(b, `.`)
 	return if e { e } else { C.strchr(b, 0) }
 }
 
-fn tcc_load_text(fd int) &i8 {
+pub fn tcc_load_text(fd int) &i8 {
 	len := C.lseek(fd, 0, 2)
 	buf := load_data(fd, 0, len + 1)
 	buf[len] = 0
@@ -156,27 +156,27 @@ __global (
 	reallocator = TCCReallocFunc(default_reallocator)
 )
 
-fn tcc_set_realloc(realloc TCCReallocFunc) {
+pub fn tcc_set_realloc(realloc TCCReallocFunc) {
 	reallocator = realloc
 }
 
-fn tcc_get_realloc() TCCReallocFunc {
+pub fn tcc_get_realloc() TCCReallocFunc {
 	return reallocator
 }
 
-fn tcc_free(ptr voidptr) {
+pub fn tcc_free(ptr voidptr) {
 	reallocator(ptr, 0)
 }
 
-fn tcc_malloc(size u32) voidptr {
+pub fn tcc_malloc(size u32) voidptr {
 	return reallocator(0, size)
 }
 
-fn tcc_realloc(ptr voidptr, size u32) voidptr {
+pub fn tcc_realloc(ptr voidptr, size u32) voidptr {
 	return reallocator(ptr, size)
 }
 
-fn tcc_mallocz(size u32) voidptr {
+pub fn tcc_mallocz(size u32) voidptr {
 	ptr := &voidptr(0)
 	ptr = tcc_malloc(size)
 	if size {
@@ -185,7 +185,7 @@ fn tcc_mallocz(size u32) voidptr {
 	return ptr
 }
 
-fn tcc_strdup(str &i8) &i8 {
+pub fn tcc_strdup(str &i8) &i8 {
 	ptr := &i8(0)
 	ptr = tcc_malloc(C.strlen(str) + 1)
 	strcpy(ptr, str)
@@ -241,7 +241,7 @@ fn dynarray_reset(pp voidptr, n &int) {
 	*&voidptr(pp) = (unsafe { nil })
 }
 
-fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &i8) {
+pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &i8) {
 	p := &i8(0)
 	for {
 		c := 0
@@ -358,16 +358,16 @@ fn error1(mode int, fmt &i8, ap va_list) {
 	}
 }
 
-fn tcc_set_error_func(s &TCCState, error_opaque voidptr, error_func TCCErrorFunc) {
+pub fn tcc_set_error_func(s &TCCState, error_opaque voidptr, error_func TCCErrorFunc) {
 	s.error_opaque = error_opaque
 	s.error_func = error_func
 }
 
-fn tcc_get_error_func(s &TCCState) TCCErrorFunc {
+pub fn tcc_get_error_func(s &TCCState) TCCErrorFunc {
 	return s.error_func
 }
 
-fn tcc_get_error_opaque(s &TCCState) voidptr {
+pub fn tcc_get_error_opaque(s &TCCState) voidptr {
 	return s.error_opaque
 }
 
@@ -396,7 +396,7 @@ fn _tcc_warning(fmt ...&i8) {
 	__builtin_va_end(ap)
 }
 
-fn tcc_open_bf(s1 &TCCState, filename &i8, initlen int) {
+pub fn tcc_open_bf(s1 &TCCState, filename &i8, initlen int) {
 	bf := &BufferedFile(0)
 	buflen := if initlen { initlen } else { 8192 }
 	bf = tcc_mallocz(sizeof(BufferedFile) + buflen)
@@ -413,7 +413,7 @@ fn tcc_open_bf(s1 &TCCState, filename &i8, initlen int) {
 	tok_flags = 1 | 2
 }
 
-fn tcc_close() {
+pub fn tcc_close() {
 	s1 := tcc_state
 	bf := file
 	if bf.fd > 0 {
@@ -442,7 +442,7 @@ fn _tcc_open(s1 &TCCState, filename &i8) int {
 	return fd
 }
 
-fn tcc_open(s1 &TCCState, filename &i8) int {
+pub fn tcc_open(s1 &TCCState, filename &i8) int {
 	fd := _tcc_open(s1, filename)
 	if fd < 0 {
 		return -1
@@ -452,7 +452,7 @@ fn tcc_open(s1 &TCCState, filename &i8) int {
 	return 0
 }
 
-fn tcc_compile(s1 &TCCState, filetype int, str &i8, fd int) int {
+pub fn tcc_compile(s1 &TCCState, filetype int, str &i8, fd int) int {
 	tcc_enter_state(s1)
 	s1.error_set_jmp_enabled = 1
 	if _setjmp(s1.error_jmp_buf) == 0 {
@@ -486,11 +486,11 @@ fn tcc_compile(s1 &TCCState, filetype int, str &i8, fd int) int {
 	return if s1.nb_errors != 0 { -1 } else { 0 }
 }
 
-fn tcc_compile_string(s &TCCState, str &i8) int {
+pub fn tcc_compile_string(s &TCCState, str &i8) int {
 	return tcc_compile(s, s.filetype, str, -1)
 }
 
-fn tcc_define_symbol(s1 &TCCState, sym &i8, value &i8) {
+pub fn tcc_define_symbol(s1 &TCCState, sym &i8, value &i8) {
 	eq := &i8(0)
 	eq = C.strchr(sym, `=`)
 	if unsafe { nil } == eq {
@@ -502,11 +502,11 @@ fn tcc_define_symbol(s1 &TCCState, sym &i8, value &i8) {
 	cstr_printf(&s1.cmdline_defs, c'#define %.*s %s\n', int((eq - sym)), sym, value)
 }
 
-fn tcc_undefine_symbol(s1 &TCCState, sym &i8) {
+pub fn tcc_undefine_symbol(s1 &TCCState, sym &i8) {
 	cstr_printf(&s1.cmdline_defs, c'#undef %s\n', sym)
 }
 
-fn tcc_new() &TCCState {
+pub fn tcc_new() &TCCState {
 	s := &TCCState(0)
 	s = tcc_mallocz(sizeof(TCCState))
 	if !s {
@@ -526,7 +526,7 @@ fn tcc_new() &TCCState {
 	return s
 }
 
-fn tcc_delete(s1 &TCCState) {
+pub fn tcc_delete(s1 &TCCState) {
 	tccelf_delete(s1)
 	dynarray_reset(&s1.library_paths, &s1.nb_library_paths)
 	dynarray_reset(&s1.crt_paths, &s1.nb_crt_paths)
@@ -553,7 +553,7 @@ fn tcc_delete(s1 &TCCState) {
 	tcc_free(s1)
 }
 
-fn tcc_set_output_type(s &TCCState, output_type int) int {
+pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	s.output_type = output_type
 	if !s.nostdinc {
 		tcc_add_sysinclude_path(s, c'{B}/include:/usr/local/include:/usr/include')
@@ -575,17 +575,17 @@ fn tcc_set_output_type(s &TCCState, output_type int) int {
 	return 0
 }
 
-fn tcc_add_include_path(s &TCCState, pathname &i8) int {
+pub fn tcc_add_include_path(s &TCCState, pathname &i8) int {
 	tcc_split_path(s, &s.include_paths, &s.nb_include_paths, pathname)
 	return 0
 }
 
-fn tcc_add_sysinclude_path(s &TCCState, pathname &i8) int {
+pub fn tcc_add_sysinclude_path(s &TCCState, pathname &i8) int {
 	tcc_split_path(s, &s.sysinclude_paths, &s.nb_sysinclude_paths, pathname)
 	return 0
 }
 
-fn tcc_add_dllref(s1 &TCCState, dllname &i8, level int) &DLLReference {
+pub fn tcc_add_dllref(s1 &TCCState, dllname &i8, level int) &DLLReference {
 	ref := (unsafe { nil })
 	i := 0
 	for i = 0; i < s1.nb_loaded_dlls; i++ {
@@ -612,7 +612,7 @@ fn tcc_add_dllref(s1 &TCCState, dllname &i8, level int) &DLLReference {
 	return ref
 }
 
-fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
+pub fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
 	fd := 0
 	ret := -1
 
@@ -670,7 +670,7 @@ fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
 	return ret
 }
 
-fn tcc_add_file(s &TCCState, filename &i8) int {
+pub fn tcc_add_file(s &TCCState, filename &i8) int {
 	filetype := s.filetype
 	if 0 == (filetype & (15 | 64)) {
 		ext := tcc_fileextension(filename)
@@ -692,12 +692,12 @@ fn tcc_add_file(s &TCCState, filename &i8) int {
 	return tcc_add_file_internal(s, filename, filetype | 16)
 }
 
-fn tcc_add_library_path(s &TCCState, pathname &i8) int {
+pub fn tcc_add_library_path(s &TCCState, pathname &i8) int {
 	tcc_split_path(s, &s.library_paths, &s.nb_library_paths, pathname)
 	return 0
 }
 
-fn tcc_add_library_internal(s1 &TCCState, fmt &i8, filename &i8, flags int, paths &&u8, nb_paths int) int {
+pub fn tcc_add_library_internal(s1 &TCCState, fmt &i8, filename &i8, flags int, paths &&u8, nb_paths int) int {
 	buf := [1024]i8{}
 	i := 0
 	ret := 0
@@ -715,11 +715,11 @@ fn tcc_add_library_internal(s1 &TCCState, fmt &i8, filename &i8, flags int, path
 	return -2
 }
 
-fn tcc_add_dll(s &TCCState, filename &i8, flags int) int {
+pub fn tcc_add_dll(s &TCCState, filename &i8, flags int) int {
 	return tcc_add_library_internal(s, c'%s/%s', filename, flags, s.library_paths, s.nb_library_paths)
 }
 
-fn tcc_add_support(s1 &TCCState, filename &i8) {
+pub fn tcc_add_support(s1 &TCCState, filename &i8) {
 	buf := [100]i8{}
 	if c''[0] {
 		filename = strcat(strcpy(buf, c''), filename)
@@ -727,11 +727,11 @@ fn tcc_add_support(s1 &TCCState, filename &i8) {
 	tcc_add_dll(s1, filename, 16)
 }
 
-fn tcc_add_crt(s1 &TCCState, filename &i8) int {
+pub fn tcc_add_crt(s1 &TCCState, filename &i8) int {
 	return tcc_add_library_internal(s1, c'%s/%s', filename, 16, s1.crt_paths, s1.nb_crt_paths)
 }
 
-fn tcc_add_library(s &TCCState, libraryname &i8) int {
+pub fn tcc_add_library(s &TCCState, libraryname &i8) int {
 	libs := [c'%s/lib%s.so', c'%s/lib%s.a', (unsafe { nil })]!
 
 	pp := if s.static_link { libs + 1 } else { libs }
@@ -746,7 +746,7 @@ fn tcc_add_library(s &TCCState, libraryname &i8) int {
 	return -2
 }
 
-fn tcc_add_library_err(s1 &TCCState, libname &i8) int {
+pub fn tcc_add_library_err(s1 &TCCState, libname &i8) int {
 	ret := tcc_add_library(s1, libname)
 	if ret == -2 {
 		_tcc_error_noabort(c"library '%s' not found", libname)
@@ -754,14 +754,14 @@ fn tcc_add_library_err(s1 &TCCState, libname &i8) int {
 	return ret
 }
 
-fn tcc_add_pragma_libs(s1 &TCCState) {
+pub fn tcc_add_pragma_libs(s1 &TCCState) {
 	i := 0
 	for i = 0; i < s1.nb_pragma_libs; i++ {
 		tcc_add_library_err(s1, s1.pragma_libs[i])
 	}
 }
 
-fn tcc_add_symbol(s1 &TCCState, name &i8, val voidptr) int {
+pub fn tcc_add_symbol(s1 &TCCState, name &i8, val voidptr) int {
 	buf := [256]i8{}
 	if s1.leading_underscore {
 		buf[0] = `_`
@@ -772,7 +772,7 @@ fn tcc_add_symbol(s1 &TCCState, name &i8, val voidptr) int {
 	return 0
 }
 
-fn tcc_set_lib_path(s &TCCState, path &i8) {
+pub fn tcc_set_lib_path(s &TCCState, path &i8) {
 	tcc_free(s.tcc_lib_path)
 	s.tcc_lib_path = tcc_strdup(path)
 }
@@ -864,7 +864,7 @@ fn args_parser_add_file(s &TCCState, filename &i8, filetype int) {
 	dynarray_add(&s.files, &s.nb_files, f)
 }
 
-fn tcc_set_linker(s &TCCState, option &i8) int {
+pub fn tcc_set_linker(s &TCCState, option &i8) int {
 	s1 := s
 	for *option {
 		p := (unsafe { nil })
@@ -1467,7 +1467,7 @@ fn args_parser_listfile(s &TCCState, filename &i8, optind int, pargc &int, pargv
 	return 0
 }
 
-fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
+pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 	s1 := s
 	popt := &TCCOption(0)
 	optarg := &i8(0)
@@ -1825,7 +1825,7 @@ fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 	return 1
 }
 
-fn tcc_set_options(s &TCCState, r &i8) int {
+pub fn tcc_set_options(s &TCCState, r &i8) int {
 	argv := (unsafe { nil })
 	argc := 0
 	ret := 0
@@ -1836,7 +1836,7 @@ fn tcc_set_options(s &TCCState, r &i8) int {
 	return if ret < 0 { ret } else { 0 }
 }
 
-fn tcc_print_stats(s1 &TCCState, total_time u32) {
+pub fn tcc_print_stats(s1 &TCCState, total_time u32) {
 	if !total_time {
 		total_time = 1
 	}
