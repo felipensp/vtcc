@@ -630,7 +630,11 @@ fn next_c() int {
 
 fn handle_stray_noerror(err int) int {
 	ch := 0
-	for (ch = next_c()) == `\\` {
+	for {
+		ch = next_c()
+		if ch != `\\` {
+			break
+		}
 		ch = next_c()
 		if ch == `\n` {
 			// RRRREG newl id=0x7fffd88967f0
@@ -648,7 +652,9 @@ fn handle_stray_noerror(err int) int {
 			if err {
 			_tcc_error(c"stray '\\' in program")
 			}
-			return *file.buf_ptr --$ = `\\`
+			file.buf_ptr --
+			*file.buf_ptr = `\\`
+			return *file.buf_ptr
 		}
 	}
 	return ch
@@ -1092,7 +1098,8 @@ fn tok_get(t &int, pp &&int, cv &CValue)  {
 	tab := &int(0)
 	
 	tab = cv.tab
-	match *t = *p ++ {
+	*t = *p ++
+	match *t {
 	 194, 192, 193, 207 {
 	cv.i = *p ++
 	
@@ -1251,8 +1258,8 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 		name [0]  = 0
 		for  ;  ;  {
 			next()
-			p = name , C.strlen(p) - 1
-			i = p = name
+			p = name 
+			i = C.strlen(p) - 1
 			if i > 0 && ((p [0]  == `"` && p [i]  == `"`) || (p [0]  == `<` && p [i]  == `>`)) {
 			break
 			
