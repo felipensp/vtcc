@@ -1,6 +1,14 @@
 @[translated]
 module main
 
+struct C.jmp_buf {
+}
+
+const IFDEF_STACK_SIZE = 64
+const CACHED_INCLUDES_HASH_SIZE = 32
+const PACK_STACK_SIZE = 8
+const INCLUDE_STACK_SIZE = 32
+
 pub struct TokenSym {
 	hash_next      &TokenSym
 	sym_define     &Sym
@@ -75,12 +83,24 @@ pub struct FuncAttr {
 }
 
 pub struct Sym {
-	v        int
-	r        u16
-	a        SymAttr
-	type_    CType
-	prev     &Sym
-	prev_tok &Sym
+	v             int
+	r             u16
+	a             SymAttr
+	c             int
+	sym_scope     int
+	jnext         int
+	f             FuncAttr
+	auxtype       int
+	enum_val      u64
+	d             int
+	ncl           &Sym
+	type_         CType
+	vla_array_str &int
+	next          &Sym
+	cleanupstate  &Sym
+	asm_label     int
+	prev          &Sym
+	prev_tok      &Sym
 }
 
 pub struct Section {
@@ -154,7 +174,7 @@ struct TCCState {
 	tcc_ext u8
 
 	dflag u8 // -dX value
-	Pflag u8 // -P switch (LINE_MACRO_OUTPUT_FORMAT)
+	pflag u8 // -P switch (LINE_MACRO_OUTPUT_FORMAT)
 
 	nosse u8 // For -mno-sse support.
 	//#ifdef TCC_TARGET_ARM
@@ -272,14 +292,14 @@ struct TCCState {
 	// test coverage
 	tcov_section &Section
 	// debug state
-	dState &_tccdbg
+	dState &Tccdbg
 	// Is there a new undefined sym since last new_undef_sym()
 	new_undef_sym int
 	// extra attributes (eg. GOT/PLT value) for symtab symbols
-	sym_attrs    &sym_attr
+	sym_attrs    &Sym_attr
 	nb_sym_attrs int
 	// ptr to next reloc entry reused
-	qrel &ElfW_Rel
+	qrel &Elf64_Rel
 	//#ifdef TCC_TARGET_PE
 	// PE info
 	pe_subsystem       int
@@ -300,7 +320,7 @@ struct TCCState {
 	//#endif
 	//#ifndef ELF_OBJ_ONLY
 	nb_sym_versions   int
-	sym_versions      &sym_version
+	sym_versions      &Sym_version
 	nb_sym_to_version int
 	sym_to_version    &int
 	dt_verneednum     int
@@ -328,7 +348,7 @@ struct TCCState {
 	// for warnings/errors for object files
 	current_filename &char
 	// used by main and tcc_parse_args only
-	files        &&filespec // files seen on command line
+	files        &&Filespec // files seen on command line
 	nb_files     int        // number thereof
 	nb_libraries int        // number of libs thereof
 	outfile      &char      // output filename
@@ -1496,31 +1516,6 @@ enum Tcc_token {
 
 @[weak]
 __global (
-	tcc_state &TCCState
-)
-
-@[weak]
-__global (
-	stk_data &voidptr
-)
-
-@[weak]
-__global (
-	nb_stk_data int
-)
-
-@[weak]
-__global (
-	file &BufferedFile
-)
-
-@[weak]
-__global (
-	tok int
-)
-
-@[weak]
-__global (
 	tokc CValue
 )
 
@@ -1532,11 +1527,6 @@ __global (
 @[weak]
 __global (
 	parse_flags int
-)
-
-@[weak]
-__global (
-	tok_flags int
 )
 
 @[weak]
@@ -1561,24 +1551,24 @@ enum Line_macro_output_format {
 	line_macro_output_format_p10  = 11
 }
 
-fn is_space(ch int) int {
-	return ch == ` ` || ch == `\x09` || ch == `\x0b` || ch == `\x0c` || ch == `\x0a`
+fn is_space(ch int) bool {
+	return ch == ' ' || ch == '\x09' || ch == '\x0b' || ch == '\x0c' || ch == '\x0a'
 }
 
-fn isid(c int) int {
-	return (c >= `a` && c <= `z`) || (c >= `A` && c <= `Z`) || c == `_`
+fn isid(c int) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
 }
 
-fn isnum(c int) int {
-	return c >= `0` && c <= `9`
+fn isnum(c int) bool {
+	return c >= '0' && c <= '9'
 }
 
-fn isoct(c int) int {
-	return c >= `0` && c <= `7`
+fn isoct(c int) bool {
+	return c >= '0' && c <= '7'
 }
 
 fn toup(c int) int {
-	return if (c >= `a` && c <= `z`) { c - `a` + `A` } else { c }
+	return if (c >= 'a' && c <= 'z') { c - 'a' + 'A' } else { c }
 }
 
 @[weak]
@@ -1634,16 +1624,6 @@ __global (
 @[weak]
 __global (
 	anon_sym int
-)
-
-@[weak]
-__global (
-	ind int
-)
-
-@[weak]
-__global (
-	loc int
 )
 
 @[weak]
@@ -1726,12 +1706,12 @@ fn write16le(p &u8, x u16) {
 }
 
 fn read32le(p &u8) u32 {
-	return read16le(p) | u32(read16le(p + 2)) << 16
+	return read16le(p) | u32(read16le(unsafe { p + 2 })) << 16
 }
 
 fn write32le(p &u8, x u32) {
 	write16le(p, x)
-	write16le(p + 2, x >> 16)
+	write16le(unsafe { p + 2 }, x >> 16)
 }
 
 fn add32le(p &u8, x int) {
@@ -1739,19 +1719,22 @@ fn add32le(p &u8, x int) {
 }
 
 fn read64le(p &u8) u64 {
-	return read32le(p) | u64(read32le(p + 4)) << 32
+	return read32le(p) | u64(read32le(unsafe { p + 4 })) << 32
 }
 
 fn write64le(p &u8, x u64) {
 	write32le(p, x)
-	write32le(p + 4, x >> 32)
+	write32le(unsafe { p + 4 }, x >> 32)
 }
 
 fn add64le(p &u8, x i64) {
 	write64le(p, read64le(p) + x)
 }
 
+struct C.sem_t {
+}
+
 pub struct TCCSem {
 	init int
-	sem  Sem_t
+	sem  C.sem_t
 }

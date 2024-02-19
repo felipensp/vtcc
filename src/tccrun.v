@@ -53,17 +53,6 @@ pub fn tcc_relocate(s1 &TCCState, ptr voidptr) int {
 	return 0
 }
 
-pub fn tcc_run_free(s1 &TCCState) {
-	i := 0
-	for i = 0; i < s1.nb_runtime_mem; i += 2 {
-		size := u32(Elf64_Addr(s1.runtime_mem[i]))
-		ptr := s1.runtime_mem[i + 1]
-		set_pages_executable(s1, 2, ptr, size)
-		tcc_free(ptr)
-	}
-	tcc_free(s1.runtime_mem)
-}
-
 type run_cdtors_fn = fn (int, &&i8, &&i8)
 
 pub fn run_cdtors(s1 &TCCState, start &i8, end &i8, argc int, argv &&u8, envp &&u8) {
@@ -833,8 +822,6 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 	rt_printf(c'%s %s', msg, if function { function } else { c'???' })
 	return Elf64_Addr(func_addr)
 }
-
-fn rt_get_caller_pc(paddr &Elf64_Addr, rc &Rt_context, level int) int
 
 fn _rt_error(fp voidptr, ip voidptr, fmt &i8, ap va_list) int {
 	rc := &g_rtctxt

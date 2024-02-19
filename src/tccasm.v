@@ -13,19 +13,13 @@ __global (
 
 fn asm_get_prefix_name(s1 &TCCState, prefix &i8, n u32) int {
 	buf := [64]i8{}
-	C.snprintf(buf, sizeof(buf), c'%s%u', prefix, n)
+	unsafe { C.snprintf(buf, sizeof(buf), c'%s%u', prefix, n) }
 	return tok_alloc_const(buf)
 }
 
 fn asm_get_local_label_name(s1 &TCCState, n u32) int {
 	return asm_get_prefix_name(s1, c'L..', n)
 }
-
-fn tcc_assemble_internal(s1 &TCCState, do_preprocess int, global int) int
-
-fn asm_new_label(s1 &TCCState, label int, is_local int) &Sym
-
-fn asm_new_label1(s1 &TCCState, label int, is_local int, sh_num int, value int) &Sym
 
 fn asm2cname(v int, addeddot &int) int {
 	name := &i8(0)
@@ -37,11 +31,11 @@ fn asm2cname(v int, addeddot &int) int {
 	if !name {
 		return v
 	}
-	if name[0] == `_` {
-		v = tok_alloc_const(name + 1)
-	} else if !C.strchr(name, `.`) {
+	if name[0] == '_' {
+		v = tok_alloc_const(unsafe { name + 1 })
+	} else if unsafe { !C.strchr(name, c'.') } {
 		newname := [256]i8{}
-		C.snprintf(newname, sizeof(newname), c'.%s', name)
+		unsafe { C.snprintf(newname, sizeof(newname), c'.%s', name) }
 		v = tok_alloc_const(newname)
 		*addeddot = 1
 	}
@@ -53,7 +47,7 @@ fn asm_label_find(v int) &Sym {
 	addeddot := 0
 	v = asm2cname(v, &addeddot)
 	sym = sym_find(v)
-	for sym && sym.sym_scope && !(sym.type_.t & 8192) {
+	for sym != unsafe { nil } && sym.sym_scope && !(sym.type_.t & 8192) {
 		sym = sym.prev_tok
 	}
 	return sym
@@ -85,7 +79,7 @@ fn asm_section_sym(s1 &TCCState, sec &Section) &Sym {
 	buf := [100]i8{}
 	label := 0
 	sym := &Sym(0)
-	C.snprintf(buf, sizeof(buf), c'L.%s', sec.name)
+	unsafe { C.snprintf(buf, sizeof(buf), c'L.%s', sec.name) }
 	label = tok_alloc_const(buf)
 	sym = asm_label_find(label)
 	return if sym { sym } else { asm_new_label1(s1, label, 1, sec.sh_num, 0) }
@@ -98,34 +92,34 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 
 	n := u64(0)
 	p := &i8(0)
-	match tok {
+	match rune(tok) {
 		205 { // case comp body kind=BinaryOperator is_enum=false
-			p = tokc.str.data
-			n = strtoull(p, &&u8(&p), 0)
-			if *p == `b` || *p == `f` {
+			p = unsafe { tokc.str.data }
+			n = C.strtoull(p, &&i8(&p), 0)
+			if *p == 'b' || *p == 'f' {
 				label = asm_get_local_label_name(s1, n)
 				sym = asm_label_find(label)
-				if *p == `b` {
-					if sym && (!sym.c || elfsym(sym).st_shndx == 0) {
+				if *p == 'b' {
+					if sym != unsafe { nil } && (!sym.c || elfsym(sym).st_shndx == 0) {
 						sym = sym.prev_tok
 					}
 					if !sym {
-						_tcc_error(c"local label '%d' not found backward", int(n))
+						_tcc_error("local label '${int(n)}' not found backward")
 					}
 				} else {
-					if !sym || (sym.c && elfsym(sym).st_shndx != 0) {
+					if sym == unsafe { nil } || (sym.c && elfsym(sym).st_shndx != 0) {
 						sym = asm_label_push(label)
 					}
 				}
 				pe.v = 0
 				pe.sym = sym
 				pe.pcrel = 0
-			} else if *p == `\x00` {
+			} else if *p == '\x00' {
 				pe.v = n
 				pe.sym = (unsafe { nil })
 				pe.pcrel = 0
 			} else {
-				_tcc_error(c'invalid number syntax')
+				_tcc_error('invalid number syntax')
 			}
 			next()
 		}
@@ -138,7 +132,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 			next()
 			asm_expr_unary(s1, pe)
 			if pe.sym {
-				_tcc_error(c'invalid operation with label')
+				_tcc_error('invalid operation with label')
 			}
 			if op == `-` {
 				pe.v = -pe.v
@@ -147,7 +141,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 			}
 		}
 		192, 193 {
-			pe.v = tokc.i
+			pe.v = unsafe { tokc.i }
 			pe.sym = (unsafe { nil })
 			pe.pcrel = 0
 			next()
@@ -179,7 +173,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 				}
 				next()
 			} else {
-				_tcc_error(c'bad expression syntax [%s]', get_tok_str(tok, &tokc))
+				_tcc_error('bad expression syntax [${get_tok_str(tok, &tokc)}]')
 			}
 		}
 	}
@@ -197,9 +191,9 @@ fn asm_expr_prod(s1 &TCCState, pe &ExprValue) {
 		next()
 		asm_expr_unary(s1, &e2)
 		if pe.sym || e2.sym {
-			_tcc_error(c'invalid operation with label')
+			_tcc_error('invalid operation with label')
 		}
-		match op {
+		match rune(op) {
 			`*` { // case comp body kind=CompoundAssignOperator is_enum=false
 				pe.v *= e2.v
 			}
@@ -207,13 +201,15 @@ fn asm_expr_prod(s1 &TCCState, pe &ExprValue) {
 				if e2.v == 0 {
 					// RRRREG div_error id=0x7fffceac60f0
 					div_error:
-					_tcc_error(c'division by zero')
+					_tcc_error('division by zero')
 				}
 				pe.v /= e2.v
 			}
 			`%` { // case comp body kind=IfStmt is_enum=false
 				if e2.v == 0 {
-					goto div_error // id: 0x7fffceac60f0
+					unsafe {
+						goto div_error
+					} // id: 0x7fffceac60f0
 				}
 				pe.v %= e2.v
 			}
@@ -240,9 +236,9 @@ fn asm_expr_logic(s1 &TCCState, pe &ExprValue) {
 		next()
 		asm_expr_prod(s1, &e2)
 		if pe.sym || e2.sym {
-			_tcc_error(c'invalid operation with label')
+			_tcc_error('invalid operation with label')
 		}
-		match op {
+		match rune(op) {
 			`&` { // case comp body kind=CompoundAssignOperator is_enum=false
 				pe.v &= e2.v
 			}
@@ -270,7 +266,9 @@ fn asm_expr_sum(s1 &TCCState, pe &ExprValue) {
 		asm_expr_logic(s1, &e2)
 		if op == `+` {
 			if pe.sym != (unsafe { nil }) && e2.sym != (unsafe { nil }) {
-				goto cannot_relocate // id: 0x7fffceac81a8
+				unsafe {
+					goto cannot_relocate
+				} // id: 0x7fffceac81a8
 			}
 			pe.v += e2.v
 			if pe.sym == (unsafe { nil }) && e2.sym != (unsafe { nil }) {
@@ -297,7 +295,7 @@ fn asm_expr_sum(s1 &TCCState, pe &ExprValue) {
 				} else {
 					// RRRREG cannot_relocate id=0x7fffceac81a8
 					cannot_relocate:
-					_tcc_error(c'invalid operation with label')
+					_tcc_error('invalid operation with label')
 				}
 			}
 		}
@@ -316,7 +314,7 @@ fn asm_expr_cmp(s1 &TCCState, pe &ExprValue) {
 		next()
 		asm_expr_sum(s1, &e2)
 		if pe.sym || e2.sym {
-			_tcc_error(c'invalid operation with label')
+			_tcc_error('invalid operation with label')
 		}
 		match op {
 			148 { // case comp body kind=BinaryOperator is_enum=false
@@ -347,7 +345,7 @@ fn asm_expr(s1 &TCCState, pe &ExprValue) {
 	asm_expr_cmp(s1, pe)
 }
 
-fn asm_int_expr(s1 &TCCState) int {
+fn asm_int_expr(s1 &TCCState) u64 {
 	e := ExprValue{}
 	asm_expr(s1, &e)
 	if e.sym {
@@ -365,11 +363,12 @@ fn asm_new_label1(s1 &TCCState, label int, is_local int, sh_num int, value int) 
 		if esym && esym.st_shndx != 0 {
 			if (sym.type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20)
 				&& (is_local == 1 || sym.type_.t & 4096) {
-				goto new_label // id: 0x7fffceaccc18
+				unsafe {
+					goto new_label
+				} // id: 0x7fffceaccc18
 			}
 			if !(sym.type_.t & 4096) {
-				_tcc_error(c"assembler label '%s' already defined", get_tok_str(label,
-					(unsafe { nil })))
+				_tcc_error("assembler label '${get_tok_str(label, (unsafe { nil }))}' already defined")
 			}
 		}
 	} else {
@@ -431,7 +430,7 @@ fn push_section(s1 &TCCState, name &i8) {
 fn pop_section(s1 &TCCState) {
 	prev := tcc_state.cur_text_section.prev
 	if !prev {
-		_tcc_error(c'.popsection without .pushsection')
+		_tcc_error('.popsection without .pushsection')
 	}
 	tcc_state.cur_text_section.prev = (unsafe { nil })
 	use_section1(s1, prev)
@@ -455,14 +454,14 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			n = asm_int_expr(s1)
 			if tok1 == Tcc_token.tok_asmdir_p2align {
 				if n < 0 || n > 30 {
-					_tcc_error(c'invalid p2align, must be between 0 and 30')
+					_tcc_error('invalid p2align, must be between 0 and 30')
 				}
 				n = 1 << n
 				tok1 = Tcc_token.tok_asmdir_align
 			}
 			if tok1 == Tcc_token.tok_asmdir_align || tok1 == Tcc_token.tok_asmdir_balign {
 				if n < 0 || (n & (n - 1)) != 0 {
-					_tcc_error(c'alignment must be a positive power of two')
+					_tcc_error('alignment must be a positive power of two')
 				}
 				offset = (ind + n - 1) & -n
 				size = offset - ind
@@ -485,21 +484,27 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			if sec.sh_type != 8 {
 				sec.data_offset = ind
 				ptr = section_ptr_add(sec, size)
-				C.memset(ptr, v, size)
+				unsafe { C.memset(ptr, v, size) }
 			}
 			ind += size
 		}
 		.tok_asmdir_quad { // case comp body kind=BinaryOperator is_enum=true
 			size = 8
-			goto asm_data // id: 0x7fffcead2530
+			unsafe {
+				goto asm_data
+			} // id: 0x7fffcead2530
 		}
 		.tok_asmdir_byte { // case comp body kind=BinaryOperator is_enum=true
 			size = 1
-			goto asm_data // id: 0x7fffcead2530
+			unsafe {
+				goto asm_data
+			} // id: 0x7fffcead2530
 		}
 		.tok_asmdir_word, .tok_asmdir_short {
 			size = 2
-			goto asm_data // id: 0x7fffcead2530
+			unsafe {
+				goto asm_data
+			} // id: 0x7fffcead2530
 		}
 		.tok_asmdir_long, .tok_asmdir_int {
 			size = 4
@@ -544,7 +549,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			next()
 			repeat = asm_int_expr(s1)
 			if repeat < 0 {
-				_tcc_error(c'repeat < 0; .fill ignored')
+				_tcc_error('repeat < 0; .fill ignored')
 			}
 			size = 1
 			val = 0
@@ -552,7 +557,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 				next()
 				size = asm_int_expr(s1)
 				if size < 0 {
-					_tcc_error(c'size < 0; .fill ignored')
+					_tcc_error('size < 0; .fill ignored')
 				}
 				if size > 8 {
 					size = 8
@@ -586,7 +591,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			next()
 			for tok != .tok_asmdir_endr {
 				if tok == (-1) {
-					_tcc_error(c'we at end of file, .endr not found')
+					_tcc_error('we at end of file, .endr not found')
 				}
 				tok_str_add_tok(init_str)
 				next()
@@ -617,11 +622,13 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 				n += esym.st_value
 			}
 			if n < ind {
-				_tcc_error(c'attempt to .org backwards')
+				_tcc_error('attempt to .org backwards')
 			}
 			v = 0
 			size = n - ind
-			goto zero_pad // id: 0x7fffcead2358
+			unsafe {
+				goto zero_pad
+			} // id: 0x7fffcead2358
 		}
 		.tok_asmdir_set { // case comp body kind=CallExpr is_enum=true
 			next()
@@ -666,8 +673,8 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 					if tok != 200 {
 						expect(c'string constant')
 					}
-					p = tokc.str.data
-					size = tokc.str.size
+					p = unsafe { tokc.str.data }
+					size = unsafe { tokc.str.size }
 					if t == Tcc_token.tok_asmdir_ascii && size > 0 {
 						size--
 					}
@@ -693,9 +700,9 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 					next()
 				}
 				if n {
-					sprintf(sname, c'%s%d', get_tok_str(tok1, (unsafe { nil })), n)
+					unsafe { C.sprintf(sname, c'%s%d', get_tok_str(tok1, nil), n) }
 				} else { // 3
-					sprintf(sname, c'%s', get_tok_str(tok1, (unsafe { nil })))
+					unsafe { C.sprintf(sname, c'%s', get_tok_str(tok1, nil)) }
 				}
 				use_section(s1, sname)
 			}
@@ -706,12 +713,12 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			filename[0] = `\x00`
 			next()
 			if tok == 200 {
-				pstrcat(filename, sizeof(filename), tokc.str.data)
+				pstrcat(filename, sizeof(filename), unsafe { tokc.str.data })
 			} else { // 3
 				pstrcat(filename, sizeof(filename), get_tok_str(tok, (unsafe { nil })))
 			}
-			tcc_state.warn_num = (usize(&(&TCCState(0)).warn_unsupported)) - (usize(&(&TCCState(0)).warn_none))
-			_tcc_warning(c'ignoring .file %s', filename)
+			tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
+			_tcc_warning('ignoring .file ${filename}')
 			next()
 		}
 		.tok_asmdir_ident {
@@ -720,12 +727,12 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			ident[0] = `\x00`
 			next()
 			if tok == 200 {
-				pstrcat(ident, sizeof(ident), tokc.str.data)
+				pstrcat(ident, sizeof(ident), unsafe { tokc.str.data })
 			} else { // 3
 				pstrcat(ident, sizeof(ident), get_tok_str(tok, (unsafe { nil })))
 			}
-			tcc_state.warn_num = (usize(&(&TCCState(0)).warn_unsupported)) - (usize(&(&TCCState(0)).warn_none))
-			_tcc_warning(c'ignoring .ident %s', ident)
+			tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
+			_tcc_warning('ignoring .ident ${ident}')
 			next()
 		}
 		.tok_asmdir_size {
@@ -734,10 +741,10 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			next()
 			sym = asm_label_find(tok)
 			if !sym {
-				_tcc_error(c'label not found: %s', get_tok_str(tok, (unsafe { nil })))
+				_tcc_error('label not found: ${get_tok_str(tok, (unsafe { nil }))}')
 			}
-			tcc_state.warn_num = (usize(&(&TCCState(0)).warn_unsupported)) - (usize(&(&TCCState(0)).warn_none))
-			_tcc_warning(c'ignoring .size %s,*', get_tok_str(tok, (unsafe { nil })))
+			tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
+			_tcc_warning('ignoring .size ${get_tok_str(tok, (unsafe { nil }))},*')
 			next()
 			skip(`,`)
 			for tok != 10 && tok != `;` && tok != (-1) {
@@ -753,23 +760,22 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			next()
 			skip(`,`)
 			if tok == 200 {
-				newtype = tokc.str.data
+				newtype = unsafe { tokc.str.data }
 			} else {
 				if tok == `@` || tok == `%` {
 					next()
 				}
 				newtype = get_tok_str(tok, (unsafe { nil }))
 			}
-			if !C.strcmp(newtype, c'function') || !C.strcmp(newtype, c'STT_FUNC') {
+			if unsafe { !C.strcmp(newtype, c'function') || !C.strcmp(newtype, c'STT_FUNC') } {
 				sym.type_.t = (sym.type_.t & ~15) | 6
 				if sym.c {
 					esym := elfsym(sym)
 					esym.st_info = ((((u8((esym.st_info))) >> 4) << 4) + ((2) & 15))
 				}
 			} else { // 3
-				tcc_state.warn_num = (usize(&(&TCCState(0)).warn_unsupported)) - (usize(&(&TCCState(0)).warn_none))
-				_tcc_warning(c"change type of '%s' from 0x%x to '%s' ignored", get_tok_str(sym.v,
-					(unsafe { nil })), sym.type_.t, newtype)
+				tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
+				_tcc_warning("change type of '${get_tok_str(sym.v, (unsafe { nil }))}' from 0x${sym.type_.t} to '${newtype}' ignored")
 			}
 			next()
 		}
@@ -781,7 +787,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			sname[0] = `\x00`
 			for tok != `;` && tok != 10 && tok != `,` {
 				if tok == 200 {
-					pstrcat(sname, sizeof(sname), tokc.str.data)
+					pstrcat(sname, sizeof(sname), unsafe { tokc.str.data })
 				} else { // 3
 					pstrcat(sname, sizeof(sname), get_tok_str(tok, (unsafe { nil })))
 				}
@@ -816,7 +822,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			sec = &Section(0)
 			next()
 			if !last_text_section {
-				_tcc_error(c'no previous section referenced')
+				_tcc_error('no previous section referenced')
 			}
 			sec = tcc_state.cur_text_section
 			use_section1(s1, last_text_section)
@@ -830,7 +836,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			next()
 		}
 		else {
-			_tcc_error(c"unknown assembler directive '.%s'", get_tok_str(tok, (unsafe { nil })))
+			_tcc_error("unknown assembler directive '.${get_tok_str(tok, (unsafe { nil }))}'")
 		}
 	}
 }
@@ -859,25 +865,31 @@ fn tcc_assemble_internal(s1 &TCCState, do_preprocess int, global int) int {
 		} else if tok == 205 {
 			p := &i8(0)
 			n := 0
-			p = tokc.str.data
-			n = strtoul(p, &&u8(&p), 10)
-			if *p != `\x00` {
+			p = unsafe { tokc.str.data }
+			n = C.strtoul(p, &&i8(&p), 10)
+			if *p != '\x00' {
 				expect(c"':'")
 			}
 			asm_new_label(s1, asm_get_local_label_name(s1, n), 1)
 			next()
 			skip(`:`)
-			goto redo // id: 0x7fffceae3dd0
+			unsafe {
+				goto redo
+			} // id: 0x7fffceae3dd0
 		} else if tok >= 256 {
 			opcode = tok
 			next()
 			if tok == `:` {
 				asm_new_label(s1, opcode, 0)
 				next()
-				goto redo // id: 0x7fffceae3dd0
+				unsafe {
+					goto redo
+				} // id: 0x7fffceae3dd0
 			} else if tok == `=` {
 				set_symbol(s1, opcode)
-				goto redo // id: 0x7fffceae3dd0
+				unsafe {
+					goto redo
+				} // id: 0x7fffceae3dd0
 			} else {
 				asm_opcode(s1, opcode)
 			}
@@ -908,7 +920,7 @@ fn tcc_assemble_inline(s1 &TCCState, str &i8, len int, global int) {
 	dotid := set_idnum(`.`, 2)
 	dolid := set_idnum(`$`, 0)
 	tcc_open_bf(s1, c':asm:', len)
-	C.memcpy(file.buffer, str, len)
+	unsafe { C.memcpy(file.buffer, str, len) }
 	macro_ptr = (unsafe { nil })
 	tcc_assemble_internal(s1, 0, global)
 	tcc_close()
@@ -925,25 +937,27 @@ fn find_constraint(operands &ASMOperand, nb_operands int, name &i8, pp &&u8) int
 		index = 0
 		for isnum(*name) {
 			index = (index * 10) + (*name) - `0`
-			name++
+			unsafe { name++ }
 		}
 		if u32(index) >= nb_operands {
 			index = -1
 		}
-	} else if *name == `[` {
-		name++
-		p = C.strchr(name, `]`)
+	} else if *name == '[' {
+		unsafe { name++ }
+		p = unsafe { C.strchr(name, `]`) }
 		if p {
-			ts = tok_alloc(name, p - name)
+			ts = tok_alloc(name, unsafe { p - name })
 			for index = 0; index < nb_operands; index++ {
 				if operands[index].id == ts.tok {
-					goto found // id: 0x7fffceae9940
+					unsafe {
+						goto found
+					} // id: 0x7fffceae9940
 				}
 			}
 			index = -1
 			// RRRREG found id=0x7fffceae9940
 			found:
-			name = p + 1
+			name = unsafe { p + 1 }
 		} else {
 			index = -1
 		}
@@ -956,7 +970,7 @@ fn find_constraint(operands &ASMOperand, nb_operands int, name &i8, pp &&u8) int
 	return index
 }
 
-fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, str &i8) {
+fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, str &rune) {
 	c := 0
 	index := 0
 	modifier := 0
@@ -964,20 +978,22 @@ fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, s
 	op := &ASMOperand(0)
 	sv := SValue{}
 	for ; true; {
-		c = *str++
-		if c == `%` {
-			if *str == `%` {
-				str++
-				goto add_char // id: 0x7fffceaea7a0
+		c = unsafe { *str++ }
+		if c == '%' {
+			if *str == '%' {
+				unsafe { str++ }
+				unsafe {
+					goto add_char
+				} // id: 0x7fffceaea7a0
 			}
 			modifier = 0
 			if *str == `c` || *str == `n` || *str == `b` || *str == `w` || *str == `h`
 				|| *str == `k` || *str == `q` || *str == `l` || *str == `P` {
-				modifier = *str++
+				modifier = unsafe { *str++ }
 			}
 			index = find_constraint(operands, nb_operands, str, &str)
 			if index < 0 {
-				_tcc_error(c'invalid operand reference after %%')
+				_tcc_error('invalid operand reference after %%')
 			}
 			op = &operands[index]
 			if modifier == `l` {
@@ -1011,7 +1027,7 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 		nb_operands = *nb_operands_ptr
 		for ; true; {
 			if nb_operands >= 30 {
-				_tcc_error(c'too many asm operands')
+				_tcc_error('too many asm operands')
 			}
 			op = &operands[nb_operands++]
 			op.id = 0
@@ -1025,7 +1041,7 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 				skip(`]`)
 			}
 			astr = parse_mult_str(c'string constant').data
-			pstrcpy(op.constraint, sizeofop.constraint, astr)
+			pstrcpy(op.constraint, sizeof(op.constraint), astr)
 			skip(`(`)
 			gexpr()
 			if is_output {
@@ -1034,7 +1050,7 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 				}
 			} else {
 				if vtop.r & 256 && ((vtop.r & 63) == 49 || (vtop.r & 63) < 48)
-					&& !C.strchr(op.constraint, `m`) {
+					&& unsafe { !C.strchr(op.constraint, `m`) } {
 					gv(1)
 				}
 			}
@@ -1076,7 +1092,7 @@ fn asm_instr() {
 	nb_outputs = 0
 	nb_labels = 0
 	must_subst = 0
-	C.memset(clobber_regs, 0, sizeof(clobber_regs))
+	unsafe { C.memset(clobber_regs, 0, sizeof(clobber_regs)) }
 	if tok == `:` {
 		next()
 		must_subst = 1
@@ -1095,7 +1111,7 @@ fn asm_instr() {
 						if tok != 200 {
 							expect(c'string constant')
 						}
-						asm_clobber(clobber_regs, tokc.str.data)
+						asm_clobber(clobber_regs, unsafe { tokc.str.data })
 						next()
 						if tok == `,` {
 							next()
@@ -1110,7 +1126,7 @@ fn asm_instr() {
 						csym := &Sym(0)
 						asmname := 0
 						if nb_operands + nb_labels >= 30 {
-							_tcc_error(c'too many asm operands')
+							_tcc_error('too many asm operands')
 						}
 						if tok < Tcc_token.tok_define {
 							expect(c'label identifier')
@@ -1158,7 +1174,7 @@ fn asm_instr() {
 	cstr_free(&astr)
 	nb_stk_data--
 	if sec != tcc_state.cur_text_section {
-		_tcc_warning(c'inline asm tries to change current section')
+		_tcc_warning('inline asm tries to change current section')
 		use_section1(tcc_state, sec)
 	}
 	next()

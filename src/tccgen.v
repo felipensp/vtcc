@@ -41,38 +41,6 @@ __global (
 	table_ident &&TokenSym
 )
 
-fn tok_alloc(str &i8, len int) &TokenSym
-
-fn tok_alloc_const(str &i8) int
-
-fn get_tok_str(v int, cv &CValue) &i8
-
-fn begin_macro(str &TokenString, alloc int)
-
-fn end_macro()
-
-fn tok_str_alloc() &TokenString
-
-fn tok_str_free(s &TokenString)
-
-fn tok_str_free_str(str &int)
-
-fn tok_str_add(s &TokenString, t int)
-
-fn tok_str_add_tok(s &TokenString)
-
-fn free_defines(b &Sym)
-
-fn preprocess(is_bof int)
-
-fn next()
-
-fn unget_tok(last_tok int)
-
-fn skip(c int)
-
-fn expect(msg &i8)
-
 @[weak]
 __global (
 	global_stack &Sym
@@ -295,60 +263,6 @@ struct Init_params {
 	flex_array_ref &Sym
 }
 
-fn init_prec()
-
-fn block(flags int)
-
-fn gen_cast(type_ &CType)
-
-fn gen_cast_s(t int)
-
-fn pointed_type(type_ &CType) &CType
-
-fn is_compatible_types(type1 &CType, type2 &CType) int
-
-fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int
-
-fn type_decl(type_ &CType, ad &AttributeDef, v &int, td int) &CType
-
-fn parse_expr_type(type_ &CType)
-
-fn init_putv(p &Init_params, type_ &CType, c u32)
-
-fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int)
-
-fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v int, scope int)
-
-fn decl(l int) int
-
-fn expr_eq()
-
-fn vpush_type_size(type_ &CType, a &int)
-
-fn is_compatible_unqualified_types(type1 &CType, type2 &CType) int
-
-fn expr_const64() i64
-
-fn vpush64(ty int, v i64)
-
-fn vpush(type_ &CType)
-
-fn gvtst(inv int, t int) int
-
-fn gen_inline_functions(s &TCCState)
-
-fn free_inline_functions(s &TCCState)
-
-fn skip_or_save_block(str &&TokenString)
-
-fn gv_dup()
-
-fn get_temp_local_var(size int, align int) int
-
-fn clear_temp_local_var_list()
-
-fn cast_error(st &CType, dt &CType)
-
 fn gsym(t int) {
 	if t {
 		gsym_addr(t, ind)
@@ -548,7 +462,7 @@ fn tccgen_finish(s1 &TCCState) {
 	dynarray_reset(&stk_data, &nb_stk_data)
 }
 
-fn elfsym(s &Sym) &Elf64_Sym {
+pub fn elfsym(s &Sym) &Elf64_Sym {
 	if !s || !s.c {
 		return unsafe { nil }
 	}
@@ -3694,9 +3608,6 @@ fn struct_layout(type_ &CType, ad &AttributeDef) {
 	}
 }
 
-@[c: 'do_Static_assert']
-fn do_static_assert()
-
 fn struct_decl(type_ &CType, u int) {
 	v := 0
 	c := 0
@@ -5396,8 +5307,6 @@ fn init_prec() {
 		prec[i] = precedence(i)
 	}
 }
-
-fn expr_landor(op int)
 
 fn expr_infix(p int) {
 	t := tok

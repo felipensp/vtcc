@@ -252,7 +252,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4028) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_regw | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_bsrw)
@@ -263,7 +263,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4029) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_regw | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btw)
@@ -274,7 +274,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4003) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_regw | opt_ea]!
+		op_type: [u8(opt_regw), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btw)
@@ -285,7 +285,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((4) << 13) | (if (((4026) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im8, opt_regw | opt_ea]!
+		op_type: [u8(opt_im8), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btsw)
@@ -296,7 +296,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4011) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_regw | opt_ea]!
+		op_type: [u8(opt_regw), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btsw)
@@ -307,7 +307,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((5) << 13) | (if (((4026) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im8, opt_regw | opt_ea]!
+		op_type: [u8(opt_im8), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btrw)
@@ -318,7 +318,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4019) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_regw | opt_ea]!
+		op_type: [u8(opt_regw), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btrw)
@@ -329,7 +329,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((6) << 13) | (if (((4026) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im8, opt_regw | opt_ea]!
+		op_type: [u8(opt_im8), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btcw)
@@ -340,7 +340,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4027) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_regw | opt_ea]!
+		op_type: [u8(opt_regw), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_btcw)
@@ -351,7 +351,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((7) << 13) | (if (((4026) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im8, opt_regw | opt_ea]!
+		op_type: [u8(opt_im8), opt_regw | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_popcntw)
@@ -366,7 +366,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_regw | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_tzcntw)
@@ -381,7 +381,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_regw | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lzcntw)
@@ -396,7 +396,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_regw | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_sysretq)
@@ -422,7 +422,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg, opt_ea | opt_reg]!
+		op_type: [u8(opt_reg), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movb)
@@ -437,7 +437,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg, opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movb)
@@ -452,7 +452,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im, opt_reg]!
+		op_type: [u8(opt_im), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_mov)
@@ -463,7 +463,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4) | ((0) << 13) | (if (((184) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im64, opt_reg64]!
+		op_type: [u8(opt_im64), opt_reg64, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movq)
@@ -474,7 +474,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4) | ((0) << 13) | (if (((184) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im64, opt_reg64]!
+		op_type: [u8(opt_im64), opt_reg64, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movb)
@@ -489,7 +489,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im, opt_reg | opt_ea]!
+		op_type: [u8(opt_im), opt_reg | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movw)
@@ -500,7 +500,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((140) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_seg, opt_ea | opt_reg]!
+		op_type: [u8(opt_seg), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movw)
@@ -511,7 +511,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((142) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg, opt_seg]!
+		op_type: [u8(opt_ea | opt_reg), opt_seg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movw)
@@ -522,7 +522,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((3872) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_cr, opt_reg64]!
+		op_type: [u8(opt_cr), opt_reg64, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movw)
@@ -533,7 +533,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((3873) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_db, opt_reg64]!
+		op_type: [u8(opt_db), opt_reg64, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movw)
@@ -544,7 +544,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((3874) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg64, opt_cr]!
+		op_type: [u8(opt_reg64), opt_cr, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movw)
@@ -555,7 +555,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((3875) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg64, opt_db]!
+		op_type: [u8(opt_reg64), opt_db, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movsbw)
@@ -566,7 +566,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((6688702) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg8 | opt_ea, opt_reg16]!
+		op_type: [u8(opt_reg8 | opt_ea), opt_reg16, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movsbl)
@@ -577,7 +577,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((4030) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg8 | opt_ea, opt_reg32]!
+		op_type: [u8(opt_reg8 | opt_ea), opt_reg32, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movsbq)
@@ -588,7 +588,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((4030) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg8 | opt_ea, opt_regw]!
+		op_type: [u8(opt_reg8 | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movswl)
@@ -621,7 +621,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((99) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg32 | opt_ea, opt_reg]!
+		op_type: [u8(opt_reg32 | opt_ea), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movzbw)
@@ -632,7 +632,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4022) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg8 | opt_ea, opt_regw]!
+		op_type: [u8(opt_reg8 | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movzwl)
@@ -698,7 +698,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 4096) | ((0) << 13) | (if (((80) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg64]!
+		op_type: [u8(opt_reg64), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_pushw)
@@ -709,7 +709,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 4096) | ((0) << 13) | (if (((80) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg16]!
+		op_type: [u8(opt_reg16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_pushw)
@@ -720,7 +720,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((6) << 13) | (if (((255) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg64 | opt_ea]!
+		op_type: [u8(opt_reg64 | opt_ea), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_pushw)
@@ -731,7 +731,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((26216) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im16]!
+		op_type: [u8(opt_im16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_pushw)
@@ -742,14 +742,14 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4096) | ((0) << 13) | (if (((104) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im32]!
+		op_type: [u8(opt_im32), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_pushw)
 		opcode: (u16((if (((6) & 65280) == 3840) { ((((6) >> 8) & ~255) | ((6) & 255)) } else { (6) })))
 		instr_type: u16(((4096) | ((0) << 13) | (if (((6) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_seg]!
+		op_type: [u8(opt_seg), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_popw)
@@ -760,7 +760,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 4096) | ((0) << 13) | (if (((88) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg64]!
+		op_type: [u8(opt_reg64), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_popw)
@@ -771,7 +771,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 4096) | ((0) << 13) | (if (((88) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg16]!
+		op_type: [u8(opt_reg16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_popw)
@@ -782,14 +782,14 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((143) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_regw | opt_ea]!
+		op_type: [u8(opt_regw | opt_ea), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_popw)
 		opcode: (u16((if (((7) & 65280) == 3840) { ((((7) >> 8) & ~255) | ((7) & 255)) } else { (7) })))
 		instr_type: u16(((4096) | ((0) << 13) | (if (((7) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_seg]!
+		op_type: [u8(opt_seg), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_xchgw)
@@ -800,7 +800,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 4096) | ((0) << 13) | (if (((144) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_eax]!
+		op_type: [u8(opt_regw), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_xchgw)
@@ -811,7 +811,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 4096) | ((0) << 13) | (if (((144) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_eax, opt_regw]!
+		op_type: [u8(opt_eax), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_xchgb)
@@ -826,7 +826,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg, opt_ea | opt_reg]!
+		op_type: [u8(opt_reg), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_xchgb)
@@ -841,7 +841,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg, opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_inb)
@@ -852,7 +852,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((228) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im8, opt_eax]!
+		op_type: [u8(opt_im8), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_inb)
@@ -863,7 +863,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((228) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im8]!
+		op_type: [u8(opt_im8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_inb)
@@ -874,7 +874,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((236) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_dx, opt_eax]!
+		op_type: [u8(opt_dx), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_inb)
@@ -885,7 +885,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((236) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_dx]!
+		op_type: [u8(opt_dx), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_outb)
@@ -896,7 +896,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((230) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_eax, opt_im8]!
+		op_type: [u8(opt_eax), opt_im8, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_outb)
@@ -907,7 +907,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((230) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im8]!
+		op_type: [u8(opt_im8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_outb)
@@ -918,7 +918,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((238) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_eax, opt_dx]!
+		op_type: [u8(opt_eax), opt_dx, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_outb)
@@ -929,7 +929,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 2) | ((0) << 13) | (if (((238) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_dx]!
+		op_type: [u8(opt_dx), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_leaw)
@@ -940,7 +940,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((141) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea, opt_reg]!
+		op_type: [u8(opt_ea), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_les)
@@ -951,7 +951,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((196) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea, opt_reg32]!
+		op_type: [u8(opt_ea), opt_reg32, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lds)
@@ -962,7 +962,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((197) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea, opt_reg32]!
+		op_type: [u8(opt_ea), opt_reg32, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lss)
@@ -984,7 +984,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(u16(((8) | ((0) << 13) | (if (((4020) & 65280) == 3840) { 256 } else { 0 }))))
 		nb_ops: 2
-		op_type: [opt_ea, opt_reg32]!
+		op_type: [u8(opt_ea), opt_reg32, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lgs)
@@ -995,7 +995,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((4021) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea, opt_reg32]!
+		op_type: [u8(opt_ea), opt_reg32, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_addb)
@@ -1006,7 +1006,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg, opt_ea | opt_reg]!
+		op_type: [u8(opt_reg), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_addb)
@@ -1017,7 +1017,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg, opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_addb)
@@ -1028,7 +1028,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im, opt_eax]!
+		op_type: [u8(opt_im), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_addw)
@@ -1043,7 +1043,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im8s, opt_ea | opt_regw]!
+		op_type: [u8(opt_im8s), opt_ea | opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_addb)
@@ -1058,7 +1058,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im, opt_ea | opt_reg]!
+		op_type: [u8(opt_im), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_testb)
@@ -1073,7 +1073,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg, opt_ea | opt_reg]!
+		op_type: [u8(opt_reg), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_testb)
@@ -1088,7 +1088,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg, opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_testb)
@@ -1099,7 +1099,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((1 | 4096) | ((0) << 13) | (if (((168) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im, opt_eax]!
+		op_type: [u8(opt_im), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_testb)
@@ -1114,7 +1114,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im, opt_ea | opt_reg]!
+		op_type: [u8(opt_im), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_incb)
@@ -1215,7 +1215,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4015) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg | opt_ea, opt_reg]!
+		op_type: [u8(opt_reg | opt_ea), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_imulw)
@@ -1226,7 +1226,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((107) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 3
-		op_type: [opt_im8s, opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_im8s), opt_regw | opt_ea, opt_regw]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_imulw)
@@ -1237,7 +1237,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((107) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im8s, opt_regw]!
+		op_type: [u8(opt_im8s), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_imulw)
@@ -1248,7 +1248,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((105) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 3
-		op_type: [opt_imw, opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_imw), opt_regw | opt_ea, opt_regw]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_imulw)
@@ -1259,7 +1259,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((105) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_imw, opt_regw]!
+		op_type: [u8(opt_imw), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_divb)
@@ -1289,7 +1289,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg | opt_ea, opt_eax]!
+		op_type: [u8(opt_reg | opt_ea), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_idivb)
@@ -1319,7 +1319,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg | opt_ea, opt_eax]!
+		op_type: [u8(opt_reg | opt_ea), opt_eax, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_rolb)
@@ -1334,7 +1334,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_im8, opt_ea | opt_reg]!
+		op_type: [u8(opt_im8), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_rolb)
@@ -1349,7 +1349,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_cl, opt_ea | opt_reg]!
+		op_type: [u8(opt_cl), opt_ea | opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_rolb)
@@ -1364,7 +1364,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 1
-		op_type: [opt_ea | opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_shldw)
@@ -1375,7 +1375,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4004) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 3
-		op_type: [opt_im8, opt_regw, opt_ea | opt_regw]!
+		op_type: [u8(opt_im8), opt_regw, opt_ea | opt_regw]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_shldw)
@@ -1386,7 +1386,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4005) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 3
-		op_type: [opt_cl, opt_regw, opt_ea | opt_regw]!
+		op_type: [u8(opt_cl), opt_regw, opt_ea | opt_regw]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_shldw)
@@ -1397,7 +1397,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4005) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_ea | opt_regw]!
+		op_type: [u8(opt_regw), opt_ea | opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_shrdw)
@@ -1408,7 +1408,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4012) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 3
-		op_type: [opt_im8, opt_regw, opt_ea | opt_regw]!
+		op_type: [u8(opt_im8), opt_regw, opt_ea | opt_regw]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_shrdw)
@@ -1419,7 +1419,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4013) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 3
-		op_type: [opt_cl, opt_regw, opt_ea | opt_regw]!
+		op_type: [u8(opt_cl), opt_regw, opt_ea | opt_regw]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_shrdw)
@@ -1430,7 +1430,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((4013) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_regw, opt_ea | opt_regw]!
+		op_type: [u8(opt_regw), opt_ea | opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_call)
@@ -1441,7 +1441,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((2) << 13) | (if (((255) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_indir]!
+		op_type: [u8(opt_indir), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_call)
@@ -1452,7 +1452,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((232) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp]!
+		op_type: [u8(opt_disp), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_jmp)
@@ -1463,7 +1463,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((4) << 13) | (if (((255) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_indir]!
+		op_type: [u8(opt_indir), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_jmp)
@@ -1474,7 +1474,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((235) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lcall)
@@ -1529,7 +1529,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((205) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im8]!
+		op_type: [u8(opt_im8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_seto)
@@ -1540,7 +1540,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 80) | ((0) << 13) | (if (((3984) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg8 | opt_ea]!
+		op_type: [u8(opt_reg8 | opt_ea), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_setob)
@@ -1551,7 +1551,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 80) | ((0) << 13) | (if (((3984) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg8 | opt_ea]!
+		op_type: [u8(opt_reg8 | opt_ea), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_enter)
@@ -1562,7 +1562,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((200) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_im16, opt_im8]!
+		op_type: [u8(opt_im16), opt_im8, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_retq)
@@ -1573,7 +1573,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((194) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im16]!
+		op_type: [u8(opt_im16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_ret)
@@ -1584,7 +1584,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((194) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im16]!
+		op_type: [u8(opt_im16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lret)
@@ -1595,7 +1595,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((202) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_im16]!
+		op_type: [u8(opt_im16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_jo)
@@ -1606,7 +1606,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((80) | ((0) << 13) | (if (((112) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_loopne)
@@ -1617,7 +1617,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((224) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_loopnz)
@@ -1628,7 +1628,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((224) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_loope)
@@ -1639,7 +1639,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((225) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_loopz)
@@ -1650,7 +1650,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((225) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_loop)
@@ -1661,7 +1661,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((226) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_jecxz)
@@ -1672,7 +1672,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((26595) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_disp8]!
+		op_type: [u8(opt_disp8), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_fcomp)
@@ -1716,7 +1716,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((64 | 4) | ((0) << 13) | (if (((56512) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_st0, opt_st]!
+		op_type: [u8(opt_st0), opt_st, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_fmul)
@@ -1727,7 +1727,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((64 | 4) | ((0) << 13) | (if (((56520) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_st0, opt_st]!
+		op_type: [u8(opt_st0), opt_st, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_fadd)
@@ -1771,7 +1771,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((64 | 4) | ((0) << 13) | (if (((57024) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_st0, opt_st]!
+		op_type: [u8(opt_st0), opt_st, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_faddp)
@@ -2178,7 +2178,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((0) | ((0) << 13) | (if (((57312) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_eax]!
+		op_type: [u8(opt_eax), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_fnstsw)
@@ -2200,7 +2200,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((16) | ((0) << 13) | (if (((57312) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_eax]!
+		op_type: [u8(opt_eax), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_fstsw)
@@ -2376,7 +2376,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((99) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg16, opt_reg16 | opt_ea]!
+		op_type: [u8(opt_reg16), opt_reg16 | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_larw)
@@ -2387,7 +2387,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((3842) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg | opt_ea, opt_reg]!
+		op_type: [u8(opt_reg | opt_ea), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lgdt)
@@ -2442,7 +2442,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((2) << 13) | (if (((3840) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_ea | opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lmsw)
@@ -2453,7 +2453,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((6) << 13) | (if (((3841) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_ea | opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_lslw)
@@ -2464,7 +2464,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 4096) | ((0) << 13) | (if (((3843) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg, opt_reg]!
+		op_type: [u8(opt_ea | opt_reg), opt_reg, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_ltr)
@@ -2475,7 +2475,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((3) << 13) | (if (((3840) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_ea | opt_reg16]!
+		op_type: [u8(opt_ea | opt_reg16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_sgdt)
@@ -2552,7 +2552,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((1) << 13) | (if (((3840) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg32 | opt_ea]!
+		op_type: [u8(opt_reg32 | opt_ea), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_str)
@@ -2563,7 +2563,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((1) << 13) | (if (((6688512) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg16]!
+		op_type: [u8(opt_reg16), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_str)
@@ -2574,7 +2574,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 512) | ((1) << 13) | (if (((3840) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg64]!
+		op_type: [u8(opt_reg64), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_verr)
@@ -2618,7 +2618,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4) | ((0) << 13) | (if (((4040) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg32]!
+		op_type: [u8(opt_reg32), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_bswapl)
@@ -2629,7 +2629,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4) | ((0) << 13) | (if (((4040) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg32]!
+		op_type: [u8(opt_reg32), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_bswapq)
@@ -2640,7 +2640,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((4 | 512) | ((0) << 13) | (if (((4040) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 1
-		op_type: [opt_reg64]!
+		op_type: [u8(opt_reg64), 0, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_xaddb)
@@ -2655,7 +2655,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg, opt_reg | opt_ea]!
+		op_type: [u8(opt_reg), opt_reg | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_cmpxchgb)
@@ -2670,7 +2670,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_reg, opt_reg | opt_ea]!
+		op_type: [u8(opt_reg), opt_reg | opt_ea, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_invlpg)
@@ -2718,7 +2718,7 @@ const asm_instrs = [
 			0
 		})))
 		nb_ops: 2
-		op_type: [opt_regw | opt_ea, opt_regw]!
+		op_type: [u8(opt_regw | opt_ea), opt_regw, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_fcmovb)
@@ -2861,7 +2861,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((3950) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg32, opt_mmxsse]!
+		op_type: [u8(opt_ea | opt_reg32), opt_mmxsse, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movd)
@@ -2872,7 +2872,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((3950) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea | opt_reg64, opt_mmxsse]!
+		op_type: [u8(opt_ea | opt_reg64), opt_mmxsse, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movq)
@@ -2883,7 +2883,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8 | 512) | ((0) << 13) | (if (((3950) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_reg64, opt_mmxsse]!
+		op_type: [u8(opt_reg64), opt_mmxsse, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movq)
@@ -2894,7 +2894,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((3951) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_ea | opt_mmx, opt_mmx]!
+		op_type: [u8(opt_ea | opt_mmx), opt_mmx, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movd)
@@ -2905,7 +2905,7 @@ const asm_instrs = [
 		})))
 		instr_type: u16(((8) | ((0) << 13) | (if (((3966) & 65280) == 3840) { 256 } else { 0 })))
 		nb_ops: 2
-		op_type: [opt_mmxsse, opt_ea | opt_reg32]!
+		op_type: [u8(opt_mmxsse), opt_ea | opt_reg32, 0]!
 	},
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_movd)
@@ -3996,17 +3996,17 @@ fn get_reg_shift(s1 &TCCState) int {
 fn asm_parse_numeric_reg(t int, type_ &u32) int {
 	reg := -1
 	if t >= 256 && t < tok_ident {
-		s := table_ident[t - 256].str
-		c := i8(0)
+		s := &char(table_ident[t - 256].str)
+		c := rune(0)
 		*type_ = (1 << opt_reg64)
 		if *s == `c` {
-			s++
+			unsafe { s++ }
 			*type_ = (1 << opt_cr)
 		}
-		if *s++ != `r` {
+		if unsafe { *s++ } != `r` {
 			return -1
 		}
-		c = *s++
+		c = unsafe { *s++ }
 		if c >= `1` && c <= `9` {
 			reg = c - `0`
 		} else {
@@ -4014,8 +4014,8 @@ fn asm_parse_numeric_reg(t int, type_ &u32) int {
 		}
 		c = *s
 		if c >= `0` && c <= `5` {
-			s++, reg * 10 + c - `0`
-			reg = s++
+			unsafe { s++ }
+			reg = reg * 10 + c - `0`
 		}
 		if reg > 15 {
 			return -1
@@ -4070,7 +4070,7 @@ fn parse_operand(s1 &TCCState, op &Operand) {
 	reg := 0
 	indir := 0
 
-	p := &i8(0)
+	p := &rune(0)
 	indir = 0
 	if tok == `*` {
 		next()
@@ -4141,13 +4141,13 @@ fn parse_operand(s1 &TCCState, op &Operand) {
 			if op.e.v == u8(op.e.v) {
 				op.type_ |= (1 << opt_im8)
 			}
-			if op.e.v == i8(op.e.v) {
+			if op.e.v == u64(i8(op.e.v)) {
 				op.type_ |= (1 << opt_im8s)
 			}
 			if op.e.v == u16(op.e.v) {
 				op.type_ |= (1 << opt_im16)
 			}
-			if op.e.v != int(op.e.v) && op.e.v != u32(op.e.v) {
+			if op.e.v != u64(int(op.e.v)) && op.e.v != u32(op.e.v) {
 				op.type_ = (1 << opt_im64)
 			}
 		}
@@ -4220,7 +4220,10 @@ fn gen_disp32(pe &ExprValue) {
 	sym := pe.sym
 	esym := elfsym(sym)
 	if esym && esym.st_shndx == tcc_state.cur_text_section.sh_num {
-		gen_le32(pe.v + esym.st_value - ind - 4)
+		mut val := pe.v + esym.st_value
+		val -= ind
+		val -= 4
+		gen_le32(val)
 	} else {
 		if sym && sym.type_.t == 0 {
 			sym.type_.t = 6
@@ -4255,7 +4258,7 @@ fn asm_modrm(reg int, op &Operand) int {
 			mod = 0
 		} else if op.e.v == 0 && !op.e.sym && op.reg != 5 {
 			mod = 0
-		} else if op.e.v == i8(op.e.v) && !op.e.sym {
+		} else if !op.e.sym {
 			mod = 64
 		} else {
 			mod = 128
@@ -4346,7 +4349,7 @@ fn maybe_print_stats() {
 		already = 1
 		nb_op_vals = 0
 		C.memset(freq, 0, sizeof(freq))
-		for pa = asm_instrs; pa.sym != 0; pa++ {
+		for pa = asm_instrs; pa.sym != 0; unsafe { pa++ } {
 			freq[pa.nb_ops]++
 			for j = 0; j < nb_op_vals; j++ {
 				if pa.instr_type == op_vals[j] {
@@ -4418,7 +4421,7 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 				_tcc_error('segment prefix must be followed by memory reference')
 			}
 		}
-		pop++
+		unsafe { pop++ }
 		nb_ops++
 		if tok != `,` {
 			break
@@ -4428,7 +4431,7 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 	s = 0
 	// RRRREG again id=0x7fffe2380130
 
-	again: for pa = asm_instrs; pa.sym != 0; pa++ {
+	again: for pa = asm_instrs; pa.sym != 0; unsafe { pa++ } {
 		it := pa.instr_type & 112
 		s = 0
 		if it == 64 {
@@ -4568,7 +4571,7 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 				&& ops[0].type_ & 1073741824 {
 				s = 5 - 2
 			} else { // 3
-				_tcc_error(c'cannot infer opcode suffix')
+				_tcc_error('cannot infer opcode suffix')
 			}
 		}
 	}
@@ -4722,7 +4725,7 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 			} else if v == 112 {
 				v += 3856
 			} else { // 3
-				_tcc_error(c'invalid displacement')
+				_tcc_error('invalid displacement')
 			}
 		}
 	}

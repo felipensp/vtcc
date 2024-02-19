@@ -16,6 +16,59 @@ fn C.strcat(&char, &char) &char
 fn C.strtoul(&char, &&char, int) u32
 fn C.strtoull(&char, &&char, int) i64
 
+pub struct Sym_version {
+	lib           &i8
+	version       &i8
+	out_index     int
+	prev_same_lib int
+}
+
+pub enum Stab_debug_code {
+	n_gsym                = 32
+	n_fname               = 34
+	n_fun                 = 36
+	n_stsym               = 38
+	n_lcsym               = 40
+	n_main                = 42
+	n_pc                  = 48
+	n_nsyms               = 50
+	n_nomap               = 52
+	n_obj                 = 56
+	n_opt                 = 60
+	n_rsym                = 64
+	n_m2c                 = 66
+	n_sline               = 68
+	n_dsline              = 70
+	n_bsline              = 72
+	n_brows               = 72
+	n_defd                = 74
+	n_ehdecl              = 80
+	n_mod2                = 80
+	n_catch               = 84
+	n_ssym                = 96
+	n_so                  = 100
+	n_lsym                = 128
+	n_bincl               = 130
+	n_sol                 = 132
+	n_psym                = 160
+	n_eincl               = 162
+	n_entry               = 164
+	n_lbrac               = 192
+	n_excl                = 194
+	n_scope               = 196
+	n_rbrac               = 224
+	n_bcomm               = 226
+	n_ecomm               = 228
+	n_ecoml               = 232
+	n_nbtext              = 240
+	n_nbdata              = 242
+	n_nbbss               = 244
+	n_nbsts               = 246
+	n_nblcs               = 248
+	n_leng                = 254
+	last_unused_stab_code
+}
+
 @[weak]
 __global (
 	tcc_state &TCCState
@@ -154,7 +207,7 @@ pub fn tcc_fileextension(name &char) &char {
 pub fn tcc_load_text(fd int) &i8 {
 	len := C.lseek(fd, 0, 2)
 	buf := load_data(fd, 0, len + 1)
-	buf[len] = 0
+	// buf[len] = 0
 	return buf
 }
 
@@ -258,11 +311,12 @@ fn dynarray_add(ptab voidptr, nb_ptr &int, data voidptr) {
 
 fn dynarray_reset(pp voidptr, n &int) {
 	p := &voidptr(0)
+	mut idx := 0
 	for p = *&&voidptr(pp); *n; {
 		if *p {
 			tcc_free(*p)
 		}
-		unsafe { p++ }
+		p = p[idx++]
 		unsafe { *n-- }
 	}
 	tcc_free(*&voidptr(pp))
@@ -668,7 +722,9 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
 					ret = tcc_load_dll(s1, fd, filename, (flags & 32) != 0)
 				}
 
-				goto check_success // id: 0x7fffbf587aa8
+				unsafe {
+					goto check_success
+				} // id: 0x7fffbf587aa8
 				// RRRREG check_success id=0x7fffbf587aa8
 				check_success:
 				if ret < 0 {
@@ -883,7 +939,7 @@ fn copy_linker_arg(pp &&u8, s &i8, sep int) {
 }
 
 fn args_parser_add_file(s &TCCState, filename &i8, filetype int) {
-	f := tcc_malloc(sizeof(Filespec) + C.strlen(filename)) as &Filespec
+	f := &Filespec(tcc_malloc(sizeof(Filespec) + C.strlen(filename)))
 	f.type_ = filetype
 	C.strcpy(f.name, filename)
 	dynarray_add(&s.files, &s.nb_files, f)
@@ -920,7 +976,9 @@ pub fn tcc_set_linker(s &TCCState, option &i8) int {
 			} else if !C.strcmp(p, c'binary') {
 				s.output_format = 1
 			} else { // 3
-				goto err // id: 0x7fffbf5942e8
+				unsafe {
+					goto err
+				} // id: 0x7fffbf5942e8
 			}
 		} else if link_option(option, c'as-needed', &p) {
 			ignoring = 1
@@ -1494,9 +1552,8 @@ fn args_parser_listfile(s &TCCState, filename &i8, optind int, pargc &int, pargv
 }
 
 pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
-	s1 := s
 	popt := &TCCOption(0)
-	optarg := &i8(0)
+	optarg := &rune(0)
 	r := &rune(0)
 
 	run := (unsafe { nil })
@@ -1539,7 +1596,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			continue
 		}
 		if r[1] == `-` && r[2] == `\x00` && run {
-			goto dorun // id: 0x7fffbf5aa788
+			unsafe {
+				goto dorun
+			} // id: 0x7fffbf5aa788
 		}
 		for popt = tcc_options; true; unsafe { popt++ } {
 			p1 := popt.name
@@ -1568,11 +1627,15 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 		match popt.index {
 			tcc_option_help { // case comp body kind=BinaryOperator is_enum=true
 				x = 1
-				goto extra_action // id: 0x7fffbf5abdd0
+				unsafe {
+					goto extra_action
+				} // id: 0x7fffbf5abdd0
 			}
 			tcc_option_help2 { // case comp body kind=BinaryOperator is_enum=true
 				x = 2
-				goto extra_action // id: 0x7fffbf5abdd0
+				unsafe {
+					goto extra_action
+				} // id: 0x7fffbf5abdd0
 			}
 			tcc_option_i { // case comp body kind=CallExpr is_enum=true
 				tcc_add_include_path(s, optarg)
@@ -1610,7 +1673,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			tcc_option_b { // case comp body kind=BinaryOperator is_enum=true
 				s.do_bounds_check = 1
-				goto enable_backtrace // id: 0x7fffbf5ace88
+				unsafe {
+					goto enable_backtrace
+				} // id: 0x7fffbf5ace88
 			}
 			tcc_option_g { // case comp body kind=BinaryOperator is_enum=true
 				s.do_debug = 2
@@ -1645,7 +1710,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				} else if isnum(*optarg) {
 					s.g_debug |= C.atoi(optarg)
 				} else { // 3
-					goto unsupported_option // id: 0x7fffbf5ae9a8
+					unsafe {
+						goto unsupported_option
+					} // id: 0x7fffbf5ae9a8
 				}
 			}
 			tcc_option_static { // case comp body kind=BinaryOperator is_enum=true
@@ -1658,14 +1725,16 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			tcc_option_shared { // case comp body kind=BinaryOperator is_enum=true
 				x = 4
-				goto set_output_type // id: 0x7fffbf5ae198
+				unsafe {
+					goto set_output_type
+				} // id: 0x7fffbf5ae198
 			}
 			tcc_option_soname { // case comp body kind=BinaryOperator is_enum=true
 				s.soname = tcc_strdup(optarg)
 			}
 			tcc_option_o { // case comp body kind=IfStmt is_enum=true
 				if s.outfile {
-					_tcc_warning(c'multiple -o option')
+					_tcc_warning('multiple -o option')
 					tcc_free(s.outfile)
 				}
 				s.outfile = tcc_strdup(optarg)
@@ -1673,7 +1742,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			tcc_option_r { // case comp body kind=BinaryOperator is_enum=true
 				s.option_r = 1
 				x = 3
-				goto set_output_type // id: 0x7fffbf5ae198
+				unsafe {
+					goto set_output_type
+				} // id: 0x7fffbf5ae198
 			}
 			tcc_option_isystem { // case comp body kind=CallExpr is_enum=true
 				tcc_add_sysinclude_path(s, optarg)
@@ -1690,7 +1761,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			tcc_option_run { // case comp body kind=BinaryOperator is_enum=true
 				run = optarg
 				x = 1
-				goto set_output_type // id: 0x7fffbf5ae198
+				unsafe {
+					goto set_output_type
+				} // id: 0x7fffbf5ae198
 			}
 			tcc_option_v { // case comp body kind=DoStmt is_enum=true
 				for {
@@ -1704,14 +1777,18 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			tcc_option_f { // case comp body kind=IfStmt is_enum=true
 				if set_flag(s, options_f, optarg) < 0 {
-					goto unsupported_option // id: 0x7fffbf5ae9a8
+					unsafe {
+						goto unsupported_option
+					} // id: 0x7fffbf5ae9a8
 				}
 			}
 			tcc_option_m { // case comp body kind=IfStmt is_enum=true
 				if set_flag(s, options_m, optarg) < 0 {
 					x = C.atoi(optarg)
 					if x != 32 && x != 64 {
-						goto unsupported_option // id: 0x7fffbf5ae9a8
+						unsafe {
+							goto unsupported_option
+						} // id: 0x7fffbf5ae9a8
 					}
 					if 8 != x / 8 {
 						return x
@@ -1722,7 +1799,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			tcc_option_ww { // case comp body kind=BinaryOperator is_enum=true
 				s.warn_none = 0
 				if optarg[0] && set_flag(s, options_W, optarg) < 0 {
-					goto unsupported_option // id: 0x7fffbf5ae9a8
+					unsafe {
+						goto unsupported_option
+					} // id: 0x7fffbf5ae9a8
 				}
 			}
 			tcc_option_w { // case comp body kind=BinaryOperator is_enum=true
@@ -1746,14 +1825,18 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			tcc_option_wp { // case comp body kind=BinaryOperator is_enum=true
 				r = optarg
-				goto reparse // id: 0x7fffbf5aa950
+				unsafe {
+					goto reparse
+				} // id: 0x7fffbf5aa950
 			}
 			tcc_option_e { // case comp body kind=BinaryOperator is_enum=true
 				x = 5
-				goto set_output_type // id: 0x7fffbf5ae198
+				unsafe {
+					goto set_output_type
+				} // id: 0x7fffbf5ae198
 			}
 			tcc_option_p { // case comp body kind=BinaryOperator is_enum=true
-				s.Pflag = C.atoi(optarg) + 1
+				s.pflag = C.atoi(optarg) + 1
 			}
 			tcc_option_m2 { // case comp body kind=BinaryOperator is_enum=true
 				s.include_sys_deps = 1
@@ -1796,7 +1879,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				} else if *optarg == `n` {
 					x = 0
 				} else { // 3
-					_tcc_warning(c"unsupported language '%s'", optarg)
+					_tcc_warning("unsupported language '${optarg}'")
 				}
 				s.filetype = x | (s.filetype & ~(15 | 64))
 			}
@@ -1805,11 +1888,15 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			tcc_option_print_search_dirs { // case comp body kind=BinaryOperator is_enum=true
 				x = 4
-				goto extra_action // id: 0x7fffbf5abdd0
+				unsafe {
+					goto extra_action
+				} // id: 0x7fffbf5abdd0
 			}
 			tcc_option_impdef { // case comp body kind=BinaryOperator is_enum=true
 				x = 6
-				goto extra_action // id: 0x7fffbf5abdd0
+				unsafe {
+					goto extra_action
+				} // id: 0x7fffbf5abdd0
 			}
 			tcc_option_ar { // case comp body kind=BinaryOperator is_enum=true
 				x = 5
@@ -1817,7 +1904,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				extra_action:
 				arg_start = optind - 1
 				if arg_start != noaction {
-					return _tcc_error_noabort(c'cannot parse %s here', r)
+					return _tcc_error_noabort('cannot parse ${r} here')
 				}
 				tool = x
 			}
@@ -1825,13 +1912,15 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				// RRRREG unsupported_option id=0x7fffbf5ae9a8
 				unsupported_option:
 				tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
-				_tcc_warning(c"unsupported option '%s'", r)
+				_tcc_warning("unsupported option '${r}'")
 			}
 		}
 	}
 	if s.linker_arg.size {
 		r = s.linker_arg.data
-		goto arg_err // id: 0x7fffbf5ab8d0
+		unsafe {
+			goto arg_err
+		} // id: 0x7fffbf5ab8d0
 	}
 	*pargc = argc - arg_start
 	*pargv = argv + arg_start

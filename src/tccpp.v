@@ -140,8 +140,6 @@ const tok_two_chars = [`<`, `=`, 158, `>`, `=`, 157, `!`, `=`, 149, `&`, `&`, 14
 	`=`, 177, `*`, `=`, 178, `/`, `=`, 179, `%`, `=`, 180, `&`, `=`, 181, `^`, `=`, 183, `|`, `=`,
 	182, `-`, `>`, 160, `.`, `.`, 162, `#`, `#`, 163, `#`, `#`, 166, 0]!
 
-fn next_nomacro()
-
 fn skip(c int) {
 	if tok != c {
 		tmp := [40]i8{}
@@ -1199,8 +1197,6 @@ fn maybe_run_test(s &TCCState) {
 	C.fprintf(s.ppfp, &c'\n[%s]\n'[!(s.dflag & 32)], p), C.fflush(s.ppfp)
 	define_push(tok, 0, (unsafe { nil }), (unsafe { nil }))
 }
-
-fn search_cached_include(s1 &TCCState, filename &i8, add int) &CachedInclude
 
 fn parse_include(s1 &TCCState, do_next int, test int) int {
 	c := 0
@@ -2925,8 +2921,6 @@ fn next_nomacro1() {
 	keep_tok_flags:
 	file.buf_ptr = p
 }
-
-fn macro_subst(tok_str &TokenString, nested_list &&Sym, macro_str &int)
 
 fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 	t := 0

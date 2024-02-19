@@ -1,6 +1,8 @@
 @[translated]
 module main
 
+import os
+
 @[export: 'help']
 const help = c"Tiny C Compiler 0.9.28rc - Copyright (C) 2001-2006 Fabrice Bellard\nUsage: tcc [options...] [-o outfile] [-c] infile(s)...\n       tcc [options...] -run infile (or --) [arguments...]\nGeneral options:\n  -c           compile only - generate an object file\n  -o outfile   set output filename\n  -run         run compiled source\n  -fflag       set or reset (with 'no-' prefix) 'flag' (see tcc -hh)\n  -std=c99     Conform to the ISO 1999 C standard (default).\n  -std=c11     Conform to the ISO 2011 C standard.\n  -Wwarning    set or reset (with 'no-' prefix) 'warning' (see tcc -hh)\n  -w           disable all warnings\n  -v --version show version\n  -vv          show search paths or loaded files\n  -h -hh       show this, show more help\n  -bench       show compilation statistics\n  -            use stdin pipe as infile\n  @listfile    read arguments from listfile\nPreprocessor options:\n  -Idir        add include path 'dir'\n  -Dsym[=val]  define 'sym' with value 'val'\n  -Usym        undefine 'sym'\n  -E           preprocess only\nLinker options:\n  -Ldir        add library path 'dir'\n  -llib        link with dynamic or static library 'lib'\n  -r           generate (relocatable) object file\n  -shared      generate a shared library/dll\n  -rdynamic    export all global symbols to dynamic linker\n  -soname      set name for shared library to be used at runtime\n  -Wl,-opt[=val]  set linker option (see tcc -hh)\nDebugger options:\n  -g           generate stab runtime debug info\n  -gdwarf[-x]  generate dwarf runtime debug info\n  -b           compile with built-in memory and bounds checker (implies -g)\n  -bt[N]       link with backtrace (stack dump) support [show max N callers]\nMisc. options:\n  -x[c|a|b|n]  specify type of the next infile (C,ASM,BIN,NONE)\n  -nostdinc    do not use standard system include paths\n  -nostdlib    do not link with standard crt and libraries\n  -Bdir        set tcc's private include/library dir\n  -M[M]D       generate make dependency file [ignore system files]\n  -M[M]        as above but no other output\n  -MF file     specify dependency file name\n  -m32/64      defer to i386/x86_64 cross compiler\nTools:\n  create library  : tcc -ar [crstvx] lib [files]\n"
 
@@ -29,46 +31,45 @@ fn print_search_dirs(s &TCCState) {
 
 fn set_environment(s &TCCState) {
 	path := &i8(0)
-	path = getenv(c'C_INCLUDE_PATH')
+	path = C.getenv(c'C_INCLUDE_PATH')
 	if path != (unsafe { nil }) {
 		tcc_add_sysinclude_path(s, path)
 	}
-	path = getenv(c'CPATH')
+	path = C.getenv(c'CPATH')
 	if path != (unsafe { nil }) {
 		tcc_add_include_path(s, path)
 	}
-	path = getenv(c'LIBRARY_PATH')
+	path = C.getenv(c'LIBRARY_PATH')
 	if path != (unsafe { nil }) {
 		tcc_add_library_path(s, path)
 	}
 }
 
-fn default_outputfile(s &TCCState, first_file &i8) &i8 {
-	buf := [1024]i8{}
+fn default_outputfile(s &TCCState, first_file &char) &char {
+	buf := [1024]char{}
 	ext := &i8(0)
 	name := c'a'
-	if first_file && C.strcmp(first_file, c'-') {
+	if first_file && unsafe { C.strcmp(first_file, c'-') } {
 		name = tcc_basename(first_file)
 	}
-	C.snprintf(buf, sizeof(buf), c'%s', name)
+	unsafe { C.snprintf(buf, sizeof(buf), c'%s', name) }
 	ext = tcc_fileextension(buf)
 	if (s.just_deps || s.output_type == 3) && !s.option_r && *ext {
-		strcpy(ext, c'.o')
+		C.strcpy(ext, c'.o')
 	} else { // 3
-		strcpy(buf, c'a.out')
+		C.strcpy(buf, c'a.out')
 	}
 	return tcc_strdup(buf)
 }
 
-fn getclock_ms() u32 {
-	tv := Timeval{}
-	gettimeofday(&tv, (unsafe { nil }))
+fn getclock_ms() u64 {
+	tv := C.timeval{}
+	C.gettimeofday(&tv, (unsafe { nil }))
 	return tv.tv_sec * 1000 + (tv.tv_usec + 500) / 1000
 }
 
 fn main() {
 	s := &TCCState(0)
-	s1 := &TCCState(0)
 
 	ret := 0
 	opt := 0
@@ -82,27 +83,26 @@ fn main() {
 	first_file := &i8(0)
 	argc := 0
 	argv := &&u8(0)
-	ppfp := C.stdout
+	ppfp := &C.stdout
 	// RRRREG redo id=0x7ffff0d74558
 	redo:
-	argc = argc0
-	argv = argv0
+	argc = os.args.len
+	argv = os.args
 	s = tcc_new()
-	s1 = s
 	opt = tcc_parse_args(s, &argc, &argv, 1)
 	if opt < 0 {
 		return
 	}
 	if n == 0 {
 		if opt == 1 {
-			fputs(help, C.stdout)
+			C.fputs(help, C.stdout)
 			if !s.verbose {
 				return
 			}
 			opt++$
 		}
 		if opt == 2 {
-			fputs(help2, C.stdout)
+			C.fputs(help2, C.stdout)
 			return
 		}
 		if opt == 32 || opt == 64 {
@@ -124,19 +124,19 @@ fn main() {
 			return
 		}
 		if s.nb_files == 0 {
-			_tcc_error_noabort(c'no input files')
+			_tcc_error_noabort('no input files')
 		} else if s.output_type == 5 {
-			if s.outfile && 0 != C.strcmp(c'-', s.outfile) {
+			if s.outfile && 0 != unsafe { C.strcmp(c'-', s.outfile) } {
 				ppfp = C.fopen(s.outfile, c'w')
 				if !ppfp {
-					_tcc_error_noabort(c"could not write '%s'", s.outfile)
+					_tcc_error_noabort("could not write '${s.outfile}'")
 				}
 			}
 		} else if s.output_type == 3 && !s.option_r {
 			if s.nb_libraries {
-				_tcc_error_noabort(c'cannot specify libraries with -c')
+				_tcc_error_noabort('cannot specify libraries with -c')
 			} else if s.nb_files > 1 && s.outfile {
-				_tcc_error_noabort(c'cannot specify output file with -c many files')
+				_tcc_error_noabort('cannot specify output file with -c many files')
 			}
 		}
 		if s.nb_errors {
@@ -213,10 +213,14 @@ fn main() {
 	}
 	tcc_delete(s)
 	if !done {
-		goto redo // id: 0x7ffff0d74558
+		unsafe {
+			goto redo
+		} // id: 0x7ffff0d74558
 	}
 	if t {
-		goto redo // id: 0x7ffff0d74558
+		unsafe {
+			goto redo
+		} // id: 0x7ffff0d74558
 	}
 	if ppfp && ppfp != C.stdout {
 		C.fclose(ppfp)

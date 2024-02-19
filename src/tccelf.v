@@ -1,13 +1,6 @@
 @[translated]
 module main
 
-struct Sym_version {
-	lib           &i8
-	version       &i8
-	out_index     int
-	prev_same_lib int
-}
-
 @[export: 'shf_RELRO']
 const shf_RELRO = (1 << 1) | (1 << 0)
 
@@ -1968,8 +1961,6 @@ fn update_reloc_sections(s1 &TCCState, dyninf &Dyn_inf) {
 	}
 }
 
-fn tidy_section_headers(s1 &TCCState, sec_order &int) int
-
 fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_offset int, sec_order &int) int {
 	i := 0
 	shnum := 0
@@ -2184,8 +2175,6 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 	tcc_free(backmap)
 	return nnew
 }
-
-fn alloc_sec_names(s1 &TCCState, is_obj int)
 
 fn elf_output_file(s1 &TCCState, filename &i8) int {
 	i := 0
