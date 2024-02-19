@@ -1,6 +1,8 @@
 @[translated]
 module main
 
+fn C.dlclose(int)
+
 @[export: 'shf_RELRO']
 const shf_RELRO = (1 << 1) | (1 << 0)
 
@@ -53,7 +55,7 @@ fn tccelf_delete(s1 &TCCState) {
 	for i = 0; i < s1.nb_loaded_dlls; i++ {
 		ref := s1.loaded_dlls[i]
 		if ref.handle {
-			dlclose(ref.handle)
+			C.dlclose(ref.handle)
 		}
 	}
 	dynarray_reset(&s1.loaded_dlls, &s1.nb_loaded_dlls)
@@ -68,9 +70,9 @@ fn tccelf_begin_file(s1 &TCCState) {
 		s = s1.sections[i]
 		s.sh_offset = s.data_offset
 	}
-	s = s1.symtab
-	s.reloc = s.hashs
 	s.hash = unsafe { nil }
+	s.reloc = s.hash
+	s = s1.symtab
 }
 
 fn tccelf_end_file(s1 &TCCState) {
@@ -88,7 +90,7 @@ fn tccelf_end_file(s1 &TCCState) {
 	s.reloc = unsafe { nil }
 	tr = tcc_mallocz(nb_syms * sizeof(*tr))
 	for i = 0; i < nb_syms; i++ {
-		sym := &Elf64_Sym(s.data) + first_sym + i
+		sym := unsafe { &Elf64_Sym(s.data) + first_sym + i }
 		if sym.st_shndx == 0 {
 			sym_bind := ((u8((sym.st_info))) >> 4)
 			sym_type := ((sym.st_info) & 15)
@@ -108,12 +110,12 @@ fn tccelf_end_file(s1 &TCCState) {
 		if sr.sh_type == 4 && sr.link == s {
 			rel := &Elf64_Rela((sr.data + sr.sh_offset))
 			rel_end := &Elf64_Rela((sr.data + sr.data_offset))
-			for ; rel < rel_end; rel++ {
+			for ; voidptr(rel) < voidptr(rel_end); unsafe { rel++ } {
 				n := ((rel.r_info) >> 32) - first_sym
 				if n < 0 {
 					continue
 				}
-				rel.r_info = (((Elf64_Xword((tr[n]))) << 32) + ((rel.r_info) & 4294967295))
+				rel.r_info = (((Elf64_Xword(u64(tr[n]))) << 32) + ((rel.r_info) & 4294967295))
 			}
 		}
 	}
@@ -126,9 +128,11 @@ fn tccelf_end_file(s1 &TCCState) {
 
 fn new_section(s1 &TCCState, name &i8, sh_type int, sh_flags int) &Section {
 	sec := &Section(0)
-	sec = tcc_mallocz(sizeof(Section) + C.strlen(name))
-	sec.s1 = s1
-	strcpy(sec.name, name)
+	unsafe {
+		sec = tcc_mallocz(sizeof(Section) + C.strlen(name))
+		sec.s1 = s1
+		C.strcpy(sec.name, name)
+	}
 	sec.sh_type = sh_type
 	sec.sh_flags = sh_flags
 	match sh_type {
@@ -176,7 +180,7 @@ fn new_symtab(s1 &TCCState, symtab_name &i8, sh_type int, sh_flags int, strtab_n
 	ptr = section_ptr_add(hash, (2 + nb_buckets + 1) * sizeof(int))
 	ptr[0] = nb_buckets
 	ptr[1] = 1
-	C.memset(ptr + 2, 0, (nb_buckets + 1) * sizeof(int))
+	unsafe { C.memset(ptr + 2, 0, (nb_buckets + 1) * sizeof(int)) }
 	return symtab
 }
 
@@ -191,7 +195,7 @@ fn section_realloc(sec &Section, new_size u32) {
 		size = size * 2
 	}
 	data = tcc_realloc(sec.data, size)
-	C.memset(data + sec.data_allocated, 0, size - sec.data_allocated)
+	unsafe { C.memset(data + sec.data_allocated, 0, size - sec.data_allocated) }
 	sec.data = data
 	sec.data_allocated = size
 }
@@ -214,7 +218,7 @@ fn section_add(sec &Section, size Elf64_Addr, align int) usize {
 
 fn section_ptr_add(sec &Section, size Elf64_Addr) voidptr {
 	offset := section_add(sec, size, 1)
-	return sec.data + offset
+	return unsafe { sec.data + offset }
 }
 
 fn section_reserve(sec &Section, size u32) {
@@ -251,19 +255,19 @@ fn put_elf_str(s &Section, sym &i8) int {
 	len := 0
 
 	ptr := &i8(0)
-	len = C.strlen(sym) + 1
+	len = unsafe { C.strlen(sym) + 1 }
 	offset = s.data_offset
 	ptr = section_ptr_add(s, len)
-	C.memmove(ptr, sym, len)
+	unsafe { C.memmove(ptr, sym, len) }
 	return offset
 }
 
 fn elf_hash(name &u8) Elf64_Word {
 	h := 0
-	g := Elf64_Word{}
+	g := Elf64_Word(0)
 
 	for *name {
-		h = (h << 4) + *name++
+		h = (h << 4) + unsafe { *name++ }
 		g = h & 4026531840
 		if g {
 			h ^= g >> 24
@@ -285,7 +289,7 @@ fn rebuild_hash(s &Section, nb_buckets u32) {
 	strtab = s.link.data
 	nb_syms = s.data_offset / sizeof(Elf64_Sym)
 	if !nb_buckets {
-		nb_buckets = (&int(s.hash.data))[0]
+		nb_buckets = unsafe { (&int(s.hash.data))[0] }
 	}
 	s.hash.data_offset = 0
 	ptr = section_ptr_add(s.hash, (2 + nb_buckets + nb_syms) * sizeof(int))
@@ -293,19 +297,19 @@ fn rebuild_hash(s &Section, nb_buckets u32) {
 	ptr[1] = nb_syms
 	ptr += 2
 	hash = ptr
-	C.memset(hash, 0, (nb_buckets + 1) * sizeof(int))
+	unsafe { C.memset(hash, 0, (nb_buckets + 1) * sizeof(int)) }
 	ptr += nb_buckets + 1
-	sym = &Elf64_Sym(s.data) + 1
+	sym = unsafe { &Elf64_Sym(s.data) + 1 }
 	for sym_index = 1; sym_index < nb_syms; sym_index++ {
 		if ((u8((sym.st_info))) >> 4) != 0 {
-			h = elf_hash(strtab + sym.st_name) % nb_buckets
+			h = elf_hash(unsafe { strtab + sym.st_name }) % nb_buckets
 			*ptr = hash[h]
 			hash[h] = sym_index
 		} else {
 			*ptr = 0
 		}
-		ptr++
-		sym++
+		unsafe { ptr++ }
+		unsafe { sym++ }
 	}
 }
 
@@ -330,7 +334,7 @@ fn put_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shnd
 	sym.st_info = info
 	sym.st_other = other
 	sym.st_shndx = shndx
-	sym_index = sym - &Elf64_Sym(s.data)
+	sym_index = unsafe { sym - voidptr(&Elf64_Sym(s.data)) }
 	hs = s.hash
 	if hs {
 		ptr := &int(0)
@@ -373,8 +377,8 @@ fn find_elf_sym(s &Section, name &i8) int {
 	sym_index = (&int(hs.data))[2 + h]
 	for sym_index != 0 {
 		sym = &(&Elf64_Sym(s.data))[sym_index]
-		name1 = &i8(s.link.data) + sym.st_name
-		if !C.strcmp(name, name1) {
+		name1 = unsafe { &i8(s.link.data) + sym.st_name }
+		if unsafe { !C.strcmp(name, name1) } {
 			return sym_index
 		}
 		sym_index = (&int(hs.data))[2 + nbuckets + sym_index]
@@ -426,7 +430,7 @@ fn list_elf_symbols(s &TCCState, ctx voidptr, symbol_cb fn (voidptr, &i8, voidpt
 			sym_bind = ((u8((sym.st_info))) >> 4)
 			sym_vis = ((sym.st_other) & 3)
 			if sym_bind == 1 && sym_vis == 0 {
-				symbol_cb(ctx, name, voidptr(Uintptr_t(sym.st_value)))
+				symbol_cb(ctx, name, voidptr(uintptr_t(sym.st_value)))
 			}
 		}
 	}

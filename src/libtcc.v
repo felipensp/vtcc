@@ -372,7 +372,6 @@ const error_noabort = 1
 const error_error = 2
 
 fn error1(mode int, message string) {
-	pf := &&BufferedFile(0)
 	f := &BufferedFile(0)
 
 	s1 := tcc_state
@@ -946,12 +945,10 @@ fn args_parser_add_file(s &TCCState, filename &i8, filetype int) {
 }
 
 pub fn tcc_set_linker(s &TCCState, option &i8) int {
-	s1 := s
 	for *option {
 		p := (unsafe { nil })
 		end := (unsafe { nil })
 		ignoring := 0
-		ret := 0
 		if link_option(option, c'Bsymbolic', &p) {
 			s.symbolic = 1
 		} else if link_option(option, c'nostdlib', &p) {
@@ -1523,7 +1520,6 @@ fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
 }
 
 fn args_parser_listfile(s &TCCState, filename &i8, optind int, pargc &int, pargv &&&i8) int {
-	s1 := s
 	fd := 0
 	i := 0
 
@@ -1922,8 +1918,10 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			goto arg_err
 		} // id: 0x7fffbf5ab8d0
 	}
-	*pargc = argc - arg_start
-	*pargv = argv + arg_start
+	unsafe {
+		*pargc = argc - arg_start
+		*pargv = argv + arg_start
+	}
 	if tool {
 		return tool
 	}
