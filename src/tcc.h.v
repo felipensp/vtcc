@@ -47,6 +47,7 @@ pub struct SValue {
 	c      CValue
 	cmp_op u8
 	cmp_r  u8
+	sym    &Sym
 }
 
 pub struct SymAttr {
@@ -103,6 +104,238 @@ pub struct Section {
 	hash           &Section
 	prev           &Section
 	name           [1]i8
+}
+
+struct TCCState {
+	verbose          u8  // if true, display some information during compilation
+	nostdinc         u8  // if true, no standard headers are added
+	nostdlib         u8  // if true, no standard libraries are added
+	nocommon         u8  // if true, do not use common symbols for .bss data
+	static_link      u8  // if true, static linking is performed
+	rdynamic         u8  // if true, all symbols are exported
+	symbolic         u8  // if true, resolve symbols in the current module first
+	filetype         u8  // file type for compilation (NONE,C,ASM)
+	optimize         u8  // only to #define __OPTIMIZE__
+	option_pthread   u8  // -pthread option
+	enable_new_dtags u8  // -Wl,--enable-new-dtags
+	cversion         u64 // supported C ISO version, 199901 (the default), 201112, ...
+	// C language options
+	char_is_unsigned       u8
+	leading_underscore     u8
+	ms_extensions          u8 // allow nested named struct w/o identifier behave like unnamed
+	dollars_in_identifiers u8 // allows '$' char in identifiers
+	ms_bitfields           u8 // if true, emulate MS algorithm for aligning bitfields
+	// warning switches
+	warn_none                          u8
+	warn_all                           u8
+	warn_error                         u8
+	warn_write_strings                 u8
+	warn_unsupported                   u8
+	warn_implicit_function_declaration u8
+	warn_discarded_qualifiers          u8
+	warn_num                           u8 // temp var for tcc_warning_c()
+
+	option_r         u8 // option -r
+	do_bench         u8 // option -bench
+	just_deps        u8 // option -M
+	gen_deps         u8 // option -MD
+	include_sys_deps u8 // option -MD
+	gen_phony_deps   u8 // option -MP
+	// compile with debug symbol (and use them if error during execution)
+	do_debug     u8
+	dwarf        u8
+	do_backtrace u8
+	// compile with built-in memory and bounds checker
+	do_bounds_check u8
+	test_coverage   u8 // generate test coverage code
+	// use GNU C extensions
+	gnu_ext u8
+	// use TinyCC extensions
+	tcc_ext u8
+
+	dflag u8 // -dX value
+	Pflag u8 // -P switch (LINE_MACRO_OUTPUT_FORMAT)
+
+	nosse u8 // For -mno-sse support.
+	//#ifdef TCC_TARGET_ARM
+	//    float_abi u8 // float ABI of the generated code
+	//#endif
+
+	has_text_addr u8
+	text_addr     u64   // address of text section
+	section_align usize // section alignment
+	//#ifdef TCC_TARGET_I386
+	seg_size int // 32. Can be 16 with i386 assembler (.code16)
+	//#endif
+
+	tcc_lib_path  &char // CONFIG_TCCDIR or -B option
+	soname        &char // as specified on the command line (-soname)
+	rpath         &char // as specified on the command line (-Wl,-rpath=)
+	elf_entryname &char // "_start" unless set
+	init_symbol   &char // symbols to call at load-time (not used currently)
+	fini_symbol   &char // symbols to call at unload-time (not used currently)
+	mapfile       &char // create a mapfile (not used currently)
+	// output type, see TCC_OUTPUT_XXX
+	output_type int
+	// output format, see TCC_OUTPUT_FORMAT_xxx
+	output_format int
+	// nth test to run with -dt -run
+	run_test int
+	// array of all loaded dlls (including those referenced by loaded dlls)
+	loaded_dlls    &&DLLReference
+	nb_loaded_dlls int
+	// include paths
+	include_paths    &&char
+	nb_include_paths int
+
+	sysinclude_paths    &&char
+	nb_sysinclude_paths int
+	// library paths
+	library_paths    &&char
+	nb_library_paths int
+	// crt?.o object path
+	crt_paths    &&char
+	nb_crt_paths int
+	// -D / -U options
+	cmdline_defs CString
+	// -include options
+	cmdline_incl CString
+	// error handling
+	error_opaque          voidptr
+	error_func            fn (voidptr, &char)
+	error_set_jmp_enabled int
+	error_jmp_buf         C.jmp_buf
+	nb_errors             int
+	// output file for preprocessing (-E)
+	ppfp &C.FILE
+	// for -MD/-MF: collected dependencies for this compilation
+	target_deps    &&char
+	nb_target_deps int
+	// compilation
+	include_stack     [INCLUDE_STACK_SIZE]BufferedFile
+	include_stack_ptr &&BufferedFile
+
+	ifdef_stack     [IFDEF_STACK_SIZE]int
+	ifdef_stack_ptr &int
+	// included files enclosed with #ifndef MACRO
+	cached_includes_hash [CACHED_INCLUDES_HASH_SIZE]int
+	cached_includes      &&CachedInclude
+	nb_cached_includes   int
+	// #pragma pack stack
+	pack_stack     [PACK_STACK_SIZE]int
+	pack_stack_ptr &int
+	pragma_libs    &&char
+	nb_pragma_libs int
+	/* inline functions are stored as token lists and compiled last
+       only if referenced */
+	inline_fns    &&InlineFunc
+	nb_inline_fns int
+	// sections
+	sections    &&Section
+	nb_sections int // number of sections, including first dummy section
+
+	priv_sections    &&Section
+	nb_priv_sections int // number of private sections
+	// predefined sections
+	text_section     &Section
+	data_section     &Section
+	rodata_section   &Section
+	bss_section      &Section
+	common_section   &Section
+	cur_text_section &Section // current section where function code is generated
+	//#ifdef CONFIG_TCC_BCHECK
+	// bound check related sections
+	bounds_section  &Section // contains global data bound description
+	lbounds_section &Section // contains local data bound description
+	//#endif
+	// symbol section
+	symtab_section &Section
+	// temporary dynamic symbol sections (for dll loading)
+	dynsymtab_section &Section
+	// exported dynamic symbol section
+	dynsym &Section
+	// copy of the global symtab_section variable
+	symtab &Section
+	// got & plt handling
+	got &Section
+	plt &Section
+	// debug sections
+	stab_section           &Section
+	dwarf_info_section     &Section
+	dwarf_abbrev_section   &Section
+	dwarf_line_section     &Section
+	dwarf_aranges_section  &Section
+	dwarf_str_section      &Section
+	dwarf_line_str_section &Section
+	dwlo                   int
+	dwhi                   int // dwarf section range
+	// test coverage
+	tcov_section &Section
+	// debug state
+	dState &_tccdbg
+	// Is there a new undefined sym since last new_undef_sym()
+	new_undef_sym int
+	// extra attributes (eg. GOT/PLT value) for symtab symbols
+	sym_attrs    &sym_attr
+	nb_sym_attrs int
+	// ptr to next reloc entry reused
+	qrel &ElfW_Rel
+	//#ifdef TCC_TARGET_PE
+	// PE info
+	pe_subsystem       int
+	pe_characteristics u16
+	pe_file_align      u16
+	pe_stack_size      u16
+	pe_imagebase       u64
+	//# ifdef TCC_TARGET_X86_64
+	uw_pdata &Section
+	uw_sym   int
+	uw_offs  u16
+	//# endif
+	//#endif
+	//#if defined TCC_TARGET_MACHO
+	install_name          &char
+	compatibility_version u32
+	current_version       u32
+	//#endif
+	//#ifndef ELF_OBJ_ONLY
+	nb_sym_versions   int
+	sym_versions      &sym_version
+	nb_sym_to_version int
+	sym_to_version    &int
+	dt_verneednum     int
+	versym_section    &Section
+	verneed_section   &Section
+	//#endif
+	//#ifdef TCC_IS_NATIVE
+	runtime_main   &char
+	runtime_mem    &voidptr
+	nb_runtime_mem int
+	//#endif
+	//#ifdef CONFIG_TCC_BACKTRACE
+	rt_num_callers int
+	//#endif
+	// benchmark info
+	total_idents int
+	total_lines  int
+	total_bytes  u64
+	total_output [4]u64
+	// option -dnum (for general development purposes)
+	g_debug int
+	// used by tcc_load_ldscript
+	fd int
+	cc int
+	// for warnings/errors for object files
+	current_filename &char
+	// used by main and tcc_parse_args only
+	files        &&filespec // files seen on command line
+	nb_files     int        // number thereof
+	nb_libraries int        // number of libs thereof
+	outfile      &char      // output filename
+	deps_outfile &char      // option -MF
+	argc         int
+	argv         &&char
+	linker_arg   CString // collect -Wl options
 }
 
 pub struct DLLReference {
