@@ -151,14 +151,24 @@ struct Elf64_Phdr {
 	p_align  Elf64_Xword
 }
 
+union Elf32_Dyn_un {
+	d_val Elf32_Word // Integer value
+	d_ptr Elf32_Addr // Address value
+}
+
 struct Elf32_Dyn {
 	d_tag Elf32_Sword
-	// d_un Union (unnamed union at ./elf.h
+	d_un  Elf32_Dyn_un
+}
+
+union Elf64_Dyn_un {
+	d_val Elf64_Xword // Integer value
+	d_ptr Elf64_Addr  // Address value
 }
 
 struct Elf64_Dyn {
 	d_tag Elf64_Sxword
-	// d_un Union (unnamed union at ./elf.h
+	d_un  Elf64_Dyn_un
 }
 
 struct Elf32_Verdef {

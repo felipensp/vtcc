@@ -1,9 +1,20 @@
 @[translated]
 module main
 
+__global funcname = &char{}
+__global rsym = int(0)
+__global anon_sym = int(0)
+__global ind = int(0)
+__global loc = int(0)
+__global global_expr = int(0)
+__global func_ind = int(0)
+
 struct C.jmp_buf {
 }
 
+pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
+
+pub const VSTACK_SIZE = 512
 const IFDEF_STACK_SIZE = 64
 const CACHED_INCLUDES_HASH_SIZE = 32
 const PACK_STACK_SIZE = 8
@@ -1570,106 +1581,6 @@ fn isoct(c int) bool {
 fn toup(c int) int {
 	return if (c >= 'a' && c <= 'z') { c - 'a' + 'A' } else { c }
 }
-
-@[weak]
-__global (
-	global_stack &Sym
-)
-
-@[weak]
-__global (
-	local_stack &Sym
-)
-
-@[weak]
-__global (
-	local_label_stack &Sym
-)
-
-@[weak]
-__global (
-	global_label_stack &Sym
-)
-
-@[weak]
-__global (
-	define_stack &Sym
-)
-
-@[weak]
-__global (
-	int_type CType
-)
-
-@[weak]
-__global (
-	func_old_type CType
-)
-
-@[weak]
-__global (
-	char_pointer_type CType
-)
-
-@[weak]
-__global (
-	vtop &SValue
-)
-
-@[weak]
-__global (
-	rsym int
-)
-
-@[weak]
-__global (
-	anon_sym int
-)
-
-@[weak]
-__global (
-	debug_modes i8
-)
-
-@[weak]
-__global (
-	nocode_wanted int
-)
-
-@[weak]
-__global (
-	global_expr int
-)
-
-@[weak]
-__global (
-	func_vt CType
-)
-
-@[weak]
-__global (
-	func_var int
-)
-
-@[weak]
-__global (
-	func_vc int
-)
-
-@[weak]
-__global (
-	func_ind int
-)
-
-@[weak]
-__global (
-	funcname &i8
-)
-
-@[weak]
-__global (
-	func_bound_add_epilog int
-)
 
 pub struct Stab_Sym {
 	n_strx  u32
