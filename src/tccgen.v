@@ -1,21 +1,12 @@
 @[translated]
 module main
 
+import strings
+
 fn C.qsort(voidptr, usize, usize, fn (voidptr, voidptr) int)
 
 __global _vstack = [1 + VSTACK_SIZE]SValue{}
-__global int_type = CType{}
-__global func_old_type = CType{}
-__global char_type = CType{}
-__global char_pointer_type = CType{}
-
-__global initstr = CString{}
-
-__global global_stack = &Sym{}
-__global local_stack = &Sym{}
-__global define_stack = &Sym{}
-__global global_label_stack = &Sym{}
-__global local_label_stack = &Sym{}
+__global initstr = strings.new_builder(100)
 
 __global sym_free_first = &Sym{}
 __global sym_pools = &voidptr(0)
@@ -24,7 +15,6 @@ __global nb_sym_pools = int(0)
 __global all_cleanups = &Sym{}
 __global pending_gotos = &Sym{}
 __global local_scope = int(0)
-__global debug_modes = c''
 
 struct Case_t {
 	v1  i64
@@ -1035,8 +1025,10 @@ fn save_regs(n int) {
 	p1 := &SValue(0)
 
 	p = _vstack + 1
-	for p1 = unsafe { vtop - n }; unsafe { voidptr(p) <= voidptr(p1) }; unsafe { p++ } {
-		save_reg(p.r)
+	unsafe {
+		for p1 = vtop - n; voidptr(p) <= voidptr(p1); p++ {
+			save_reg(p.r)
+		}
 	}
 }
 
@@ -1062,38 +1054,40 @@ fn save_reg_upstack(r int, n int) {
 	}
 	l = 0
 	p = (_vstack + 1)
-	for p1 = unsafe { vtop - n }; unsafe { voidptr(p) <= voidptr(p1) }; unsafe { p++ } {
-		if (p.r & 63) == r || p.r2 == r {
-			if !l {
-				bt = p.type_.t & 15
-				if bt == 0 {
-					continue
+	unsafe {
+		for p1 = vtop - n; voidptr(p) <= voidptr(p1); p++ {
+			if (p.r & 63) == r || p.r2 == r {
+				if !l {
+					bt = p.type_.t & 15
+					if bt == 0 {
+						continue
+					}
+					if p.r & 256 || bt == 6 {
+						bt = 5
+					}
+					sv.type_.t = bt
+					size = type_size(&sv.type_, &align)
+					l = get_temp_local_var(size, align)
+					sv.r = 50 | 256
+					sv.c.i = l
+					store(p.r & 63, &sv)
+					if r == treg_st0 {
+						o(55517)
+					}
+					if p.r2 < 48 && r2_ret(bt) != 48 {
+						sv.c.i += 8
+						store(p.r2, &sv)
+					}
 				}
-				if p.r & 256 || bt == 6 {
-					bt = 5
+				if p.r & 256 {
+					p.r = (p.r & ~(63 | 32768)) | 49
+				} else {
+					p.r = 256 | 50
 				}
-				sv.type_.t = bt
-				size = type_size(&sv.type_, &align)
-				l = get_temp_local_var(size, align)
-				sv.r = 50 | 256
-				sv.c.i = l
-				store(p.r & 63, &sv)
-				if r == treg_st0 {
-					o(55517)
-				}
-				if p.r2 < 48 && r2_ret(bt) != 48 {
-					sv.c.i += 8
-					store(p.r2, &sv)
-				}
+				p.sym = nil
+				p.r2 = 48
+				p.c.i = l
 			}
-			if p.r & 256 {
-				p.r = (p.r & ~(63 | 32768)) | 49
-			} else {
-				p.r = 256 | 50
-			}
-			p.sym = (unsafe { nil })
-			p.r2 = 48
-			p.c.i = l
 		}
 	}
 }
@@ -1106,9 +1100,11 @@ fn get_reg(rc int) int {
 			if nocode_wanted {
 				return r
 			}
-			for p = (_vstack + 1); unsafe { voidptr(p) <= voidptr(vtop) }; unsafe { p++ } {
-				if (p.r & 63) == r || p.r2 == r {
-					goto notfound // id: 0x7fffed425a30
+			unsafe {
+				for p = (_vstack + 1); voidptr(p) <= voidptr(vtop); p++ {
+					if (p.r & 63) == r || p.r2 == r {
+						goto notfound // id: 0x7fffed425a30
+					}
 				}
 			}
 			return r
@@ -1116,17 +1112,19 @@ fn get_reg(rc int) int {
 		// RRRREG notfound id=0x7fffed425a30
 		notfound:
 	}
-	for p = (_vstack + 1); unsafe { voidptr(p) <= voidptr(vtop) }; unsafe { p++ } {
-		r = p.r2
-		if r < 48 && reg_classes[r] & rc {
-			goto save_found // id: 0x7fffed426048
-		}
-		r = p.r & 63
-		if r < 48 && reg_classes[r] & rc {
-			// RRRREG save_found id=0x7fffed426048
-			save_found:
-			save_reg(r)
-			return r
+	unsafe {
+		for p = (_vstack + 1); voidptr(p) <= voidptr(vtop); p++ {
+			r = p.r2
+			if r < 48 && reg_classes[r] & rc {
+				goto save_found // id: 0x7fffed426048
+			}
+			r = p.r & 63
+			if r < 48 && reg_classes[r] & rc {
+				// RRRREG save_found id=0x7fffed426048
+				save_found:
+				save_reg(r)
+				return r
+			}
 		}
 	}
 	return -1
@@ -1147,12 +1145,14 @@ fn get_temp_local_var(size int, align int) int {
 			continue
 		}
 		free = 1
-		for p = (_vstack + 1); unsafe { voidptr(p) <= voidptr(vtop) }; unsafe { p++ } {
-			r = p.r & 63
-			if r == 50 || r == 49 {
-				if p.c.i == u64(temp_var.location) {
-					free = 0
-					break
+		unsafe {
+			for p = (_vstack + 1); voidptr(p) <= voidptr(vtop); p++ {
+				r = p.r & 63
+				if r == 50 || r == 49 {
+					if p.c.i == u64(temp_var.location) {
+						free = 0
+						break
+					}
 				}
 			}
 		}
@@ -2058,7 +2058,7 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 		6 { // case comp body kind=BinaryOperator is_enum=false
 			s = type_.ref
 			buf1[0] = 0
-			if varstr && '*' == *varstr {
+			if varstr && c'*' == *varstr {
 				pstrcat(buf1, sizeof(buf1), c'(')
 				pstrcat(buf1, sizeof(buf1), varstr)
 				pstrcat(buf1, sizeof(buf1), c')')
@@ -2084,7 +2084,7 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 		5 { // case comp body kind=BinaryOperator is_enum=false
 			s = type_.ref
 			if t & (64 | 1024) {
-				if varstr && '*' == *varstr {
+				if varstr && c'*' == *varstr {
 					C.snprintf(buf1, sizeof(buf1), c'(%s)[%d]', varstr, s.c)
 				} else { // 3
 					C.snprintf(buf1, sizeof(buf1), c'%s[%d]', if varstr { varstr } else { c'' },
@@ -2839,7 +2839,7 @@ fn verify_assign_cast(dt &CType) {
 			if !is_compatible_unqualified_types(type1, type2) {
 				if (dbt == 0 || sbt == 0) && lvl == 0 {
 				} else if dbt == sbt && is_integer_btype(sbt & 15)
-					&& ((type1.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) + ((type2.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) + !!((type1.t ^ type2.t) & 16) < 2 {
+					&& int((type1.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) + int((type2.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) + !!((type1.t ^ type2.t) & 16) < 2 {
 				} else {
 					_tcc_warning('assignment from incompatible pointer type')
 				}
@@ -3017,7 +3017,7 @@ fn inc(post int, c int) {
 	}
 }
 
-fn parse_mult_str(msg &i8) &CString {
+fn parse_mult_str(msg &i8) &strings.Builder {
 	if tok != 200 {
 		expect(msg)
 	}
@@ -3071,7 +3071,7 @@ fn parse_attribute(ad &AttributeDef) {
 		}
 		t = tok
 		next()
-		match t {
+		match Tcc_token(t) {
 			.tok_cleanup1, .tok_cleanup2 {
 				{
 					s := &Sym(0)
@@ -3164,7 +3164,7 @@ fn parse_attribute(ad &AttributeDef) {
 			}
 			.tok_mode { // case comp body kind=CallExpr is_enum=true
 				skip(`(`)
-				match tok {
+				match Tcc_token(tok) {
 					.tok_mode_di { // case comp body kind=BinaryOperator is_enum=true
 						ad.attr_mode = 4 + 1
 					}
@@ -3751,7 +3751,7 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 	st = bt
 	type_.ref = (unsafe { nil })
 	for {
-		match tok {
+		match Tcc_token(tok) {
 			.tok_extension { // case comp body kind=CallExpr is_enum=true
 				next()
 				continue
@@ -4010,7 +4010,7 @@ fn convert_parameter_type(pt &CType) {
 	}
 }
 
-fn parse_asm_str() &CString {
+fn parse_asm_str() &strings.Builder {
 	skip(`(`)
 	return parse_mult_str(c'string constant')
 }
@@ -4133,8 +4133,9 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 		if td & 4 {
 			for 1 {
 				match tok {
-					.tok_restrict1, .tok_restrict2, .tok_restrict3, .tok_const1, .tok_volatile1,
-					.tok_static, int(c'*') {
+					int(Tcc_token.tok_restrict1), int(Tcc_token.tok_restrict2),
+					int(Tcc_token.tok_restrict3), int(Tcc_token.tok_const1),
+					int(Tcc_token.tok_volatile1), int(Tcc_token.tok_static), int(c'*') {
 						next()
 						continue
 					}
@@ -4235,7 +4236,7 @@ fn type_decl(type_ &CType, ad &AttributeDef, v &int, td int) &CType {
 		// RRRREG redo id=0x7fffed4b4180
 		redo:
 		next()
-		match tok {
+		match Tcc_token(tok) {
 			.tok__atomic { // case comp body kind=CompoundAssignOperator is_enum=true
 				qualifiers |= 512
 				goto redo // id: 0x7fffed4b4180
@@ -4377,7 +4378,7 @@ fn parse_builtin_params(nc int, args &i8) {
 		}
 		skip(sep)
 		sep = `,`
-		if c == 't' {
+		if c == c't' {
 			parse_type(&type_)
 			vpush(&type_)
 			continue
@@ -4540,7 +4541,7 @@ fn unary() {
 	// RRRREG tok_next id=0x7fffed4bf938
 	tok_next:
 	match tok {
-		.tok_extension { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_extension) { // case comp body kind=CallExpr is_enum=true
 			next()
 			goto tok_next // id: 0x7fffed4bf938
 		}
@@ -4584,16 +4585,16 @@ fn unary() {
 			t = (if 8 == 8 { 4 } else { 3 }) | 2048 | 16
 			goto push_tokc // id: 0x7fffed4bfbc8
 		}
-		.tok___function__ { // case comp body kind=IfStmt is_enum=true
+		int(Tcc_token.tok___function__) { // case comp body kind=IfStmt is_enum=true
 			if !tcc_state.gnu_ext {
 				goto tok_identifier // id: 0x7fffed4c0830
 			}
 		}
-		.tok___func__ { // case comp body kind=BinaryOperator is_enum=true
+		int(Tcc_token.tok___func__) { // case comp body kind=BinaryOperator is_enum=true
 			tok = 200
 			cstr_reset(&tokcstr)
 			cstr_cat(&tokcstr, funcname, 0)
-			tokc.str.size = tokcstr.size
+			// tokc.str.size = tokcstr.size
 			tokc.str.data = tokcstr.data
 			goto case_TOK_STR // id: 0x7fffed4c0d38
 		}
@@ -4699,7 +4700,8 @@ fn unary() {
 				gen_op(`+`)
 			}
 		}
-		.tok_sizeof, .tok_alignof1, .tok_alignof2, .tok_alignof3 {
+		int(Tcc_token.tok_sizeof), int(Tcc_token.tok_alignof1), int(Tcc_token.tok_alignof2),
+		int(Tcc_token.tok_alignof3) {
 			t = tok
 			next()
 			if tok == `(` {
@@ -4721,11 +4723,11 @@ fn unary() {
 				vpushs(align)
 			}
 		}
-		.tok_builtin_expect { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_builtin_expect) { // case comp body kind=CallExpr is_enum=true
 			parse_builtin_params(0, c'ee')
 			vpop()
 		}
-		.tok_builtin_types_compatible_p { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_builtin_types_compatible_p) { // case comp body kind=CallExpr is_enum=true
 			parse_builtin_params(0, c'tt')
 			vtop[-1].type_.t &= ~(256 | 512)
 			vtop[0].type_.t &= ~(256 | 512)
@@ -4733,7 +4735,7 @@ fn unary() {
 			vtop -= 2
 			vpushi(n)
 		}
-		.tok_builtin_choose_expr {
+		int(Tcc_token.tok_builtin_choose_expr) {
 			// case comp stmt
 			c := i64(0)
 			next()
@@ -4759,7 +4761,7 @@ fn unary() {
 			}
 			skip(`)`)
 		}
-		.tok_builtin_constant_p { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_builtin_constant_p) { // case comp body kind=CallExpr is_enum=true
 			parse_builtin_params(1, c'e')
 			n = 1
 			if (vtop.r & (63 | 256)) != 48 || (vtop.r & 512 && vtop.sym.a.addrtaken) {
@@ -4768,7 +4770,7 @@ fn unary() {
 			unsafe { vtop-- }
 			vpushi(n)
 		}
-		.tok_builtin_frame_address, .tok_builtin_return_address {
+		int(Tcc_token.tok_builtin_frame_address), int(Tcc_token.tok_builtin_return_address) {
 			{
 				tok1 := tok
 				level := i64(0)
@@ -4798,18 +4800,20 @@ fn unary() {
 				}
 			}
 		}
-		.tok_builtin_va_arg_types { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_builtin_va_arg_types) { // case comp body kind=CallExpr is_enum=true
 			parse_builtin_params(0, c't')
 			vpushi(classify_x86_64_va_arg(&vtop.type_))
 			vswap()
 			vpop()
 		}
-		.tok___atomic_store, .tok___atomic_load, .tok___atomic_exchange,
-		.tok___atomic_compare_exchange, .tok___atomic_fetch_add, .tok___atomic_fetch_sub,
-		.tok___atomic_fetch_or, .tok___atomic_fetch_xor, .tok___atomic_fetch_and,
-		.tok___atomic_fetch_nand, .tok___atomic_add_fetch, .tok___atomic_sub_fetch,
-		.tok___atomic_or_fetch, .tok___atomic_xor_fetch, .tok___atomic_and_fetch,
-		.tok___atomic_nand_fetch {
+		int(Tcc_token.tok___atomic_store), int(Tcc_token.tok___atomic_load),
+		int(Tcc_token.tok___atomic_exchange), int(Tcc_token.tok___atomic_compare_exchange),
+		int(Tcc_token.tok___atomic_fetch_add), int(Tcc_token.tok___atomic_fetch_sub),
+		int(Tcc_token.tok___atomic_fetch_or), int(Tcc_token.tok___atomic_fetch_xor),
+		int(Tcc_token.tok___atomic_fetch_and), int(Tcc_token.tok___atomic_fetch_nand),
+		int(Tcc_token.tok___atomic_add_fetch), int(Tcc_token.tok___atomic_sub_fetch),
+		int(Tcc_token.tok___atomic_or_fetch), int(Tcc_token.tok___atomic_xor_fetch),
+		int(Tcc_token.tok___atomic_and_fetch), int(Tcc_token.tok___atomic_nand_fetch) {
 			parse_atomic(tok)
 		}
 		130, 128 {
@@ -4829,32 +4833,31 @@ fn unary() {
 				gen_op(`-`)
 			}
 		}
-		//  144 { // case comp body kind=IfStmt is_enum=true
-		// if !tcc_state.gnu_ext {
-		// goto tok_identifier // id: 0x7fffed4c0830
-		// }
-		// next()
-		// if tok < Tcc_token.tok_define {
-		// expect(c'label identifier')
-		// }
-		// s = label_find(tok)
-		// if !s {
-		// 	s = label_push(&global_label_stack, tok, 1)
-		// }
-		// else {
-		// 	if s.r == 2 {
-		// 	s.r = 1
-		// 	}
-		// }
-		// if (s.type_.t & 15) != 5 {
-		// 	s.type_.t = 0
-		// 	mk_pointer(&s.type_)
-		// 	s.type_.t |= 8192
-		// }
-		// vpushsym(&s.type_, s)
-		// next()
-		// }
-		.tok_generic {
+		144 { // case comp body kind=IfStmt is_enum=true
+			if !tcc_state.gnu_ext {
+				goto tok_identifier // id: 0x7fffed4c0830
+			}
+			next()
+			if tok < Tcc_token.tok_define {
+				expect(c'label identifier')
+			}
+			s = label_find(tok)
+			if !s {
+				s = label_push(&global_label_stack, tok, 1)
+			} else {
+				if s.r == 2 {
+					s.r = 1
+				}
+			}
+			if (s.type_.t & 15) != 5 {
+				s.type_.t = 0
+				mk_pointer(&s.type_)
+				s.type_.t |= 8192
+			}
+			vpushsym(&s.type_, s)
+			next()
+		}
+		int(Tcc_token.tok_generic) {
 			// case comp stmt
 			controlling_type := CType{}
 			has_default := 0
@@ -4871,7 +4874,7 @@ fn unary() {
 			for {
 				learn = 0
 				skip(`,`)
-				if tok == .tok_default {
+				if tok == Tcc_token.tok_default {
 					if has_default {
 						_tcc_error("too many 'default'")
 					}
@@ -4920,46 +4923,45 @@ fn unary() {
 			end_macro()
 			next()
 		}
-		//  .tok___nan__ { // case comp body kind=BinaryOperator is_enum=true
-		// n = 2143289344
-		// // RRRREG special_math_val id=0x7fffed4cbd30
-		// special_math_val:
-		// vpushi(n)
-		// vtop.type_.t = 8
-		// next()
-		// }
-		//  .tok___snan__ { // case comp body kind=BinaryOperator is_enum=true
-		// n = 2139095041
-		// goto special_math_val // id: 0x7fffed4cbd30
-		// }
-		//  .tok___inf__ { // case comp body kind=BinaryOperator is_enum=true
-		// n = 2139095040
-		// goto special_math_val // id: 0x7fffed4cbd30
-		// t = tok
-		// next()
-		// s = sym_find(t)
-		// if !s || (((s).type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20)) {
-		// 	name := get_tok_str(t, (voidptr(0)))
-		// 	if tok != `(` {
-		// 	_tcc_error("'%s' undeclared", name)
-		// 	}
-		// 	tcc_state.warn_num = (usize(&(&TCCState(0)).warn_implicit_function_declaration)) - (usize(&(&TCCState(0)).warn_none))
-		// 	_tcc_warning("implicit declaration of function '%s'", name)
-		// 	s = external_global_sym(t, &func_old_type)
-		// }
-		// r = s.r
-		// if (r & 63) < 48 {
-		// r = (r & ~63) | 50
-		// }
-		// vset(&s.type_, r, s.c)
-		// vtop.sym = s
-		// if r & 512 {
-		// 	vtop.c.i = 0
-		// }
-		// else if r == 48 && ((s.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (3 << 20)) {
-		// 	vtop.c.i = s.enum_val
-		// }
-		// }
+		int(Tcc_token.tok___nan__) { // case comp body kind=BinaryOperator is_enum=true
+			n = 2143289344
+			// RRRREG special_math_val id=0x7fffed4cbd30
+			special_math_val:
+			vpushi(n)
+			vtop.type_.t = 8
+			next()
+		}
+		int(Tcc_token.tok___snan__) { // case comp body kind=BinaryOperator is_enum=true
+			n = 2139095041
+			goto special_math_val // id: 0x7fffed4cbd30
+		}
+		int(Tcc_token.tok___inf__) { // case comp body kind=BinaryOperator is_enum=true
+			n = 2139095040
+			goto special_math_val // id: 0x7fffed4cbd30
+			t = tok
+			next()
+			s = sym_find(t)
+			if !s || (s.type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20) {
+				name := get_tok_str(t, (unsafe { nil }))
+				if tok != `(` {
+					_tcc_error("'${name}' undeclared")
+				}
+				tcc_state.warn_num = __offsetof(TCCState, warn_implicit_function_declaration) - __offsetof(TCCState, warn_none)
+				_tcc_warning("implicit declaration of function '${name}'")
+				s = external_global_sym(t, &func_old_type)
+			}
+			r = s.r
+			if (r & 63) < 48 {
+				r = (r & ~63) | 50
+			}
+			vset(&s.type_, r, s.c)
+			vtop.sym = s
+			if r & 512 {
+				vtop.c.i = 0
+			} else if r == 48 && (s.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (3 << 20) {
+				vtop.c.i = s.enum_val
+			}
+		}
 		else {
 			// RRRREG tok_identifier id=0x7fffed4c0830
 			tok_identifier:
@@ -6435,13 +6437,13 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 				bits := 0
 				n := 0
 
-				p = &u8(0)
+				p2 := &u8(0)
 				v := u8(0)
 				m := u8(0)
 
 				bit_pos = (((vtop.type_.t) >> 20) & 63)
 				bit_size = (((vtop.type_.t) >> (20 + 6)) & 63)
-				p = &u8(ptr) + (bit_pos >> 3)
+				p2 = &u8(ptr) + (bit_pos >> 3)
 				bit_pos &= 7
 				bits = 0
 				for bit_size {
@@ -6451,11 +6453,11 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 					}
 					v = val >> bits << bit_pos
 					m = ((1 << n) - 1) << bit_pos
-					*p = (*p & ~m) | (v & m)
+					*p2 = (*p2 & ~m) | (v & m)
 					bits += n
 					bit_size -= n
 					bit_pos = 0
-					unsafe { p++ }
+					unsafe { p2++ }
 				}
 			} else { // 3
 			}
@@ -6518,9 +6520,9 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				_tcc_error('unhandled string literal merging')
 			}
 			for tok == 200 || tok == 201 {
-				if initstr.size {
-					initstr.size -= size1
-				}
+				// if initstr.size {
+				// 	initstr.size -= size1
+				// }
 				if tok == 200 {
 					len += tokc.str.size
 				} else { // 3
@@ -6532,7 +6534,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 			}
 			if tok != `)` && tok != `}` && tok != `,` && tok != `;` && tok != (-1) {
 				unget_tok(if size1 == 1 { 200 } else { 201 })
-				tokc.str.size = initstr.size
+				tokc.str.size = initstr.len
 				tokc.str.data = initstr.data
 				goto do_init_array // id: 0x7fffed520228
 			}
@@ -6977,7 +6979,6 @@ fn free_inline_functions(s &TCCState) {
 	dynarray_reset(&s.inline_fns, &s.nb_inline_fns)
 }
 
-@[c: 'do_Static_assert']
 fn do_static_assert() {
 	c := 0
 	mut msg := ''
@@ -6987,7 +6988,7 @@ fn do_static_assert() {
 	msg = '_Static_assert fail'
 	if tok == `,` {
 		next()
-		msg = parse_mult_str(c'string constant').data
+		msg = cstring_to_vstring(parse_mult_str(c'string constant').data)
 	}
 	skip(`)`)
 	if c == 0 {

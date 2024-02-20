@@ -1,6 +1,52 @@
 @[translated]
 module main
 
+__global func_bound_offset = u64(0)
+__global func_bound_ind = u64(0)
+__global func_bound_add_epilog = int(0)
+
+__global func_sub_sp_offset = u64(0)
+__global func_ret_sub = int(0)
+
+pub const target_machine_defs = ['__x86_64__', '__amd64__']
+
+const RC_INT = 0x0001 // generic integer register
+const RC_FLOAT = 0x0002 // generic float register
+const RC_RAX = 0x0004
+const RC_RDX = 0x0008
+const RC_RCX = 0x0010
+const RC_RSI = 0x0020
+const RC_RDI = 0x0040
+const RC_ST0 = 0x0080 // only for long double
+const RC_R8 = 0x0100
+const RC_R9 = 0x0200
+const RC_R10 = 0x0400
+const RC_R11 = 0x0800
+const RC_XMM0 = 0x1000
+const RC_XMM1 = 0x2000
+const RC_XMM2 = 0x4000
+const RC_XMM3 = 0x8000
+const RC_XMM4 = 0x10000
+const RC_XMM5 = 0x20000
+const RC_XMM6 = 0x40000
+const RC_XMM7 = 0x80000
+const RC_IRET = RC_RAX // function return: integer register
+const RC_IRE2 = RC_RDX // function return: second integer register
+const RC_FRET = RC_XMM0 // function return: float register
+const RC_FRE2 = RC_XMM1 // function return: second float register
+
+const reg_classes = [0x0001 | 0x0004, // eax
+ 0x0001 | 0x0010, // ecx
+ 0x0001 | 0x0008, // edx
+ 0, 0, 0, RC_RSI, RC_RDI, RC_R8, RC_R9, RC_R10, RC_R11, 0, 0, 0, 0, 0x0002 | 0x1000, // xmm0
+ 0x0002 | 0x2000, // xmm1
+ 0x0002 | 0x4000, // xmm2
+ 0x0002 | 0x8000, // xmm3
+ 0x0002 | 0x10000, // xmm4
+ 0x0002 | 0x20000, // xmm5
+ 0x40000, 0x80000, 0x0080, // st0
+]!
+
 // empty enum
 const treg_rax = 0
 const treg_rcx = 1
@@ -22,94 +68,6 @@ const treg_xmm6 = 22
 const treg_xmm7 = 23
 const treg_st0 = 24
 const treg_mem = 32
-
-@[weak]
-__global (
-	tcc_state &TCCState
-)
-
-@[weak]
-__global (
-	tok int
-)
-
-@[weak]
-__global (
-	char_pointer_type CType
-)
-
-@[weak]
-__global (
-	vtop &SValue
-)
-
-@[weak]
-__global (
-	ind int
-)
-
-@[weak]
-__global (
-	loc int
-)
-
-@[weak]
-__global (
-	nocode_wanted int
-)
-
-@[weak]
-__global (
-	func_vt CType
-)
-
-@[weak]
-__global (
-	func_var int
-)
-
-@[weak]
-__global (
-	func_vc int
-)
-
-@[weak]
-__global (
-	func_bound_add_epilog int
-)
-
-@[weak]
-__global (
-	target_machine_defs &char
-)
-
-@[weak]
-__global (
-	reg_classes [25]int
-)
-
-// skipping global dup "target_machine_defs"
-// skipping global dup "reg_classes"
-
-@[weak]
-__global (
-	func_sub_sp_offset u32
-)
-
-@[weak]
-__global (
-	func_ret_sub int
-)
-
-@[weak]
-__global (
-	func_bound_offset Elf64_Addr
-)
-
-@[weak]
-__global (
-	func_bound_ind u32
-)
 
 // skipping global dup "func_bound_add_epilog"
 fn g(c int) {
@@ -177,7 +135,7 @@ fn gsym_addr(t int, a int) {
 	}
 }
 
-fn is64_type(t int) int {
+fn is64_type(t int) bool {
 	return (t & 15) == 5 || (t & 15) == 6 || (t & 15) == 4
 }
 
@@ -194,24 +152,24 @@ fn oad(c int, s int) int {
 
 fn gen_addr32(r int, sym &Sym, c int) {
 	if r & 512 {
-		greloca(tcc_state.cur_text_section, sym, ind, 11, c), 0
-		c = greloca(tcc_state.cur_text_section, sym, ind, 11, c)
+		greloca(tcc_state.cur_text_section, sym, ind, 11, c)
+		c = 0
 	}
 	gen_le32(c)
 }
 
 fn gen_addr64(r int, sym &Sym, c i64) {
 	if r & 512 {
-		greloca(tcc_state.cur_text_section, sym, ind, 1, c), 0
-		c = greloca(tcc_state.cur_text_section, sym, ind, 1, c)
+		greloca(tcc_state.cur_text_section, sym, ind, 1, c)
+		c = 0
 	}
 	gen_le64(c)
 }
 
 fn gen_addrpc32(r int, sym &Sym, c int) {
 	if r & 512 {
-		greloca(tcc_state.cur_text_section, sym, ind, 2, c - 4), 4
-		c = greloca(tcc_state.cur_text_section, sym, ind, 2, c - 4)
+		greloca(tcc_state.cur_text_section, sym, ind, 2, c - 4)
+		c = 4
 	}
 	gen_le32(c - 4)
 }
@@ -281,8 +239,8 @@ fn load(r int, sv &SValue) {
 	fr = sv.r
 	ft = sv.type_.t & ~32
 	fc = sv.c.i
-	if fc != sv.c.i && fr & 512 {
-		_tcc_error(c'64 bit addend in load')
+	if u64(fc) != sv.c.i && fr & 512 {
+		_tcc_error('64 bit addend in load')
 	}
 	ft &= ~(512 | 256)
 	if (fr & 63) == 48 && fr & 512 && fr & 256 && !(sv.sym.type_.t & 8192) {
@@ -308,7 +266,7 @@ fn load(r int, sv &SValue) {
 			}
 			load(fr, &v1)
 		}
-		if fc != sv.c.i {
+		if u64(fc) != sv.c.i {
 			v1.type_.t = 4
 			v1.r = 48
 			v1.c.i = sv.c.i
@@ -336,7 +294,7 @@ fn load(r int, sv &SValue) {
 					ft = 4
 				}
 				else {
-					_tcc_error(c'invalid aggregate type for register load')
+					_tcc_error('invalid aggregate type for register load')
 				}
 			}
 		}
@@ -362,11 +320,7 @@ fn load(r int, sv &SValue) {
 		} else if (ft & (~((4096 | 8192 | 16384 | 32768) | (((1 << (6 + 6)) - 1) << 20 | 128)))) == (0) {
 			return
 		} else {
-			assert if ((ft & 15) == 3 || (ft & 15) == 4 || (ft & 15) == 5 || (ft & 15) == 6) {
-				1
-			} else {
-				0
-			}
+			assert (ft & 15) == 3 || (ft & 15) == 4 || (ft & 15) == 5 || (ft & 15) == 6
 			ll = is64_type(ft)
 			b = 139
 		}
@@ -427,19 +381,18 @@ fn load(r int, sv &SValue) {
 					o(68 + (r & 7) * 8)
 					o(61476)
 				} else {
-					asset
-					if (v >= treg_xmm0 && v <= treg_xmm7) {
-						1
+					assert if (v >= treg_xmm0 && v <= treg_xmm7) {
+						true
 					} else {
-						0
+						false
 					}
 					if (ft & 15) == 8 {
 						o(1052659)
 					} else {
 						assert if ((ft & 15) == 9) {
-							1
+							true
 						} else {
-							0
+							false
 						}
 						o(1052658)
 					}
@@ -447,9 +400,9 @@ fn load(r int, sv &SValue) {
 				}
 			} else if r == treg_st0 {
 				assert if (v >= treg_xmm0 && v <= treg_xmm7) {
-					1
+					true
 				} else {
-					0
+					false
 				}
 				o(1118194)
 				o(68 + (r & 7) * 8)
@@ -467,7 +420,7 @@ fn store(r int, v &SValue) {
 	fr := 0
 	bt := 0
 	ft := 0
-	fc := 0
+	fc := u64(0)
 
 	op64 := 0
 	pic := 0
@@ -475,7 +428,7 @@ fn store(r int, v &SValue) {
 	ft = v.type_.t
 	fc = v.c.i
 	if fc != v.c.i && fr & 512 {
-		_tcc_error(c'64 bit addend in store')
+		_tcc_error('64 bit addend in store')
 	}
 	ft &= ~(512 | 256)
 	bt = ft & 15
@@ -535,7 +488,7 @@ fn store(r int, v &SValue) {
 
 fn gcall_or_jmp(is_jmp int) {
 	r := 0
-	if (vtop.r & (63 | 256)) == 48 && (vtop.r & 512 && (vtop.c.i - 4) == int((vtop.c.i - 4))) {
+	if (vtop.r & (63 | 256)) == 48 && (vtop.r & 512 && (vtop.c.i - 4) == (vtop.c.i - 4)) {
 		greloca(tcc_state.cur_text_section, vtop.sym, ind + 1, 4, int((vtop.c.i - 4)))
 		oad(232 + is_jmp, 0)
 	} else {
@@ -557,13 +510,15 @@ fn gen_bounds_prolog() {
 	func_bound_offset = tcc_state.lbounds_section.data_offset
 	func_bound_ind = ind
 	func_bound_add_epilog = 0
-	o(888136 + ((treg_rdi == treg_rdi) * 3145728))
+	t := u64(treg_rdi == treg_rdi)
+	t *= 3145728
+	o(888136 + t)
 	gen_le32(0)
 	oad(184, 0)
 }
 
 fn gen_bounds_epilog() {
-	saved_ind := Elf64_Addr{}
+	saved_ind := Elf64_Addr(0)
 	bounds_ptr := &Elf64_Addr(0)
 	sym_data := &Sym(0)
 	offset_modified := func_bound_offset != tcc_state.lbounds_section.data_offset
@@ -588,7 +543,7 @@ fn gen_bounds_epilog() {
 	o(1057860)
 	o(604776719)
 	greloca(tcc_state.cur_text_section, sym_data, ind + 3, 2, -4)
-	o(888136 + ((treg_rdi == treg_rdi) * 3145728))
+	o(888136 + (int(treg_rdi == treg_rdi) * 3145728))
 	gen_le32(0)
 	gen_bounds_call(Tcc_token.tok___bound_local_delete)
 	o(10255)
@@ -659,12 +614,8 @@ fn classify_x86_64_inner(ty &CType) X86_64_Mode {
 		}
 		else {}
 	}
-	assert if (0) {
-		1
-	} else {
-		0
-	}
-	return 0
+	assert false
+	return X86_64_Mode.x86_64_mode_none
 }
 
 fn classify_x86_64_arg(ty &CType, ret &CType, psize &int, palign &int, reg_count &int) X86_64_Mode {
@@ -733,7 +684,13 @@ fn classify_x86_64_arg(ty &CType, ret &CType, psize &int, palign &int, reg_count
 	return mode
 }
 
-fn classify_x86_64_va_arg(ty &CType) int {
+enum ClassifyVaArg {
+	__va_gen_reg
+	__va_float_reg
+	__va_stack
+}
+
+fn classify_x86_64_va_arg(ty &CType) ClassifyVaArg {
 	size := 0
 	align := 0
 	reg_count := 0
@@ -741,13 +698,13 @@ fn classify_x86_64_va_arg(ty &CType) int {
 	mode := classify_x86_64_arg(ty, (unsafe { nil }), &size, &align, &reg_count)
 	match mode {
 		.x86_64_mode_integer { // case comp body kind=ReturnStmt is_enum=true
-			return __va_gen_reg
+			return ClassifyVaArg.__va_gen_reg
 		}
 		.x86_64_mode_sse { // case comp body kind=ReturnStmt is_enum=true
-			return __va_float_reg
+			return ClassifyVaArg.__va_float_reg
 		}
 		else {
-			return __va_stack
+			return ClassifyVaArg.__va_stack
 		}
 	}
 }
@@ -765,7 +722,6 @@ fn gfunc_sret(vt &CType, variadic int, ret &CType, ret_align &int, regsize &int)
 	return 1
 }
 
-@[export: 'arg_regs']
 const arg_regs = [treg_rdi, treg_rsi, treg_rdx, treg_rcx, treg_r8, treg_r9]!
 
 fn arg_prepare_reg(idx int) int {
@@ -793,7 +749,7 @@ fn gfunc_call(nb_args int) {
 	sse_reg := 0
 	gen_reg := 0
 
-	onstack := tcc_malloc((nb_args + 1) * sizeof(i8))
+	onstack := &i8(tcc_malloc((nb_args + 1) * sizeof(i8)))
 	if tcc_state.do_bounds_check {
 		gbound_args(nb_args)
 	}
@@ -823,7 +779,7 @@ fn gfunc_call(nb_args int) {
 		}
 	}
 	if nb_sse_args && tcc_state.nosse {
-		_tcc_error(c'SSE disabled but floating point arguments passed')
+		_tcc_error('SSE disabled but floating point arguments passed')
 	}
 	if (vtop.r & 63) == 51 {
 		gv(1)
@@ -875,11 +831,7 @@ fn gfunc_call(nb_args int) {
 				g(0)
 			}
 			8, 9 {
-				assert if (mode == X86_64_Mode.x86_64_mode_sse) {
-					1
-				} else {
-					0
-				}
+				assert mode == X86_64_Mode.x86_64_mode_sse
 				r = gv(2)
 				o(80)
 				o(14028646)
@@ -890,11 +842,7 @@ fn gfunc_call(nb_args int) {
 				orex(0, r, 0, 80 + (r & 7))
 			}
 			else {
-				assert if (mode == X86_64_Mode.x86_64_mode_integer) {
-					1
-				} else {
-					0
-				}
+				assert mode == X86_64_Mode.x86_64_mode_integer
 			}
 		}
 		args_size += size
@@ -904,16 +852,8 @@ fn gfunc_call(nb_args int) {
 	}
 	tcc_free(onstack)
 	save_regs(0)
-	assert if (gen_reg <= 6) {
-		1
-	} else {
-		0
-	}
-	assert if (sse_reg <= 8) {
-		1
-	} else {
-		0
-	}
+	assert gen_reg <= 6
+	assert sse_reg <= 8
 	for i = 0; i < nb_args; i++ {
 		mode = classify_x86_64_arg(&vtop.type_, &type_, &size, &align, &reg_count)
 		if size == 0 {
@@ -931,11 +871,7 @@ fn gfunc_call(nb_args int) {
 					o(192 + (sse_reg << 3))
 				}
 			} else {
-				assert if (reg_count == 1) {
-					1
-				} else {
-					0
-				}
+				assert reg_count == 1
 				sse_reg--$
 				gv(4096 << sse_reg)
 			}
@@ -952,18 +888,10 @@ fn gfunc_call(nb_args int) {
 				o(192 + ((vtop.r2) & 7) * 8 + (d & 7))
 			}
 		}
-		vtop--
+		unsafe { vtop-- }
 	}
-	assert if (gen_reg == 0) {
-		1
-	} else {
-		0
-	}
-	assert if (sse_reg == 0) {
-		1
-	} else {
-		0
-	}
+	assert gen_reg == 0
+	assert sse_reg == 0
 	save_regs(0)
 	if nb_reg_args > 2 {
 		o(13797708)
@@ -978,7 +906,7 @@ fn gfunc_call(nb_args int) {
 	if args_size {
 		gadd_sp(args_size)
 	}
-	vtop--
+	unsafe { vtop-- }
 }
 
 fn push_arg_reg(i int) {
@@ -1084,7 +1012,7 @@ fn gfunc_prolog(func_sym &Sym) {
 		match mode {
 			.x86_64_mode_sse { // case comp body kind=IfStmt is_enum=true
 				if tcc_state.nosse {
-					_tcc_error(c'SSE disabled but floating point arguments used')
+					_tcc_error('SSE disabled but floating point arguments used')
 				}
 				if sse_param_index + reg_count <= 8 {
 					loc -= reg_count * 8
@@ -1098,28 +1026,27 @@ fn gfunc_prolog(func_sym &Sym) {
 					addr = (addr + align - 1) & -align
 					param_addr = addr
 					addr += size
-				}.x86_64_mode_memory, .x86_64_mode_x87
-				{
+				}
+			}
+			.x86_64_mode_memory, .x86_64_mode_x87 {
+				addr = (addr + align - 1) & -align
+				param_addr = addr
+				addr += size
+			}
+			.x86_64_mode_integer {
+				// case comp stmt
+				if reg_param_index + reg_count <= 6 {
+					loc -= reg_count * 8
+					param_addr = loc
+					for i = 0; i < reg_count; i++ {
+						gen_modrm64(137, arg_regs[reg_param_index], 50, (unsafe { nil }),
+							param_addr + i * 8)
+						reg_param_index++$
+					}
+				} else {
 					addr = (addr + align - 1) & -align
 					param_addr = addr
 					addr += size
-				}
-				.x86_64_mode_integer
-				{
-					// case comp stmt
-					if reg_param_index + reg_count <= 6 {
-						loc -= reg_count * 8
-						param_addr = loc
-						for i = 0; i < reg_count; i++ {
-							gen_modrm64(137, arg_regs[reg_param_index], 50, (unsafe { nil }),
-								param_addr + i * 8)
-							reg_param_index++$
-						}
-					} else {
-						addr = (addr + align - 1) & -align
-						param_addr = addr
-						addr += size
-					}
 				}
 			}
 			else {}
@@ -1226,11 +1153,11 @@ fn gen_opi(op int) {
 	uu = (vtop[-1].type_.t & 16) != 0
 	cc = (vtop.r & (63 | 256 | 512)) == 48
 	match op {
-		`+`, 135 {
+		int(c'+'), 135 {
 			opc = 0
 			// RRRREG gen_op8 id=0x7fffc8c27fb0
 			gen_op8:
-			if cc && (!ll || int(vtop.c.i) == vtop.c.i) {
+			if cc && (!ll || int(vtop.c.i) == int(vtop.c.i)) {
 				vswap()
 				r = gv(1)
 				vswap()
@@ -1250,12 +1177,12 @@ fn gen_opi(op int) {
 				orex(ll, r, fr, (opc << 3) | 1)
 				o(192 + (r & 7) + (fr & 7) * 8)
 			}
-			vtop--
+			unsafe { vtop-- }
 			if op >= 146 && op <= 159 {
 				vset_vt_cmp(op)
 			}
 		}
-		`-`, 137 {
+		int(c'-'), 137 {
 			opc = 5
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
@@ -1267,27 +1194,27 @@ fn gen_opi(op int) {
 			opc = 3
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		`&` { // case comp body kind=BinaryOperator is_enum=false
+		int(c'&') { // case comp body kind=BinaryOperator is_enum=false
 			opc = 4
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		`^` { // case comp body kind=BinaryOperator is_enum=false
+		int(c'^') { // case comp body kind=BinaryOperator is_enum=false
 			opc = 6
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		`|` { // case comp body kind=BinaryOperator is_enum=false
+		int(c'|') { // case comp body kind=BinaryOperator is_enum=false
 			opc = 1
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		`*` { // case comp body kind=CallExpr is_enum=false
+		int(c'*') { // case comp body kind=CallExpr is_enum=false
 			gv2(1, 1)
 			r = vtop[-1].r
 			fr = vtop[0].r
 			orex(ll, fr, r, 44815)
 			o(192 + (fr & 7) + (r & 7) * 8)
-			vtop--
+			unsafe { vtop-- }
 		}
-		`<` { // case comp body kind=BinaryOperator is_enum=false
+		int(c'<') { // case comp body kind=BinaryOperator is_enum=false
 			opc = 4
 			goto gen_shift // id: 0x7fffc8c28f80
 		}
@@ -1295,7 +1222,7 @@ fn gen_opi(op int) {
 			opc = 5
 			goto gen_shift // id: 0x7fffc8c28f80
 		}
-		`>` { // case comp body kind=BinaryOperator is_enum=false
+		int(c'>') { // case comp body kind=BinaryOperator is_enum=false
 			opc = 7
 			// RRRREG gen_shift id=0x7fffc8c28f80
 			gen_shift:
@@ -1306,27 +1233,29 @@ fn gen_opi(op int) {
 				vswap()
 				orex(ll, r, 0, 193)
 				o(opc | (r & 7))
-				g(vtop.c.i & (if ll { 63 } else { 31 }))
+				t := vtop.c.i
+				t &= if ll { 63 } else { 31 }
+				g(t)
 			} else {
 				gv2(1, 16)
 				r = vtop[-1].r
 				orex(ll, r, 0, 211)
 				o(opc | (r & 7))
 			}
-			vtop--
+			unsafe { vtop-- }
 		}
 		131, 132 {
 			uu = 1
 			goto divmod // id: 0x7fffc8c2a020
 		}
-		`/`, `%`, 133 {
+		int(c'/'), int(c'%'), 133 {
 			uu = 0
 			// RRRREG divmod id=0x7fffc8c2a020
 			divmod:
 			gv2(4, 16)
 			r = vtop[-1].r
 			fr = vtop[0].r
-			vtop--
+			unsafe { vtop-- }
 			save_reg(treg_rdx)
 			orex(ll, 0, 0, if uu { 53809 } else { 153 })
 			orex(ll, fr, 0, 247)
@@ -1380,7 +1309,7 @@ fn gen_opf(op int) {
 				o(102)
 			}
 			o(12605199 | (((vtop[0].r) & 7) + ((vtop[-1].r) & 7) * 8) << 16)
-			vtop--
+			unsafe { vtop-- }
 		}
 		return
 	}
@@ -1434,12 +1363,12 @@ fn gen_opf(op int) {
 				o(4572406)
 				op = 148
 			}
-			vtop--
+			unsafe { vtop-- }
 			vset_vt_cmp(op)
 		} else {
 			load(treg_st0, vtop)
 			swapped = !swapped
-			match op {
+			match rune(op) {
 				`-` { // case comp body kind=BinaryOperator is_enum=false
 					a = 4
 					if swapped {
@@ -1464,7 +1393,7 @@ fn gen_opf(op int) {
 			fc = vtop.c.i
 			o(222)
 			o(193 + (a << 3))
-			vtop--
+			unsafe { vtop-- }
 		}
 	} else {
 		if op >= 146 && op <= 159 {
@@ -1497,11 +1426,7 @@ fn gen_opf(op int) {
 				gv(2)
 				vswap()
 			}
-			assert if (!(vtop[-1].r & 256)) {
-				1
-			} else {
-				0
-			}
+			assert !bool(vtop[-1].r & 256)
 			if (vtop.type_.t & 15) == 9 {
 				o(102)
 			}
@@ -1515,17 +1440,12 @@ fn gen_opf(op int) {
 			} else {
 				o(192 + ((vtop[0].r) & 7) + ((vtop[-1].r) & 7) * 8)
 			}
-			vtop--
+			unsafe { vtop-- }
 			vset_vt_cmp(op | 256)
 			vtop.cmp_r = op
 		} else {
-			asseert
-			if ((vtop.type_.t & 15) != 10) {
-				1
-			} else {
-				0
-			}
-			match op {
+			assert (vtop.type_.t & 15) != 10
+			match rune(op) {
 				`-` { // case comp body kind=BinaryOperator is_enum=false
 					a = 4
 				}
@@ -1542,11 +1462,7 @@ fn gen_opf(op int) {
 			}
 			ft = vtop.type_.t
 			fc = vtop.c.i
-			assert if ((ft & 15) != 10) {
-				1
-			} else {
-				0
-			}
+			assert (ft & 15) != 10
 			r = vtop.r
 			if (vtop.r & 63) == 49 {
 				v1 := SValue{}
@@ -1559,17 +1475,9 @@ fn gen_opf(op int) {
 				r = r | 256
 				vtop.r = r
 			}
-			assert if (!(vtop[-1].r & 256)) {
-				1
-			} else {
-				0
-			}
+			assert !bool(vtop[-1].r & 256)
 			if swapped {
-				assert if (vtop.r & 256) {
-					1
-				} else {
-					0
-				}
+				assert bool(vtop.r & 256)
 				gv(2)
 				vswap()
 				fc = vtop.c.i
@@ -1586,7 +1494,7 @@ fn gen_opf(op int) {
 			} else {
 				o(192 + ((vtop[0].r) & 7) + ((vtop[-1].r) & 7) * 8)
 			}
-			vtop--
+			unsafe { vtop-- }
 		}
 	}
 }
@@ -1706,11 +1614,7 @@ fn gen_cvt_ftoi(t int) {
 	} else if bt == 9 {
 		o(242)
 	} else {
-		assert if (0) {
-			1
-		} else {
-			0
-		}
+		assert false
 	}
 	orex(size == 8, r, 0, 11279)
 	o(192 + ((vtop.r) & 7) + (r & 7) * 8)
@@ -1745,7 +1649,7 @@ fn gen_increment_tcov(sv &SValue) {
 
 fn ggoto() {
 	gcall_or_jmp(1)
-	vtop--
+	unsafe { vtop-- }
 }
 
 fn gen_vla_sp_save(addr int) {
@@ -1778,7 +1682,8 @@ fn gen_struct_copy(size int) {
 	gv2(64, 32)
 	if n <= 4 {
 		for n {
-			o(42312), n--$
+			o(42312)
+			n--
 		}
 	} else {
 		vpushi(n)

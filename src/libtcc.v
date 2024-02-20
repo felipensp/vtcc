@@ -1,6 +1,8 @@
 @[translated]
 module main
 
+import strings
+
 type uintptr_t = usize
 
 fn C.strcpy(&char, &char) &char
@@ -87,16 +89,6 @@ __global (
 @[weak]
 __global (
 	file &BufferedFile
-)
-
-@[weak]
-__global (
-	tok int
-)
-
-@[weak]
-__global (
-	tok_flags int
 )
 
 @[weak]
@@ -265,8 +257,7 @@ pub fn tcc_mallocz(size u32) voidptr {
 }
 
 pub fn tcc_strdup(str &char) &char {
-	ptr := &char(0)
-	ptr = tcc_malloc(C.strlen(str) + 1)
+	ptr := &char(tcc_malloc(C.strlen(str) + 1))
 	C.strcpy(ptr, str)
 	return ptr
 }
@@ -327,7 +318,7 @@ pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &i8) {
 	p := &rune(0)
 	for {
 		c := 0
-		str := CString{}
+		str := strings.new_builder(0)
 		cstr_new(&str)
 		for p = in_; c != `\x00` && c != c':'[0]; p++ {
 			if c == `{` && p[1] && p[2] == `}` {
@@ -353,7 +344,7 @@ pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &i8) {
 			}
 			c = *p
 		}
-		if str.size {
+		if str.len {
 			cstr_ccat(&str, `\x00`)
 			dynarray_add(p_ary, p_nb_ary, tcc_strdup(str.data))
 		}
@@ -375,7 +366,7 @@ fn error1(mode int, message string) {
 	f := &BufferedFile(0)
 
 	s1 := tcc_state
-	cs := CString{}
+	cs := strings.new_builder(100)
 	tcc_exit_state(s1)
 	if mode == error_warn {
 		if s1.warn_error {
@@ -401,21 +392,27 @@ fn error1(mode int, message string) {
 	cstr_new(&cs)
 	f = (unsafe { nil })
 	if s1.error_set_jmp_enabled {
-		for f = file; f && f.filename[0] == ':'; f = f.prev {
-			0
+		f = file
+		for f && f.filename[0] == c':' {
+			f = f.prev
 		}
 	}
 	if f {
 		// for pf = s1.include_stack; pf < s1.include_stack_ptr; pf++ {
 		// 	cstr_printf(&cs, c'In file included from %s:%d:\n', (*pf).filename, (*pf).line_num - 1)
 		// }
-		cstr_printf(&cs, c'%s:%d: ', f.filename, f.line_num - !!(tok_flags & 1))
+		cstr_printf(&cs, '${f.filename}:${f.line_num - !!(tok_flags & 1)}: ')
 	} else if s1.current_filename {
-		cstr_printf(&cs, c'%s: ', s1.current_filename)
+		cstr_printf(&cs, '${s1.current_filename}: ')
 	} else {
-		cstr_printf(&cs, c'tcc: ')
+		cstr_printf(&cs, 'tcc: ')
 	}
-	cstr_printf(&cs, if mode == error_warn { c'warning: ' } else { c'error: ' })
+	if mode == error_warn {
+		cstr_printf(&cs, 'warning: ')
+	} else {
+		cstr_printf(&cs, 'error: ')
+	}
+
 	// cstr_vprintf(&cs, fmt, ap)
 	if !s1 || !s1.error_func {
 		if s1 && s1.output_type == 5 && s1.ppfp == C.stdout {
@@ -507,8 +504,12 @@ fn _tcc_open(s1 &TCCState, filename &i8) int {
 		fd = C.open(filename, 0 | 0)
 	}
 	if (s1.verbose == 2 && fd >= 0) || s1.verbose == 3 {
-		C.printf(c'%s %*s%s\n', if fd < 0 { c'nf' } else { c'->' }, int((s1.include_stack_ptr - s1.include_stack)),
-			c'', filename)
+		val := int(*(s1.include_stack_ptr) - s1.include_stack)
+		if fd < 0 {
+			C.printf(c'%s %*s%s\n', c'nf', val, c'', filename)
+		} else {
+			C.printf(c'%s %*s%s\n', c'->', val, c'', filename)
+		}
 	}
 	return fd
 }
@@ -570,11 +571,11 @@ pub fn tcc_define_symbol(s1 &TCCState, sym &i8, value &i8) {
 	if (unsafe { nil }) == value {
 		value = if *eq { eq + 1 } else { c'1' }
 	}
-	cstr_printf(&s1.cmdline_defs, c'#define %.*s %s\n', int((eq - sym)), sym, value)
+	cstr_printf(&s1.cmdline_defs, '#define ${int((eq - sym))} ${value}\n')
 }
 
 pub fn tcc_undefine_symbol(s1 &TCCState, sym &i8) {
-	cstr_printf(&s1.cmdline_defs, c'#undef %s\n', sym)
+	cstr_printf(&s1.cmdline_defs, '#undef ${sym}\n')
 }
 
 pub fn tcc_new() &TCCState {
@@ -805,9 +806,15 @@ pub fn tcc_add_crt(s1 &TCCState, filename &i8) int {
 }
 
 pub fn tcc_add_library(s &TCCState, libraryname &i8) int {
-	libs := [c'%s/lib%s.so', c'%s/lib%s.a', (unsafe { nil })]!
-
-	pp := if s.static_link { libs + 1 } else { libs }
+	// libs :=
+	// static_libs :=
+	pp := [3]&u8{}
+	(unsafe { nil })
+	if s.static_link {
+		pp = [c'%s/lib%s.a', unsafe { nil }, unsafe { nil }]!
+	} else {
+		pp = [c'%s/lib%s.so', c'%s/lib%s.a', unsafe { nil }]!
+	}
 	flags := s.filetype & 128
 	idx := 0
 	for *pp[idx] {
@@ -1088,8 +1095,7 @@ const tcc_option_install_name = 57
 const tcc_option_compatibility_version = 58
 const tcc_option_current_version = 59
 
-@[export: 'tcc_options']
-const tcc_options = [TCCOption{
+__global tcc_options = [TCCOption{
 	name: c'h'
 	index: tcc_option_help
 	flags: 0
@@ -1333,7 +1339,6 @@ struct FlagDef {
 	name   &i8
 }
 
-@[export: 'options_W']
 const options_W = [
 	FlagDef{
 		offset: __offsetof(TCCState, warn_all)
@@ -1372,7 +1377,6 @@ const options_W = [
 	},
 ]!
 
-@[export: 'options_f']
 const options_f = [
 	FlagDef{
 		offset: __offsetof(TCCState, char_is_unsigned)
@@ -1416,7 +1420,6 @@ const options_f = [
 	},
 ]!
 
-@[export: 'options_m']
 const options_m = [
 	FlagDef{
 		offset: __offsetof(TCCState, ms_bitfields)
@@ -1451,13 +1454,15 @@ fn set_flag(s &TCCState, flags &FlagDef, name &i8) int {
 		mask = 1
 	}
 	ret = -1
-	for p = flags; p.name; unsafe { p++ } {
+	for p = flags; p.name != unsafe { nil }; {
 		if ret {
 			if C.strcmp(r, p.name) {
+				unsafe { p++ }
 				continue
 			}
 		} else {
 			if 0 == (p.flags & 1) {
+				unsafe { p++ }
 				continue
 			}
 		}
@@ -1469,11 +1474,11 @@ fn set_flag(s &TCCState, flags &FlagDef, name &i8) int {
 				break
 			}
 		}
+		unsafe { p++ }
 	}
 	return ret
 }
 
-@[export: 'dumpmachine_str']
 const dumpmachine_str = c'x86_64-pc-linux-gnu'
 
 fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
@@ -1481,7 +1486,7 @@ fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
 	q := 0
 	c := 0
 
-	str := CString{}
+	str := strings.new_builder(100)
 	for {
 		for {
 			c = u8(*r)
@@ -1596,13 +1601,15 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				goto dorun
 			} // id: 0x7fffbf5aa788
 		}
-		for popt = tcc_options; true; unsafe { popt++ } {
+		popt = tcc_options
+		for {
 			p1 := popt.name
 			r1 := r + 1
 			if p1 == (unsafe { nil }) {
 				return _tcc_error_noabort("invalid option -- '${r}'")
 			}
 			if !strstart(p1, &r1) {
+				unsafe { popt++ }
 				continue
 			}
 			optarg = r1
@@ -1616,6 +1623,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 					optarg = argv[optind++]
 				}
 			} else if *r1 != `\x00` {
+				unsafe { popt++ }
 				continue
 			}
 			break
@@ -1746,7 +1754,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				tcc_add_sysinclude_path(s, optarg)
 			}
 			tcc_option_include { // case comp body kind=CallExpr is_enum=true
-				cstr_printf(&s.cmdline_incl, c'#include "%s"\n', optarg)
+				cstr_printf(&s.cmdline_incl, '#include "${optarg}"\n')
 			}
 			tcc_option_nostdinc { // case comp body kind=BinaryOperator is_enum=true
 				s.nostdinc = 1
@@ -1807,8 +1815,8 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				s.rdynamic = 1
 			}
 			tcc_option_wl { // case comp body kind=IfStmt is_enum=true
-				if s.linker_arg.size {
-					(&i8(s.linker_arg.data))[s.linker_arg.size - 1] = `,`
+				if s.linker_arg.len {
+					(&i8(s.linker_arg.data))[s.linker_arg.len - 1] = `,`
 				}
 				cstr_cat(&s.linker_arg, optarg, 0)
 				x = tcc_set_linker(s, s.linker_arg.data)
@@ -1912,7 +1920,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 		}
 	}
-	if s.linker_arg.size {
+	if s.linker_arg.len {
 		r = s.linker_arg.data
 		unsafe {
 			goto arg_err

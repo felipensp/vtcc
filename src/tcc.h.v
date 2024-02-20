@@ -1,26 +1,46 @@
 @[translated]
 module main
 
-__global funcname = &char{}
+import strings
+
+#include <semaphore.h>
+
+__global global_stack = &Sym{}
+__global local_stack = &Sym{}
+__global local_label_stack = &Sym{}
+__global global_label_stack = &Sym{}
+__global define_stack = &Sym{}
+
+__global int_type = CType{}
+__global func_old_type = CType{}
+__global char_pointer_type = CType{}
+__global char_type = CType{}
+__global vtop = &SValue{}
 __global rsym = int(0)
 __global anon_sym = int(0)
-__global ind = int(0)
-__global loc = int(0)
-__global global_expr = int(0)
-__global func_ind = int(0)
-//__global global_label_stack = &Sym{}
+//__global ind = int(0)
+//__global loc = int(0)
+__global debug_modes = c''
 
-struct C.jmp_buf {
-}
+__global nocode_wanted = int(0)
+__global global_expr = int(0)
+__global func_vt = CType{}
+__global func_var = int(0)
+__global func_vc = int(0)
+__global func_ind = int(0)
+__global funcname = &char(0)
 
 pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
 
+pub const STRING_MAX_SIZE = 1024
+pub const TOK_HASH_SIZE = 16384 // must be a power of two
+
 pub const CH_EOF = (-1) // end of file
 pub const VSTACK_SIZE = 512
-const IFDEF_STACK_SIZE = 64
-const CACHED_INCLUDES_HASH_SIZE = 32
-const PACK_STACK_SIZE = 8
-const INCLUDE_STACK_SIZE = 32
+pub const IFDEF_STACK_SIZE = 64
+pub const CACHED_INCLUDES_HASH_SIZE = 32
+pub const PACK_STACK_SIZE = 8
+pub const INCLUDE_STACK_SIZE = 32
 
 pub struct TokenSym {
 	hash_next      &TokenSym
@@ -33,13 +53,15 @@ pub struct TokenSym {
 	str            &char
 }
 
-type Nwchar_t = int
+pub type Nwchar_t = int
 
-pub struct CString {
-	size           int
-	size_allocated int
-	data           voidptr
-}
+pub type CString = []u8 // strings.Builder
+
+// pub struct CString {
+// 	size           int
+// 	size_allocated int
+// 	data           voidptr
+// }
 
 pub struct CType {
 	t   int
@@ -156,7 +178,7 @@ struct TCCState {
 	char_is_unsigned       u8
 	leading_underscore     u8
 	ms_extensions          u8 // allow nested named struct w/o identifier behave like unnamed
-	dollars_in_identifiers u8 // allows '$' char in identifiers
+	dollars_in_identifiers u8 // allows c'$' char in identifiers
 	ms_bitfields           u8 // if true, emulate MS algorithm for aligning bitfields
 	// warning switches
 	warn_none                          u8
@@ -390,8 +412,8 @@ pub struct BufferedFile {
 	ifndef_macro_saved int
 	ifdef_stack_ptr    &int
 	include_next_index int
-	filename           [1024]i8
-	truefilename       &i8
+	filename           [1024]char
+	truefilename       &char
 	unget              [4]u8
 	buffer             [1]u8
 }
@@ -464,7 +486,7 @@ pub struct Filespec {
 	name  [1]i8
 }
 
-enum Tcc_token {
+enum Tcc_token as u16 {
 	tok_last                       = 256 - 1
 	tok_int
 	tok_void
@@ -1565,23 +1587,23 @@ enum Line_macro_output_format {
 }
 
 fn is_space(ch int) bool {
-	return ch == ' ' || ch == '\x09' || ch == '\x0b' || ch == '\x0c' || ch == '\x0a'
+	return ch == c' ' || ch == c'\x09' || ch == c'\x0b' || ch == c'\x0c' || ch == c'\x0a'
 }
 
 fn isid(c int) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+	return (c >= c'a' && c <= c'z') || (c >= c'A' && c <= c'Z') || c == c'_'
 }
 
 fn isnum(c int) bool {
-	return c >= '0' && c <= '9'
+	return c >= c'0' && c <= c'9'
 }
 
 fn isoct(c int) bool {
-	return c >= '0' && c <= '7'
+	return c >= c'0' && c <= c'7'
 }
 
-fn toup(c int) int {
-	return if (c >= 'a' && c <= 'z') { c - 'a' + 'A' } else { c }
+fn toup(c u8) u8 {
+	return if (c >= c'a' && c <= c'z') { u8(c) - u8(c'a') + u8(c'A') } else { u8(c) }
 }
 
 pub struct Stab_Sym {
@@ -1598,16 +1620,6 @@ enum Gotplt_entry {
 	auto_gotplt_entry
 	always_gotplt_entry
 }
-
-@[weak]
-__global (
-	target_machine_defs &char
-)
-
-@[weak]
-__global (
-	reg_classes [25]int
-)
 
 fn read16le(p &u8) u16 {
 	return p[0] | u16(p[1]) << 8
@@ -1642,9 +1654,6 @@ fn write64le(p &u8, x u64) {
 
 fn add64le(p &u8, x i64) {
 	write64le(p, read64le(p) + x)
-}
-
-struct C.sem_t {
 }
 
 pub struct TCCSem {

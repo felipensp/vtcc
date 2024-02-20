@@ -1,6 +1,8 @@
 @[translated]
 module main
 
+import strings
+
 fn C.strncpy(&char, &char, u32) &char
 fn C.getcwd(&char, usize) &char
 
@@ -11,7 +13,6 @@ struct DefaultDebug {
 	name     &i8
 }
 
-@[export: 'default_debug']
 const default_debug = [
 	DefaultDebug{3, 4, dw_ate_signed, c'int:t1=r1;-2147483648;2147483647;'},
 	DefaultDebug{1, 1, dw_ate_signed_char, c'char:t2=r2;0;127;'},
@@ -44,7 +45,6 @@ const default_debug = [
 	DefaultDebug{0, 1, dw_ate_unsigned_char, c'void:t29=29'},
 ]!
 
-@[export: 'dwarf_abbrev_init']
 const dwarf_abbrev_init = [1, dw_tag_compile_unit, 1, dw_at_producer, dw_form_strp, dw_at_language,
 	dw_form_data1, dw_at_name, dw_form_line_strp, dw_at_comp_dir, dw_form_line_strp, dw_at_low_pc,
 	dw_form_addr, dw_at_high_pc, dw_form_data8, dw_at_stmt_list, dw_form_sec_offset, 0, 0, 2,
@@ -89,7 +89,6 @@ const dwarf_abbrev_init = [1, dw_tag_compile_unit, 1, dw_at_producer, dw_form_st
 	dw_form_ref4, dw_at_sibling, dw_form_ref4, 0, 0, 25, dw_tag_subroutine_type, 0, dw_at_type,
 	dw_form_ref4, 0, 0, 26, dw_tag_formal_parameter, 0, dw_at_type, dw_form_ref4, 0, 0, 0]!
 
-@[export: 'dwarf_line_opcodes']
 const dwarf_line_opcodes = [0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1]!
 
 struct Debug_sym {
@@ -319,7 +318,7 @@ fn dwarf_file(s1 &TCCState) {
 		undo := filename
 		dir := file.filename
 		unsafe {
-			*filename++ = '\x00'
+			*filename++ = c'\x00'
 		}
 		for i = 0; i < s1.dState.dwarf_line.dir_size; i++ {
 			if unsafe { C.strcmp(s1.dState.dwarf_line.dir_table[i], dir) == 0 } {
@@ -792,7 +791,7 @@ fn tcc_debug_end(s1 &TCCState) {
 
 fn put_new_file(s1 &TCCState) &BufferedFile {
 	f := file
-	if f.filename[0] == ':' {
+	if f.filename[0] == c':' {
 		f = f.prev
 	}
 	if unsafe { f != 0 } && s1.dState.new_file {
@@ -1051,7 +1050,7 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 	n := 0
 	debug_type := -1
 	t := s
-	str := CString{}
+	str := strings.new_builder(100)
 	for ; true; {
 		type_ = t.type_.t & ~((4096 | 8192 | 16384 | 32768) | 256 | 512 | 1024)
 		if (type_ & 15) != 1 {
@@ -1071,15 +1070,17 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 		if debug_type == -1 {
 			debug_type = tcc_debug_add(s1, t, 0)
 			cstr_new(&str)
-			cstr_printf(&str, c'%s:T%d=%c%d', if (t.v & ~1073741824) >= 268435456 {
+			a1 := if (t.v & ~1073741824) >= 268435456 {
 				c''
 			} else {
 				get_tok_str(t.v & ~1073741824, (unsafe { nil }))
-			}, debug_type, if ((t.type_.t & ((((1 << (6 + 6)) - 1) << 20 | 128) | 15)) == (1 << 20 | 7)) {
+			}
+			a2 := if ((t.type_.t & ((((1 << (6 + 6)) - 1) << 20 | 128) | 15)) == (1 << 20 | 7)) {
 				`u`
 			} else {
 				`s`
-			}, t.c)
+			}
+			cstr_printf(&str, '${a1}:T${debug_type}=${a2}${t.c}')
 			for t.next {
 				pos := 0
 				size := 0
@@ -1091,7 +1092,7 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 					|| (t.type_.t & 15) == 3 || (t.type_.t & 15) == 4))) {
 					continue
 				}
-				cstr_printf(&str, c'%s:', get_tok_str(t.v & ~536870912, (unsafe { nil })))
+				cstr_printf(&str, '${get_tok_str(t.v & ~536870912, (unsafe { nil }))}:')
 				tcc_get_debug_info(s1, t, &str)
 				if t.type_.t & 128 {
 					pos = t.c * 8 + (((t.type_.t) >> 20) & 63)
@@ -1100,9 +1101,9 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 					pos = t.c * 8
 					size = type_size(&t.type_, &align) * 8
 				}
-				cstr_printf(&str, c',%d,%d;', pos, size)
+				cstr_printf(&str, ',${pos},${size};')
 			}
-			cstr_printf(&str, c';')
+			cstr_printf(&str, ';')
 			tcc_debug_stabs(s1, str.data, Stab_debug_code.n_lsym, 0, (unsafe { nil }),
 				0, 0)
 			cstr_free(&str)
@@ -1117,21 +1118,23 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 		if debug_type == -1 {
 			debug_type = tcc_debug_add(s1, t, 0)
 			cstr_new(&str)
-			cstr_printf(&str, c'%s:T%d=e', if (t.v & ~1073741824) >= 268435456 {
+			tt2 := if (t.v & ~1073741824) >= 268435456 {
 				c''
 			} else {
 				get_tok_str(t.v & ~1073741824, (unsafe { nil }))
-			}, debug_type)
+			}
+			cstr_printf(&str, '${tt2}:T${debug_type}=e')
 			for t.next {
 				t = t.next
-				cstr_printf(&str, c'%s:', if (t.v & ~536870912) >= 268435456 {
+				tt := if (t.v & ~536870912) >= 268435456 {
 					c''
 				} else {
 					get_tok_str(t.v & ~536870912, (unsafe { nil }))
-				})
-				cstr_printf(&str, if e.type_.t & 16 { c'%u,' } else { c'%d,' }, int(t.enum_val))
+				}
+				cstr_printf(&str, '${tt}:')
+				cstr_printf(&str, '${int(t.enum_val)}')
 			}
-			cstr_printf(&str, c';')
+			cstr_printf(&str, ';')
 			tcc_debug_stabs(s1, str.data, Stab_debug_code.n_lsym, 0, (unsafe { nil }),
 				0, 0)
 			cstr_free(&str)
@@ -1151,7 +1154,7 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 		}
 	}
 	if n > 0 {
-		cstr_printf(result, c'%d=', s1.dState.debug_next_type++$)
+		cstr_printf(result, '${s1.dState.debug_next_type++}=')
 	}
 	t = s
 	for ; true; {
@@ -1160,11 +1163,11 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 			type_ &= ~32
 		}
 		if type_ == 5 {
-			cstr_printf(result, c'%d=*', s1.dState.debug_next_type++$)
+			cstr_printf(result, '${s1.dState.debug_next_type++}=*')
 		} else if type_ == (5 | 64) {
-			cstr_printf(result, c'%d=ar1;0;%d;', s1.dState.debug_next_type++$, t.type_.ref.c - 1)
+			cstr_printf(result, '${s1.dState.debug_next_type++}=ar1;0;${t.type_.ref.c - 1};')
 		} else if type_ == 6 {
-			cstr_printf(result, c'%d=f', s1.dState.debug_next_type++$)
+			cstr_printf(result, '${s1.dState.debug_next_type++}=f')
 			tcc_get_debug_info(s1, t.type_.ref, result)
 			return
 		} else { // 3
@@ -1172,7 +1175,7 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 		}
 		t = t.type_.ref
 	}
-	cstr_printf(result, c'%d', debug_type)
+	cstr_printf(result, '${debug_type}')
 }
 
 fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
@@ -1643,7 +1646,7 @@ fn tcc_debug_finish(s1 &TCCState, cur &debug_info) {
 }
 
 fn tcc_add_debug_info(s1 &TCCState, param int, s &Sym, e &Sym) {
-	debug_str := CString{}
+	debug_str := strings.new_builder(100)
 	if !(s1.do_debug & 2) {
 		return
 	}
@@ -1660,11 +1663,12 @@ fn tcc_add_debug_info(s1 &TCCState, param int, s &Sym, e &Sym) {
 			}, s.c, (unsafe { nil }), 0, tcc_get_dwarf_info(s1, s))
 		} else {
 			cstr_reset(&debug_str)
-			cstr_printf(&debug_str, c'%s:%s', get_tok_str(s.v, (unsafe { nil })), if param {
+			t := if param {
 				c'p'
 			} else {
 				c''
-			})
+			}
+			cstr_printf(&debug_str, '${get_tok_str(s.v, (unsafe { nil }))}:${t}')
 			tcc_get_debug_info(s1, s, &debug_str)
 			tcc_debug_stabs(s1, debug_str.data, if param {
 				Stab_debug_code.n_psym
@@ -1677,7 +1681,7 @@ fn tcc_add_debug_info(s1 &TCCState, param int, s &Sym, e &Sym) {
 }
 
 fn tcc_debug_funcstart(s1 &TCCState, sym &Sym) {
-	debug_str := CString{}
+	debug_str := strings.new_builder(100)
 	f := &BufferedFile(0)
 	if !s1.do_debug {
 		return
@@ -1707,7 +1711,8 @@ fn tcc_debug_funcstart(s1 &TCCState, sym &Sym) {
 		}
 	} else {
 		cstr_new(&debug_str)
-		cstr_printf(&debug_str, c'%s:%c', funcname, if sym.type_.t & 8192 { `f` } else { `F` })
+		t := if sym.type_.t & 8192 { `f` } else { `F` }
+		cstr_printf(&debug_str, '${funcname}:${t}')
 		tcc_get_debug_info(s1, sym.type_.ref, &debug_str)
 		put_stabs_r(s1, debug_str.data, Stab_debug_code.n_fun, 0, f.line_num, 0, s1.cur_text_section,
 			sym.c)
@@ -1820,13 +1825,14 @@ fn tcc_debug_extern_sym(s1 &TCCState, sym &Sym, sh_num int, sym_bind int, sym_ty
 		write64le(section_ptr_add((s1.dwarf_info_section), 8), (0))
 	} else {
 		s := if sh_num == 65522 { s1.common_section } else { s1.sections[sh_num] }
-		str := CString{}
+		str := strings.new_builder(100)
 		cstr_new(&str)
-		cstr_printf(&str, c'%s:%c', get_tok_str(sym.v, (unsafe { nil })), if sym_bind == 1 {
+		t := if sym_bind == 1 {
 			`G`
 		} else {
 			if func_ind != -1 { `V` } else { `S` }
-		})
+		}
+		cstr_printf(&str, '${get_tok_str(sym.v, (unsafe { nil }))}:${t}')
 		tcc_get_debug_info(s1, sym, &str)
 		if sym_bind == 1 {
 			tcc_debug_stabs(s1, str.data, Stab_debug_code.n_gsym, 0, (unsafe { nil }),
@@ -1862,13 +1868,14 @@ fn tcc_debug_typedef(s1 &TCCState, sym &Sym) {
 			write32le(section_ptr_add((s1.dwarf_info_section), 4), (debug_type - s1.dState.dwarf_info.start))
 		}
 	} else {
-		str := CString{}
+		str := strings.new_builder(100)
 		cstr_new(&str)
-		cstr_printf(&str, c'%s:t', if (sym.v & ~536870912) >= 268435456 {
+		tmp := if (sym.v & ~536870912) >= 268435456 {
 			c''
 		} else {
 			get_tok_str(sym.v & ~536870912, (unsafe { nil }))
-		})
+		}
+		cstr_printf(&str, '${tmp}:t')
 		tcc_get_debug_info(s1, sym, &str)
 		tcc_debug_stabs(s1, str.data, Stab_debug_code.n_lsym, 0, (unsafe { nil }), 0,
 			0)
@@ -1887,7 +1894,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 	if s1.dState.tcov_data.last_file_name == 0
 		|| unsafe { C.strcmp(&i8((s1.tcov_section.data + s1.dState.tcov_data.last_file_name)), file.truefilename) != 0 } {
 		wd := [1024]i8{}
-		cstr := CString{}
+		cstr := strings.new_builder(100)
 		if s1.dState.tcov_data.last_func_name {
 			section_ptr_add(s1.tcov_section, 1)
 		}
@@ -1896,16 +1903,16 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 		}
 		s1.dState.tcov_data.last_func_name = 0
 		cstr_new(&cstr)
-		if file.truefilename[0] == '/' {
+		if file.truefilename[0] == c'/' {
 			s1.dState.tcov_data.last_file_name = s1.tcov_section.data_offset
-			cstr_printf(&cstr, c'%s', file.truefilename)
+			cstr_printf(&cstr, '${file.truefilename}')
 		} else {
 			C.getcwd(wd, sizeof(wd))
 			s1.dState.tcov_data.last_file_name = s1.tcov_section.data_offset +
 				unsafe { C.strlen(wd) } + 1
-			cstr_printf(&cstr, c'%s/%s', wd, file.truefilename)
+			cstr_printf(&cstr, '${wd}/${file.truefilename}')
 		}
-		ptr = section_ptr_add(s1.tcov_section, cstr.size + 1)
+		ptr = section_ptr_add(s1.tcov_section, cstr.len + 1)
 		unsafe { C.strcpy(&char(ptr), cstr.data) }
 		cstr_free(&cstr)
 	}
@@ -1945,7 +1952,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 		sv.sym = &label
 		gen_increment_tcov(&sv)
 		unsafe {
-			s1.dState.tcov_data.offset = &char(ptr) - s1.tcov_section.data
+			s1.dState.tcov_data.offset = &u8(ptr) - s1.tcov_section.data
 		}
 		s1.dState.tcov_data.ind = ind
 	}

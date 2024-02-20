@@ -2,13 +2,13 @@
 module main
 
 struct ArHdr {
-	ar_name [16]i8
-	ar_date [12]i8
-	ar_uid  [6]i8
-	ar_gid  [6]i8
-	ar_mode [8]i8
-	ar_size [10]i8
-	ar_fmag [2]i8
+	ar_name [16]char
+	ar_date [12]char
+	ar_uid  [6]char
+	ar_gid  [6]char
+	ar_mode [8]char
+	ar_size [10]char
+	ar_fmag [2]char
 }
 
 fn le2belong(ul u32) u32 {
@@ -35,15 +35,14 @@ fn ar_usage(ret int) int {
 }
 
 fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
-	arhdr_init := ArHdr{
-		ar_name: c'/               '
-		ar_date: c'0           '
-		ar_uid: c'0     '
-		ar_gid: c'0     '
-		ar_mode: c'0       '
-		ar_size: c'0         '
-		ar_fmag: c'`\n'
-	}
+	arhdr_init := ArHdr{}
+	C.memcpy(arhdr_init.ar_name, c'/               ', sizeof(c'/               '))
+	C.memcpy(arhdr_init.ar_date, c'0           ', sizeof(c'0           '))
+	C.memcpy(arhdr_init.ar_uid, c'0     ', sizeof(c'0     '))
+	C.memcpy(arhdr_init.ar_gid, c'0     ', sizeof(c'0     '))
+	C.memcpy(arhdr_init.ar_mode, c'0       ', sizeof(c'0       '))
+	C.memcpy(arhdr_init.ar_size, c'0         ', sizeof(c'0         '))
+	C.memcpy(arhdr_init.ar_fmag, c'`\n', sizeof(c'`\n'))
 
 	arhdr := arhdr_init
 	arhdro := arhdr_init
@@ -62,12 +61,12 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 
 	buf := &i8(0)
 	shstr := &i8(0)
-	symtab := (unsafe { nil })
-	strtab := (unsafe { nil })
+	symtab := &u8(unsafe { nil })
+	strtab := &u8(unsafe { nil })
 
 	symtabsize := 0
-	anames := (unsafe { nil })
-	afpos := (unsafe { nil })
+	anames := &u8(unsafe { nil })
+	afpos := &int(unsafe { nil })
 	istrlen := 0
 	strpos := 0
 	fpos := 0
@@ -90,20 +89,20 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	i_obj = 0
 	for i = 1; i < argc; i++ {
 		a := argv[i]
-		if *a == `-` && strstr(a, c'.') {
+		if *a == `-` && C.strstr(a, c'.') {
 			ret = 1
 		}
-		if *a == `-` || (i == 1 && !strstr(a, c'.')) {
+		if *a == `-` || (i == 1 && !C.strstr(a, c'.')) {
 			if contains_any(a, ops_conflict) {
 				ret = 1
 			}
-			if strstr(a, c'x') {
+			if C.strstr(a, c'x') {
 				extract = 1
 			}
-			if strstr(a, c't') {
+			if C.strstr(a, c't') {
 				table = 1
 			}
-			if strstr(a, c'v') {
+			if C.strstr(a, c'v') {
 				verbose = 1
 			}
 		} else {
@@ -142,16 +141,16 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 				goto no_ar // id: 0x7ffff3215da0
 			}
 			p = arhdr.ar_name
-			for e = p + sizeofarhdr.ar_name; e > p && e[-1] == ` `; {
+			for e = p + sizeof(arhdr.ar_name); e > p && e[-1] == c' '; {
 				e--
 			}
 			*e = `\x00`
-			arhdr.ar_size[sizeofarhdr.ar_size - 1] = 0
+			arhdr.ar_size[sizeof(arhdr.ar_size) - 1] = 0
 			fsize = C.atoi(arhdr.ar_size)
 			buf = tcc_malloc(fsize + 1)
 			C.fread(buf, fsize, 1, fh)
 			if C.strcmp(arhdr.ar_name, c'/') && C.strcmp(arhdr.ar_name, c'/SYM64/') {
-				if e > p && e[-1] == `/` {
+				if e > p && e[-1] == c'/' {
 					e[-1] = `\x00`
 				}
 				if table || verbose {
@@ -184,7 +183,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 		goto the_end // id: 0x7ffff3218a30
 	}
 	created_file = argv[i_lib]
-	sprintf(tfile, c'%s.tmp', argv[i_lib])
+	C.sprintf(tfile, c'%s.tmp', argv[i_lib])
 	fo = C.fopen(tfile, c'wb+')
 	if fo == (unsafe { nil }) {
 		C.fprintf(C.stderr, c"tcc: ar: can't create temporary file %s\n", tfile)
@@ -242,8 +241,8 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 					|| sym.st_info == 18 || sym.st_info == 32 || sym.st_info == 33
 					|| sym.st_info == 34) {
 					istrlen = C.strlen(strtab + sym.st_name) + 1
-					anames = tcc_realloc(anames, strpos + istrlen)
-					strcpy(anames + strpos, strtab + sym.st_name)
+					anames = &u8(tcc_realloc(anames, strpos + istrlen))
+					C.strcpy(anames + strpos, strtab + sym.st_name)
 					strpos += istrlen
 					if funccnt++$ >= funcmax {
 						funcmax += 250
@@ -254,7 +253,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 			}
 		}
 		file = argv[i_obj]
-		for name = C.strchr(file, 0); name > file && name[-1] != `/` && name[-1] != `\\`; name-- {
+		for name = C.strchr(file, 0); name > file && name[-1] != c'/' && name[-1] != c'\\'; name-- {
 			0
 		}
 		istrlen = C.strlen(name)
@@ -264,7 +263,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 		C.memset(arhdro.ar_name, ` `, sizeof(arhdro.ar_name))
 		C.memcpy(arhdro.ar_name, name, istrlen)
 		arhdro.ar_name[istrlen] = `/`
-		sprintf(stmp, c'%-10d', fsize)
+		C.sprintf(stmp, c'%-10d', fsize)
 		C.memcpy(&arhdro.ar_size, stmp, 10)
 		C.fwrite(&arhdro, sizeof(arhdro), 1, fo)
 		C.fwrite(buf, fsize, 1, fo)
@@ -283,7 +282,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 		ret = 0
 		goto the_end // id: 0x7ffff3218a30
 	}
-	sprintf(stmp, c'%-10d', int((strpos + (funccnt + 1) * sizeof(int))) + fpos)
+	C.sprintf(stmp, c'%-10d', int((strpos + (funccnt + 1) * sizeof(int))) + fpos)
 	C.memcpy(&arhdr.ar_size, stmp, 10)
 	C.fwrite(&arhdr, sizeof(arhdr), 1, fh)
 	afpos[0] = le2belong(funccnt)
@@ -323,25 +322,25 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	return ret
 }
 
-fn tcc_tool_cross(s1 &TCCState, argv &&u8, target int) int {
+fn tcc_tool_cross(s1 &TCCState, argv &&char, target int) int {
 	program := [4096]i8{}
 	a0 := argv[0]
 	prefix := tcc_basename(a0) - a0
-	C.snprintf(program, sizeof(program), c'%.*s%s-tcc', prefix, a0, if target == 64 {
-		c'x86_64'
+	if target == 64 {
+		C.snprintf(program, sizeof(program), c'%.*s%s-tcc', prefix, a0, c'x86_64')
 	} else {
-		c'i386'
-	})
+		C.snprintf(program, sizeof(program), c'%.*s%s-tcc', prefix, a0, c'i386')
+	}
 	if C.strcmp(a0, program) {
 		argv[0] = program
-		execvp(program, argv)
+		C.execvp(program, argv)
 	}
 	_tcc_error_noabort("could not run '${program}'")
 	return 1
 }
 
 fn escape_target_dep(s &i8) &i8 {
-	res := tcc_malloc(C.strlen(s) * 2 + 1)
+	res := &u8(tcc_malloc(C.strlen(s) * 2 + 1))
 	j := 0
 	for j = 0; *s; s++, j++ {
 		if is_space(*s) {
@@ -353,10 +352,10 @@ fn escape_target_dep(s &i8) &i8 {
 	return res
 }
 
-fn gen_makedeps(s1 &TCCState, target &i8, filename &i8) int {
+fn gen_makedeps(s1 &TCCState, target &char, filename &char) int {
 	depout := &C.FILE(0)
-	buf := [1024]i8{}
-	escaped_targets := &&u8(0)
+	buf := [1024]char{}
+	escaped_targets := &&char(0)
 	i := 0
 	k := 0
 	num_targets := 0
@@ -367,12 +366,12 @@ fn gen_makedeps(s1 &TCCState, target &i8, filename &i8) int {
 		filename = buf
 	}
 	if !C.strcmp(filename, c'-') {
-		depout = fdopen(1, c'w')
+		depout = C.fdopen(1, c'w')
 	} else { // 3
 		depout = C.fopen(filename, c'w')
 	}
 	if !depout {
-		return _tcc_error_noabort(c"could not open '%s'", filename)
+		return _tcc_error_noabort("could not open '${filename}'")
 	}
 	if s1.verbose {
 		C.printf(c'<- %s\n', filename)

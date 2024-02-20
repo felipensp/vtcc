@@ -1,23 +1,23 @@
 @[translated]
 module main
 
+import strings
+
+fn C.fputc(int, &C.FILE) int
+fn C.strerror(int) &char
 fn C.dlsym(voidptr, &char) voidptr
 fn C.dlclose(int)
 fn C.unlink(&char)
 fn C.strtol(&char, &&char, int) u64
 
-@[export: 'shf_RELRO']
 const shf_RELRO = (1 << 1) | (1 << 0)
-
-@[export: 'rdata']
-const rdata = c'.data.ro'
 
 fn tccelf_new(s &TCCState) {
 	s1 := s
 	dynarray_add(&s.sections, &s.nb_sections, (unsafe { nil }))
 	s1.text_section = new_section(s, c'.text', 1, (1 << 1) | (1 << 2))
 	s1.data_section = new_section(s, c'.data', 1, (1 << 1) | (1 << 0))
-	s1.rodata_section = new_section(s, rdata, 1, shf_RELRO)
+	s1.rodata_section = new_section(s, c'.data.ro', 1, shf_RELRO)
 	s1.bss_section = new_section(s, c'.bss', 8, (1 << 1) | (1 << 0))
 	s1.common_section = new_section(s, c'.common', 8, 2147483648)
 	s1.common_section.sh_num = 65522
@@ -113,12 +113,15 @@ fn tccelf_end_file(s1 &TCCState) {
 		if sr.sh_type == 4 && sr.link == s {
 			rel := &Elf64_Rela((sr.data + sr.sh_offset))
 			rel_end := &Elf64_Rela((sr.data + sr.data_offset))
-			for ; voidptr(rel) < voidptr(rel_end); unsafe { rel++ } {
-				n := ((rel.r_info) >> 32) - first_sym
-				if n < 0 {
-					continue
+			unsafe {
+				for ; voidptr(rel) < voidptr(rel_end); rel++ {
+					n := rel.r_info >> 32
+					n -= first_sym
+					if n < 0 {
+						continue
+					}
+					rel.r_info = (((Elf64_Xword(u64(tr[n]))) << 32) + ((rel.r_info) & 4294967295))
 				}
-				rel.r_info = (((Elf64_Xword(u64(tr[n]))) << 32) + ((rel.r_info) & 4294967295))
 			}
 		}
 	}
@@ -646,7 +649,8 @@ fn put_elf_reloca(symtab &Section, s &Section, offset u32, type_ int, symbol int
 	}
 	rel = section_ptr_add(sr, sizeof(Elf64_Rela))
 	rel.r_offset = offset
-	rel.r_info = (((Elf64_Xword(u64(symbol))) << 32) + type_)
+	rel.r_info = ((Elf64_Xword(u64(symbol))) << 32)
+	rel.r_info += type_
 	rel.r_addend = addend
 	if 4 != 4 && addend {
 		_tcc_error_noabort('non-zero addend on REL architecture')
@@ -688,13 +692,14 @@ fn modify_reloctions_old_to_new(s1 &TCCState, s &Section, old_to_new_syms &int) 
 	for i = 1; i < s1.nb_sections; i++ {
 		sr = s1.sections[i]
 		if sr.sh_type == 4 && sr.link == s {
-			for rel = &Elf64_Rela(sr.data); unsafe {
-				voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset))
-			}; unsafe { rel++ } {
-				sym_index = ((rel.r_info) >> 32)
-				type_ = ((rel.r_info) & 4294967295)
-				sym_index = old_to_new_syms[sym_index]
-				rel.r_info = (((Elf64_Xword(u64(sym_index))) << 32) + type_)
+			unsafe {
+				for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+					sym_index = ((rel.r_info) >> 32)
+					type_ = ((rel.r_info) & 4294967295)
+					sym_index = old_to_new_syms[sym_index]
+					rel.r_info = ((Elf64_Xword(u64(sym_index))) << 32)
+					rel.r_info += type_
+				}
 			}
 		}
 	}
@@ -934,44 +939,42 @@ fn relocate_syms(s1 &TCCState, symtab &Section, do_resolve int) {
 	sh_num := 0
 
 	name := &i8(0)
-	for sym = unsafe { &Elf64_Sym(symtab.data) + 1 }; unsafe {
-		voidptr(sym) < &Elf64_Sym((symtab.data + symtab.data_offset))
-	}; unsafe { sym++ } {
-		sh_num = sym.st_shndx
-		if sh_num == 0 {
-			if do_resolve == 2 {
-				continue
-			}
-			name = &i8(s1.symtab.link.data) + sym.st_name
-			if do_resolve {
-				addr := C.dlsym((unsafe { nil }), &name[s1.leading_underscore])
-				if addr {
-					sym.st_value = Elf64_Addr(u64(addr))
-					unsafe {
-						goto found
-					} // id: 0x7fffe8ff9bc8
+	unsafe {
+		for sym = &Elf64_Sym(symtab.data) + 1; voidptr(sym) < &Elf64_Sym((symtab.data +
+			symtab.data_offset)); sym++ {
+			sh_num = sym.st_shndx
+			if sh_num == 0 {
+				if do_resolve == 2 {
+					continue
 				}
-			} else if unsafe { s1.dynsym != nil } && find_elf_sym(s1.dynsym, name) {
-				unsafe {
+				name = &i8(s1.symtab.link.data) + sym.st_name
+				if do_resolve {
+					addr := C.dlsym(nil, &name[s1.leading_underscore])
+					if addr {
+						sym.st_value = Elf64_Addr(u64(addr))
+
+						goto found
+					}
+				} else if s1.dynsym != nil && find_elf_sym(s1.dynsym, name) {
 					goto found
-				} // id: 0x7fffe8ff9bc8
-			}
-			if !C.strcmp(name, c'_fp_hw') {
-				unsafe {
+					// id: 0x7fffe8ff9bc8
+				}
+				if !C.strcmp(name, c'_fp_hw') {
 					goto found
-				} // id: 0x7fffe8ff9bc8
+					// id: 0x7fffe8ff9bc8
+				}
+				sym_bind = ((u8((sym.st_info))) >> 4)
+				if sym_bind == 2 {
+					sym.st_value = 0
+				} else { // 3
+					_tcc_error_noabort("undefined symbol '${name}'")
+				}
+			} else if sh_num < 65280 {
+				sym.st_value += s1.sections[sym.st_shndx].sh_addr
 			}
-			sym_bind = ((u8((sym.st_info))) >> 4)
-			if sym_bind == 2 {
-				sym.st_value = 0
-			} else { // 3
-				_tcc_error_noabort("undefined symbol '${name}'")
-			}
-		} else if sh_num < 65280 {
-			sym.st_value += s1.sections[sym.st_shndx].sh_addr
+			// RRRREG found id=0x7fffe8ff9bc8
+			found:
 		}
-		// RRRREG found id=0x7fffe8ff9bc8
-		found:
 	}
 }
 
@@ -987,31 +990,31 @@ fn relocate_section(s1 &TCCState, s &Section, sr &Section) {
 
 	is_dwarf := s.sh_num >= s1.dwlo && s.sh_num < s1.dwhi
 	s1.qrel = &Elf64_Rela(sr.data)
-	for rel = unsafe { &Elf64_Rela(sr.data) }; unsafe {
-		voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset))
-	}; unsafe { rel++ } {
-		ptr = unsafe { s.data + rel.r_offset }
-		sym_index = ((rel.r_info) >> 32)
-		sym = &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
-		type_ = ((rel.r_info) & 4294967295)
-		tgt = sym.st_value
-		tgt += rel.r_addend
-		if is_dwarf && type_ == 10 && sym.st_shndx >= s1.dwlo && sym.st_shndx < s1.dwhi {
-			add32le(ptr, tgt - s1.sections[sym.st_shndx].sh_addr)
-			continue
-		}
-		addr = s.sh_addr + rel.r_offset
-		relocate(s1, rel, type_, ptr, addr, tgt)
-	}
-	if sr.sh_flags & (1 << 1) {
-		sr.link = s1.dynsym
-		if s1.output_type & 4 {
-			r := unsafe { &u8(s1.qrel) - sr.data }
-			if sizeof(u32) < 8 && 0 == unsafe { C.strcmp(s.name, c'.stab') } {
-				r = 0
+	unsafe {
+		for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+			ptr = s.data + rel.r_offset
+			sym_index = ((rel.r_info) >> 32)
+			sym = &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
+			type_ = ((rel.r_info) & 4294967295)
+			tgt = sym.st_value
+			tgt += rel.r_addend
+			if is_dwarf && type_ == 10 && sym.st_shndx >= s1.dwlo && sym.st_shndx < s1.dwhi {
+				add32le(ptr, tgt - s1.sections[sym.st_shndx].sh_addr)
+				continue
 			}
-			sr.data_offset = r
-			sr.sh_size = sr.data_offset
+			addr = s.sh_addr + rel.r_offset
+			relocate(s1, rel, type_, ptr, addr, tgt)
+		}
+		if sr.sh_flags & (1 << 1) {
+			sr.link = s1.dynsym
+			if s1.output_type & 4 {
+				r := &u8(s1.qrel) - sr.data
+				if sizeof(u32) < 8 && 0 == C.strcmp(s.name, c'.stab') {
+					r = 0
+				}
+				sr.data_offset = r
+				sr.sh_size = sr.data_offset
+			}
 		}
 	}
 }
@@ -1032,10 +1035,10 @@ fn relocate_sections(s1 &TCCState) {
 		}
 		if sr.sh_flags & (1 << 1) {
 			rel := &Elf64_Rela(0)
-			for rel = unsafe { &Elf64_Rela(sr.data) }; unsafe {
-				voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset))
-			}; unsafe { rel++ } {
-				rel.r_offset += s.sh_addr
+			unsafe {
+				for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+					rel.r_offset += s.sh_addr
+				}
 			}
 		}
 	}
@@ -1044,29 +1047,29 @@ fn relocate_sections(s1 &TCCState) {
 fn prepare_dynamic_rel(s1 &TCCState, sr &Section) int {
 	count := 0
 	rel := &Elf64_Rela(0)
-	for rel = unsafe { &Elf64_Rela(sr.data) }; unsafe {
-		voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset))
-	}; unsafe { rel++ } {
-		sym_index := ((rel.r_info) >> 32)
-		type_ := ((rel.r_info) & 4294967295)
-		match type_ {
-			10, 11, 1 {
-				count++
-			}
-			2 {
-				// case comp stmt
-				sym := &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
-				if sym.st_shndx != 0 && ((sym.st_other) & 3) == 2 {
-					rel.r_info = (((Elf64_Xword(sym_index)) << 32) + (4))
-				}
-
-				if s1.output_type != 4 {
-				}
-				if get_sym_attr(s1, sym_index, 0).dyn_index != 0 {
+	unsafe {
+		for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+			sym_index := ((rel.r_info) >> 32)
+			type_ := ((rel.r_info) & 4294967295)
+			match type_ {
+				10, 11, 1 {
 					count++
 				}
+				2 {
+					// case comp stmt
+					sym := &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
+					if sym.st_shndx != 0 && ((sym.st_other) & 3) == 2 {
+						rel.r_info = (((Elf64_Xword(sym_index)) << 32) + (4))
+					}
+
+					if s1.output_type != 4 {
+					}
+					if get_sym_attr(s1, sym_index, 0).dyn_index != 0 {
+						count++
+					}
+				}
+				else {}
 			}
-			else {}
 		}
 	}
 	return count
@@ -1163,83 +1166,82 @@ fn build_got_entries(s1 &TCCState, got_sym int) {
 		if s.link != s1.symtab_section {
 			continue
 		}
-		for rel = unsafe { &Elf64_Rela(s.data) }; unsafe {
-			voidptr(rel) < &Elf64_Rela((s.data + s.data_offset))
-		}; unsafe { rel++ } {
-			type_ = ((rel.r_info) & 4294967295)
-			gotplt_entry = gotplt_entry_type(type_)
-			if gotplt_entry == -1 {
-				_tcc_error_noabort('Unknown relocation type for got: ${type_}')
-				continue
-			}
-			sym_index = ((rel.r_info) >> 32)
-			sym = &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
-			if gotplt_entry == Gotplt_entry.no_gotplt_entry {
-				continue
-			}
-			if gotplt_entry == Gotplt_entry.auto_gotplt_entry {
-				if sym.st_shndx == 0 {
-					esym := &Elf64_Sym(0)
-					dynindex := 0
-					if !1 && s1.output_type & 4 {
-						continue
-					}
-					if s1.dynsym {
-						dynindex = get_sym_attr(s1, sym_index, 0).dyn_index
-						esym = unsafe { &Elf64_Sym(s1.dynsym.data) + dynindex }
-						if dynindex && (((esym.st_info) & 15) == 2
-							|| (((esym.st_info) & 15) == 0 && ((sym.st_info) & 15) == 2)) {
-							unsafe {
-								goto jmp_slot
-							} // id: 0x7fffe900eaf0
+		unsafe {
+			for rel = &Elf64_Rela(s.data); voidptr(rel) < &Elf64_Rela((s.data + s.data_offset)); rel++ {
+				type_ = ((rel.r_info) & 4294967295)
+				gotplt_entry = gotplt_entry_type(type_)
+				if gotplt_entry == -1 {
+					_tcc_error_noabort('Unknown relocation type for got: ${type_}')
+					continue
+				}
+				sym_index = ((rel.r_info) >> 32)
+				sym = &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
+				if gotplt_entry == Gotplt_entry.no_gotplt_entry {
+					continue
+				}
+				if gotplt_entry == Gotplt_entry.auto_gotplt_entry {
+					if sym.st_shndx == 0 {
+						esym := &Elf64_Sym(0)
+						dynindex := 0
+						if !1 && s1.output_type & 4 {
+							continue
 						}
-					}
-				} else if sym.st_shndx == 65521 {
-					if sym.st_value == 0 {
+						if s1.dynsym {
+							dynindex = get_sym_attr(s1, sym_index, 0).dyn_index
+							esym = &Elf64_Sym(s1.dynsym.data) + dynindex
+							if dynindex && (((esym.st_info) & 15) == 2
+								|| (((esym.st_info) & 15) == 0 && ((sym.st_info) & 15) == 2)) {
+								goto jmp_slot
+							}
+						}
+					} else if sym.st_shndx == 65521 {
+						if sym.st_value == 0 {
+							continue
+						}
+						if 8 != 8 {
+							continue
+						}
+					} else { // 3
 						continue
 					}
-					if 8 != 8 {
+				}
+				if (type_ == 4 || type_ == 2) && sym.st_shndx != 0 && (((sym.st_other) & 3) != 0
+					|| ((u8((sym.st_info))) >> 4) == 0 || s1.output_type & 2) {
+					if pass != 0 {
 						continue
 					}
-				} else { // 3
+					rel.r_info = (((Elf64_Xword(u64(sym_index))) << 32) + (2))
 					continue
 				}
-			}
-			if (type_ == 4 || type_ == 2) && sym.st_shndx != 0 && (((sym.st_other) & 3) != 0
-				|| ((u8((sym.st_info))) >> 4) == 0 || s1.output_type & 2) {
-				if pass != 0 {
+				reloc_type = code_reloc(type_)
+				if reloc_type == -1 {
+					_tcc_error_noabort('Unknown relocation type: ${type_}')
 					continue
 				}
-				rel.r_info = (((Elf64_Xword(u64(sym_index))) << 32) + (2))
-				continue
-			}
-			reloc_type = code_reloc(type_)
-			if reloc_type == -1 {
-				_tcc_error_noabort('Unknown relocation type: ${type_}')
-				continue
-			}
-			if reloc_type != 0 {
-				// RRRREG jmp_slot id=0x7fffe900eaf0
-				jmp_slot:
-				if pass != 0 {
+				if reloc_type != 0 {
+					// RRRREG jmp_slot id=0x7fffe900eaf0
+					jmp_slot:
+					if pass != 0 {
+						continue
+					}
+					reloc_type = 7
+				} else {
+					if pass != 1 {
+						continue
+					}
+					reloc_type = 6
+				}
+				if !s1.got {
+					got_sym = build_got(s1)
+				}
+				if gotplt_entry == Gotplt_entry.build_got_only {
 					continue
 				}
-				reloc_type = 7
-			} else {
-				if pass != 1 {
-					continue
+				attr = put_got_entry(s1, reloc_type, sym_index)
+				if reloc_type == 7 {
+					rel.r_info = ((Elf64_Xword(u64(attr.plt_sym))) << 32)
+					rel.r_info += type_
 				}
-				reloc_type = 6
-			}
-			if !s1.got {
-				got_sym = build_got(s1)
-			}
-			if gotplt_entry == Gotplt_entry.build_got_only {
-				continue
-			}
-			attr = put_got_entry(s1, reloc_type, sym_index)
-			if reloc_type == 7 {
-				rel.r_info = (((Elf64_Xword(u64(attr.plt_sym))) << 32) + type_)
 			}
 		}
 	}
@@ -1292,7 +1294,7 @@ fn add_array(s1 &TCCState, sec &i8, c int) {
 	s := &Section(0)
 	s = find_section(s1, sec)
 	s.sh_flags = shf_RELRO
-	s.sh_type = if sec[1] == 'i' { 14 } else { 15 }
+	s.sh_type = if sec[1] == c'i' { 14 } else { 15 }
 	put_elf_reloc(s1.symtab, s, s.data_offset, 1, c)
 	section_ptr_add(s, 8)
 }
@@ -1337,7 +1339,7 @@ fn tcc_add_btstub(s1 &TCCState) {
 	n := 0
 	o := 0
 
-	cstr := CString{}
+	cstr := strings.new_builder(100)
 	s = s1.data_section
 	section_ptr_add(s, -s.data_offset & (8 - 1))
 	o = s.data_offset
@@ -1364,20 +1366,21 @@ fn tcc_add_btstub(s1 &TCCState) {
 	}
 	section_ptr_add(s, n)
 	cstr_new(&cstr)
-	cstr_printf(&cstr, c'extern void __bt_init(),__bt_exit(),__bt_init_dll();static void *__rt_info[];__attribute__((constructor)) static void __bt_init_rt(){')
-	cstr_printf(&cstr, c'__bt_init(__rt_info,%d);}', if s1.output_type == 4 {
+	cstr_printf(&cstr, 'extern void __bt_init(),__bt_exit(),__bt_init_dll();static void *__rt_info[];__attribute__((constructor)) static void __bt_init_rt(){')
+	t := if s1.output_type == 4 {
 		0
 	} else {
 		s1.rt_num_callers + 1
-	})
-	cstr_printf(&cstr, c'__attribute__((destructor)) static void __bt_exit_rt(){__bt_exit(__rt_info);}')
+	}
+	cstr_printf(&cstr, '__bt_init(__rt_info,${t});}')
+	cstr_printf(&cstr, '__attribute__((destructor)) static void __bt_exit_rt(){__bt_exit(__rt_info);}')
 	tcc_compile_string_no_debug(s1, cstr.data)
 	cstr_free(&cstr)
 	set_local_sym(s1, &c'___rt_info'[!s1.leading_underscore], s, o)
 }
 
 fn tcc_tcov_add_file(s1 &TCCState, filename &i8) {
-	cstr := CString{}
+	cstr := strings.new_builder(100)
 	ptr := &voidptr(0)
 	wd := [1024]i8{}
 	if s1.tcov_section == (unsafe { nil }) {
@@ -1386,21 +1389,21 @@ fn tcc_tcov_add_file(s1 &TCCState, filename &i8) {
 	section_ptr_add(s1.tcov_section, 1)
 	write32le(s1.tcov_section.data, s1.tcov_section.data_offset)
 	cstr_new(&cstr)
-	if filename[0] == '/' {
-		cstr_printf(&cstr, c'%s.tcov', filename)
+	if filename[0] == c'/' {
+		cstr_printf(&cstr, '${filename}.tcov')
 	} else {
 		C.getcwd(wd, sizeof(wd))
-		cstr_printf(&cstr, c'%s/%s.tcov', wd, filename)
+		cstr_printf(&cstr, '${wd}/${filename}.tcov')
 	}
-	ptr = section_ptr_add(s1.tcov_section, cstr.size + 1)
+	ptr = section_ptr_add(s1.tcov_section, cstr.len + 1)
 	unsafe {
 		C.strcpy(&i8(ptr), cstr.data)
 		C.unlink(&i8(ptr))
 	}
 	cstr_free(&cstr)
 	cstr_new(&cstr)
-	cstr_printf(&cstr, c'extern char *__tcov_data[];extern void __store_test_coverage ();__attribute__((destructor)) static void __tcov_exit() {__store_test_coverage(__tcov_data);}')
-	tcc_compile_string_no_debug(s1, cstr.data)
+	cstr_printf(&cstr, 'extern char *__tcov_data[];extern void __store_test_coverage ();__attribute__((destructor)) static void __tcov_exit() {__store_test_coverage(__tcov_data);}')
+	tcc_compile_string_no_debug(s1, cstr)
 	cstr_free(&cstr)
 	set_local_sym(s1, &c'___tcov_data'[!s1.leading_underscore], s1.tcov_section, 0)
 }
@@ -1491,12 +1494,13 @@ fn tcc_add_linker_symbols(s1 &TCCState) {
 
 fn resolve_common_syms(s1 &TCCState) {
 	sym := &Elf64_Sym(0)
-	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1 }; unsafe {
-		voidptr(sym) < &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
-	}; unsafe { sym++ } {
-		if sym.st_shndx == 65522 {
-			sym.st_value = section_add(s1.bss_section, sym.st_size, sym.st_value)
-			sym.st_shndx = s1.bss_section.sh_num
+	unsafe {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+			if sym.st_shndx == 65522 {
+				sym.st_value = section_add(s1.bss_section, sym.st_size, sym.st_value)
+				sym.st_shndx = s1.bss_section.sh_num
+			}
 		}
 	}
 	tcc_add_linker_symbols(s1)
@@ -1528,14 +1532,14 @@ fn fill_got(s1 &TCCState) {
 		if s.link != s1.symtab_section {
 			continue
 		}
-		for rel = unsafe { &Elf64_Rela(s.data) }; unsafe {
-			voidptr(rel) < &Elf64_Rela((s.data + s.data_offset))
-		}; unsafe { rel++ } {
-			match ((rel.r_info) & 4294967295) {
-				3, 9, 41, 42, 4 {
-					fill_got_entry(s1, rel)
+		unsafe {
+			for rel = &Elf64_Rela(s.data); voidptr(rel) < &Elf64_Rela((s.data + s.data_offset)); rel++ {
+				match ((rel.r_info) & 4294967295) {
+					3, 9, 41, 42, 4 {
+						fill_got_entry(s1, rel)
+					}
+					else {}
 				}
-				else {}
 			}
 		}
 	}
@@ -1546,19 +1550,20 @@ fn fill_local_got_entries(s1 &TCCState) {
 	if !s1.got.reloc {
 		return
 	}
-	for rel = unsafe { &Elf64_Rela(s1.got.reloc.data) }; unsafe {
-		voidptr(rel) < &Elf64_Rela((s1.got.reloc.data + s1.got.reloc.data_offset))
-	}; unsafe { rel++ } {
-		if ((rel.r_info) & 4294967295) == 8 {
-			sym_index := ((rel.r_info) >> 32)
-			sym := &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
-			attr := get_sym_attr(s1, sym_index, 0)
-			offset := attr.got_offset
-			if offset != rel.r_offset - s1.got.sh_addr {
-				_tcc_error_noabort('fill_local_got_entries: huh?')
+	unsafe {
+		for rel = &Elf64_Rela(s1.got.reloc.data); voidptr(rel) < &Elf64_Rela((s1.got.reloc.data +
+			s1.got.reloc.data_offset)); rel++ {
+			if ((rel.r_info) & 4294967295) == 8 {
+				sym_index := ((rel.r_info) >> 32)
+				sym := &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
+				attr := get_sym_attr(s1, sym_index, 0)
+				offset := attr.got_offset
+				if offset != rel.r_offset - s1.got.sh_addr {
+					_tcc_error_noabort('fill_local_got_entries: huh?')
+				}
+				rel.r_info = (((Elf64_Xword((0))) << 32) + (8))
+				rel.r_addend = sym.st_value
 			}
-			rel.r_info = (((Elf64_Xword((0))) << 32) + (8))
-			rel.r_addend = sym.st_value
 		}
 	}
 }
@@ -1572,54 +1577,53 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 	esym := &Elf64_Sym(0)
 
 	type_ := 0
-	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1 }; unsafe {
-		voidptr(sym) < &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
-	}; unsafe { sym++ } {
-		if sym.st_shndx == 0 {
-			name = unsafe { &i8(s1.symtab_section.link.data) + sym.st_name }
-			sym_index = find_elf_sym(s1.dynsymtab_section, name)
-			if sym_index {
-				if is_pie {
-					continue
-				}
-				esym = &(&Elf64_Sym(s1.dynsymtab_section.data))[sym_index]
-				type_ = ((esym.st_info) & 15)
-				if type_ == 2 || type_ == 10 {
-					dynindex := put_elf_sym(s1.dynsym, 0, esym.st_size, (((1) << 4) + ((2) & 15)),
-						0, 0, name)
-					index = unsafe { sym - voidptr(&Elf64_Sym(s1.symtab_section.data)) }
-					get_sym_attr(s1, index, 1).dyn_index = dynindex
-				} else if type_ == 1 {
-					offset := u32(0)
-					dynsym := &Elf64_Sym(0)
-					offset = s1.bss_section.data_offset
-					offset = (offset + 16 - 1) & -16
-					set_elf_sym(s1.symtab, offset, esym.st_size, esym.st_info, 0, s1.bss_section.sh_num,
-						name)
-					index = put_elf_sym(s1.dynsym, offset, esym.st_size, esym.st_info,
-						0, s1.bss_section.sh_num, name)
-					if ((u8((esym.st_info))) >> 4) == 2 {
-						for dynsym = unsafe { &Elf64_Sym(s1.dynsymtab_section.data) + 1 }; unsafe {
-							voidptr(dynsym) < &Elf64_Sym((s1.dynsymtab_section.data +
-								s1.dynsymtab_section.data_offset))
-						}; unsafe { dynsym++ } {
-							if dynsym.st_value == esym.st_value
-								&& ((u8((dynsym.st_info))) >> 4) == 1 {
-								dynname := &i8(s1.dynsymtab_section.link.data) + dynsym.st_name
-								put_elf_sym(s1.dynsym, offset, dynsym.st_size, dynsym.st_info,
-									0, s1.bss_section.sh_num, dynname)
-								break
+	unsafe {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+			if sym.st_shndx == 0 {
+				name = &i8(s1.symtab_section.link.data) + sym.st_name
+				sym_index = find_elf_sym(s1.dynsymtab_section, name)
+				if sym_index {
+					if is_pie {
+						continue
+					}
+					esym = &(&Elf64_Sym(s1.dynsymtab_section.data))[sym_index]
+					type_ = ((esym.st_info) & 15)
+					if type_ == 2 || type_ == 10 {
+						dynindex := put_elf_sym(s1.dynsym, 0, esym.st_size, (((1) << 4) + ((2) & 15)),
+							0, 0, name)
+						index = sym - voidptr(&Elf64_Sym(s1.symtab_section.data))
+						get_sym_attr(s1, index, 1).dyn_index = dynindex
+					} else if type_ == 1 {
+						offset := u32(0)
+						dynsym := &Elf64_Sym(0)
+						offset = s1.bss_section.data_offset
+						offset = (offset + 16 - 1) & -16
+						set_elf_sym(s1.symtab, offset, esym.st_size, esym.st_info, 0,
+							s1.bss_section.sh_num, name)
+						index = put_elf_sym(s1.dynsym, offset, esym.st_size, esym.st_info,
+							0, s1.bss_section.sh_num, name)
+						if ((u8((esym.st_info))) >> 4) == 2 {
+							for dynsym = &Elf64_Sym(s1.dynsymtab_section.data) + 1; voidptr(dynsym) < &Elf64_Sym((
+								s1.dynsymtab_section.data + s1.dynsymtab_section.data_offset)); dynsym++ {
+								if dynsym.st_value == esym.st_value
+									&& ((u8((dynsym.st_info))) >> 4) == 1 {
+									dynname := &i8(s1.dynsymtab_section.link.data) + dynsym.st_name
+									put_elf_sym(s1.dynsym, offset, dynsym.st_size, dynsym.st_info,
+										0, s1.bss_section.sh_num, dynname)
+									break
+								}
 							}
 						}
+						put_elf_reloc(s1.dynsym, s1.bss_section, offset, 5, index)
+						offset += esym.st_size
+						s1.bss_section.data_offset = offset
 					}
-					put_elf_reloc(s1.dynsym, s1.bss_section, offset, 5, index)
-					offset += esym.st_size
-					s1.bss_section.data_offset = offset
-				}
-			} else {
-				if ((u8((sym.st_info))) >> 4) == 2 || !C.strcmp(name, c'_fp_hw') {
 				} else {
-					_tcc_error_noabort("undefined symbol '${name}'")
+					if ((u8((sym.st_info))) >> 4) == 2 || !C.strcmp(name, c'_fp_hw') {
+					} else {
+						_tcc_error_noabort("undefined symbol '${name}'")
+					}
 				}
 			}
 		}
@@ -1632,21 +1636,22 @@ fn bind_libs_dynsyms(s1 &TCCState) {
 	sym := &Elf64_Sym(0)
 	esym := &Elf64_Sym(0)
 
-	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1 }; unsafe {
-		voidptr(sym) < &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
-	}; unsafe { sym++ } {
-		name = &i8(s1.symtab_section.link.data) + sym.st_name
-		dynsym_index = find_elf_sym(s1.dynsymtab_section, name)
-		if sym.st_shndx != 0 {
-			if ((u8((sym.st_info))) >> 4) != 0 && (dynsym_index || s1.rdynamic) {
-				set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info, 0, sym.st_shndx,
-					name)
-			}
-		} else if dynsym_index {
-			esym = &Elf64_Sym(s1.dynsymtab_section.data) + dynsym_index
-			if esym.st_shndx == 0 {
-				if ((u8((esym.st_info))) >> 4) != 2 {
-					_tcc_warning(c"undefined dynamic symbol '%s'", name)
+	unsafe {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+			name = &i8(s1.symtab_section.link.data) + sym.st_name
+			dynsym_index = find_elf_sym(s1.dynsymtab_section, name)
+			if sym.st_shndx != 0 {
+				if ((u8((sym.st_info))) >> 4) != 0 && (dynsym_index || s1.rdynamic) {
+					set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info, 0,
+						sym.st_shndx, name)
+				}
+			} else if dynsym_index {
+				esym = &Elf64_Sym(s1.dynsymtab_section.data) + dynsym_index
+				if esym.st_shndx == 0 {
+					if ((u8((esym.st_info))) >> 4) != 2 {
+						_tcc_warning("undefined dynamic symbol '${name}'")
+					}
 				}
 			}
 		}
@@ -1659,14 +1664,16 @@ fn export_global_syms(s1 &TCCState) {
 
 	name := &i8(0)
 	sym := &Elf64_Sym(0)
-	for sym = &Elf64_Sym(s1.symtab_section.data) + 1; sym < &Elf64_Sym((s1.symtab_section.data +
-		s1.symtab_section.data_offset)); sym++ {
-		if ((u8((sym.st_info))) >> 4) != 0 {
-			name = &i8(s1.symtab_section.link.data) + sym.st_name
-			dynindex = set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info,
-				0, sym.st_shndx, name)
-			index = sym - &Elf64_Sym(s1.symtab_section.data)
-			get_sym_attr(s1, index, 1).dyn_index = dynindex
+	unsafe {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; sym < voidptr(&Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
+			if ((u8((sym.st_info))) >> 4) != 0 {
+				name = &i8(s1.symtab_section.link.data) + sym.st_name
+				dynindex = set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info,
+					0, sym.st_shndx, name)
+				index = sym - voidptr(&Elf64_Sym(s1.symtab_section.data))
+				get_sym_attr(s1, index, 1).dyn_index = dynindex
+			}
 		}
 	}
 }
@@ -1828,13 +1835,13 @@ fn fill_phdr(ph &Elf64_Phdr, type_ int, s &Section) &Elf64_Phdr {
 
 fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 	s := &Section(0)
-	addr := Elf64_Addr{}
-	tmp := Elf64_Addr{}
-	align := Elf64_Addr{}
-	s_align := Elf64_Addr{}
-	base := Elf64_Addr{}
+	addr := Elf64_Addr(0)
+	tmp := Elf64_Addr(0)
+	align := Elf64_Addr(0)
+	s_align := Elf64_Addr(0)
+	base := Elf64_Addr(0)
 
-	ph := (unsafe { nil })
+	ph := &Elf64_Phdr(unsafe { nil })
 	i := 0
 	f := 0
 	n := 0
@@ -1849,16 +1856,16 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 	}
 	phnum += phfill
 	if d.note {
-		phnum++$
+		phnum++
 	}
 	if d.dynamic {
-		phnum++$
+		phnum++
 	}
 	if d.roinf {
-		phnum++$
+		phnum++
 	}
 	d.phnum = phnum
-	d.phdr = tcc_mallocz(phnum * sizeof(Elf64_Phdr))
+	d.phdr = &Elf64_Phdr(tcc_mallocz(phnum * sizeof(Elf64_Phdr)))
 	file_offset = 0
 	if s1.output_format == 0 {
 		file_offset = sizeof(Elf64_Ehdr) + phnum * sizeof(Elf64_Phdr)
@@ -1955,13 +1962,13 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 		ph.p_memsz = addr - ph.p_vaddr
 	}
 	if d.note {
-		fill_phdr(ph++$, 4, d.note)
+		fill_phdr(unsafe { ph++ }, 4, d.note)
 	}
 	if d.dynamic {
-		fill_phdr(ph++$, 2, d.dynamic).p_flags |= (1 << 1)
+		fill_phdr(unsafe { ph++ }, 2, d.dynamic).p_flags |= (1 << 1)
 	}
 	if d.roinf {
-		fill_phdr(ph++$, 1685382482, d.roinf).p_flags |= (1 << 1)
+		fill_phdr(unsafe { ph++ }, 1685382482, d.roinf).p_flags |= (1 << 1)
 	}
 	if d.interp {
 		fill_phdr(&d.phdr[1], 3, d.interp)
@@ -2009,26 +2016,26 @@ fn fill_dynamic(s1 &TCCState, dyninf &Dyn_inf) {
 		put_dt(dynamic, 1879048191, s1.dt_verneednum)
 	}
 	s = have_section(s1, c'.preinit_array')
-	if s && s.data_offset {
+	if s != unsafe { nil } && s.data_offset {
 		put_dt(dynamic, 32, s.sh_addr)
 		put_dt(dynamic, 33, s.data_offset)
 	}
 	s = have_section(s1, c'.init_array')
-	if s && s.data_offset {
+	if s != unsafe { nil } && s.data_offset {
 		put_dt(dynamic, 25, s.sh_addr)
 		put_dt(dynamic, 27, s.data_offset)
 	}
 	s = have_section(s1, c'.fini_array')
-	if s && s.data_offset {
+	if s != unsafe { nil } && s.data_offset {
 		put_dt(dynamic, 26, s.sh_addr)
 		put_dt(dynamic, 28, s.data_offset)
 	}
 	s = have_section(s1, c'.init')
-	if s && s.data_offset {
+	if s != unsafe { nil } && s.data_offset {
 		put_dt(dynamic, 12, s.sh_addr)
 	}
 	s = have_section(s1, c'.fini')
-	if s && s.data_offset {
+	if s != unsafe { nil } && s.data_offset {
 		put_dt(dynamic, 13, s.sh_addr)
 	}
 	if s1.do_debug {
@@ -2125,7 +2132,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 		s = s1.sections[if sec_order { sec_order[i] } else { i }]
 		if s.sh_type != 8 {
 			for offset < s.sh_offset {
-				fputc(0, f)
+				C.fputc(0, f)
 				offset++
 			}
 			size = s.sh_size
@@ -2136,7 +2143,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 		}
 	}
 	for offset < ehdr.e_shoff {
-		fputc(0, f)
+		C.fputc(0, f)
 		offset++
 	}
 	for i = 0; i < shnum; i++ {
@@ -2173,7 +2180,7 @@ fn tcc_output_binary(s1 &TCCState, f &C.FILE, sec_order &int) int {
 		s = s1.sections[sec_order[i]]
 		if s.sh_type != 8 && s.sh_flags & (1 << 1) {
 			for offset < s.sh_offset {
-				fputc(0, f)
+				C.fputc(0, f)
 				offset++
 			}
 			size = s.sh_size
@@ -2202,7 +2209,7 @@ fn tcc_write_elf_file(s1 &TCCState, filename &i8, phnum int, phdr &Elf64_Phdr, f
 	if fd < 0 {
 		f = C.fdopen(fd, c'wb')
 		if f == unsafe { nil } {
-			return _tcc_error_noabort("could not write '%s: %s'", filename, strerror((*__errno_location())))
+			return _tcc_error_noabort("could not write '${filename}: ${C.strerror(C.errno)}'")
 		}
 	}
 	if s1.verbose {
@@ -2251,19 +2258,21 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 			}
 		}
 	}
-	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1 }; unsafe {
-		sym < &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
-	}; unsafe { sym++ } {
-		if sym.st_shndx != 0 && sym.st_shndx < 65280 {
-			sym.st_shndx = backmap[sym.st_shndx]
+	unsafe {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+			if sym.st_shndx != 0 && sym.st_shndx < 65280 {
+				sym.st_shndx = backmap[sym.st_shndx]
+			}
 		}
 	}
 	if !s1.static_link {
-		for sym = unsafe { &Elf64_Sym(s1.dynsym.data) + 1 }; unsafe {
-			sym < &Elf64_Sym((s1.dynsym.data + s1.dynsym.data_offset))
-		}; unsafe { sym++ } {
-			if sym.st_shndx != 0 && sym.st_shndx < 65280 {
-				sym.st_shndx = backmap[sym.st_shndx]
+		unsafe {
+			for sym = &Elf64_Sym(s1.dynsym.data) + 1; voidptr(sym) < &Elf64_Sym((s1.dynsym.data +
+				s1.dynsym.data_offset)); sym++ {
+				if sym.st_shndx != 0 && sym.st_shndx < 65280 {
+					sym.st_shndx = backmap[sym.st_shndx]
+				}
 			}
 		}
 	}
@@ -2467,7 +2476,9 @@ fn full_read(fd int, buf voidptr, count usize) isize {
 	cbuf := buf
 	rnum := 0
 	for 1 {
-		num := C.read(fd, cbuf, count - rnum)
+		t := count
+		t -= rnum
+		num := C.read(fd, cbuf, t)
 		if num < 0 {
 			return num
 		}
@@ -2659,11 +2670,13 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		a = &Stab_Sym((s.data + sm_table[stab_index].offset))
 		b = &Stab_Sym((s.data + s.data_offset))
 		o = sm_table[stabstr_index].offset
-		for unsafe { voidptr(a) < b } {
-			if a.n_strx {
-				a.n_strx += o
+		unsafe {
+			for voidptr(a) < b {
+				if a.n_strx {
+					a.n_strx += o
+				}
+				a++
 			}
-			unsafe { a++ }
 		}
 	}
 	for i = 1; i < ehdr.e_shnum; i++ {
@@ -2682,29 +2695,31 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 	}
 	old_to_new_syms = tcc_mallocz(nb_syms * sizeof(int))
 	sym = unsafe { symtab + 1 }
-	for i = 1; i < nb_syms; i++, unsafe { sym++ } {
-		if sym.st_shndx != 0 && sym.st_shndx < 65280 {
-			sm = &sm_table[sym.st_shndx]
-			if sm.link_once {
-				if ((u8((sym.st_info))) >> 4) != 0 {
-					name = strtab + sym.st_name
-					sym_index = find_elf_sym(s1.symtab_section, name)
-					if sym_index {
-						old_to_new_syms[i] = sym_index
+	unsafe {
+		for i = 1; i < nb_syms; i++, sym++ {
+			if sym.st_shndx != 0 && sym.st_shndx < 65280 {
+				sm = &sm_table[sym.st_shndx]
+				if sm.link_once {
+					if ((u8((sym.st_info))) >> 4) != 0 {
+						name = strtab + sym.st_name
+						sym_index = find_elf_sym(s1.symtab_section, name)
+						if sym_index {
+							old_to_new_syms[i] = sym_index
+						}
 					}
+					continue
 				}
-				continue
+				if !sm.s {
+					continue
+				}
+				sym.st_shndx = sm.s.sh_num
+				sym.st_value += sm.offset
 			}
-			if !sm.s {
-				continue
-			}
-			sym.st_shndx = sm.s.sh_num
-			sym.st_value += sm.offset
+			name = strtab + sym.st_name
+			sym_index = set_elf_sym(s1.symtab_section, sym.st_value, sym.st_size, sym.st_info,
+				sym.st_other, sym.st_shndx, name)
+			old_to_new_syms[i] = sym_index
 		}
-		name = strtab + sym.st_name
-		sym_index = set_elf_sym(s1.symtab_section, sym.st_value, sym.st_size, sym.st_info,
-			sym.st_other, sym.st_shndx, name)
-		old_to_new_syms[i] = sym_index
 	}
 	for i = 1; i < ehdr.e_shnum; i++ {
 		s = sm_table[i].s
@@ -2717,25 +2732,28 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		match s.sh_type {
 			4 { // case comp body kind=BinaryOperator is_enum=false
 				offseti = sm_table[sh.sh_info].offset
-				for rel = unsafe { &Elf64_Rela(s.data) + (offset / sizeof(*rel)) }; unsafe {
-					voidptr(rel) < &Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel))
-				}; unsafe { rel++ } {
-					type_ := 0
-					sym_index = u32(0)
-					type_ = ((rel.r_info) & 4294967295)
-					sym_index = ((rel.r_info) >> 32)
-					if sym_index >= nb_syms {
-						goto invalid_reloc // id: 0x7fffe905e8c0
+				unsafe {
+					for rel = &Elf64_Rela(s.data) + (offset / sizeof(*rel)); voidptr(rel) <
+						&Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel)); rel++ {
+						type_ := 0
+						sym_index = u32(0)
+						type_ = ((rel.r_info) & 4294967295)
+						sym_index = ((rel.r_info) >> 32)
+						if sym_index >= nb_syms {
+							goto invalid_reloc // id: 0x7fffe905e8c0
+						}
+						sym_index = old_to_new_syms[sym_index]
+						if !sym_index && !sm_table[sh.sh_info].link_once {
+							// RRRREG invalid_reloc id=0x7fffe905e8c0
+							invalid_reloc:
+							_tcc_error_noabort("Invalid relocation entry [${i}] '${strsec +
+								sh.sh_name}' @ ${int(rel.r_offset)}")
+							goto the_end // id: 0x7fffe9056020
+						}
+						rel.r_info = ((Elf64_Xword(u64(sym_index))) << 32)
+						rel.r_info += type_
+						rel.r_offset += offseti
 					}
-					sym_index = old_to_new_syms[sym_index]
-					if !sym_index && !sm_table[sh.sh_info].link_once {
-						// RRRREG invalid_reloc id=0x7fffe905e8c0
-						invalid_reloc:
-						_tcc_error_noabort("Invalid relocation entry [${i}] '${strsec + sh.sh_name}' @ ${int(rel.r_offset)}")
-						goto the_end // id: 0x7fffe9056020
-					}
-					rel.r_info = (((Elf64_Xword(u64(sym_index))) << 32) + type_)
-					rel.r_offset += offseti
 				}
 			}
 			else {}
@@ -2783,7 +2801,7 @@ fn read_ar_header(fd int, offset int, hdr &ArchiveHeader) int {
 		return if len { -1 } else { 0 }
 	}
 	p = hdr.ar_name
-	for e = p + sizeof(hdr.ar_name); e > p && e[-1] == ' '; {
+	for e = p + sizeof(hdr.ar_name); e > p && e[-1] == c' '; {
 		e--$
 	}
 	*e = `\x00`
@@ -3190,7 +3208,7 @@ fn ld_next(s1 &TCCState, name &i8, name_size int) int {
 }
 
 fn ld_add_file(s1 &TCCState, filename &i8) int {
-	if filename[0] == '/' {
+	if filename[0] == c'/' {
 		if CONFIG_SYSROOT[0] == `\x00` && tcc_add_file_internal(s1, filename, 64) == 0 {
 			return 0
 		}
@@ -3228,7 +3246,7 @@ fn ld_add_file_list(s1 &TCCState, cmd &i8, as_needed int) int {
 			break
 		} else if t == `-` {
 			t = ld_next(s1, filename, sizeof(filename))
-			if t != 256 || filename[0] != 'l' {
+			if t != 256 || filename[0] != c'l' {
 				ret = _tcc_error_noabort('library name expected')
 				goto lib_parse_error // id: 0x7fffe9078940
 			}
@@ -3255,7 +3273,7 @@ fn ld_add_file_list(s1 &TCCState, cmd &i8, as_needed int) int {
 				}
 				if group {
 					dynarray_add(&libs, &nblibs, tcc_strdup(filename))
-					if libname[0] != '\x00' {
+					if libname[0] != c'\x00' {
 						dynarray_add(&libs, &nblibs, tcc_strdup(libname))
 					}
 				}

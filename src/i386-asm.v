@@ -1,14 +1,11 @@
 @[translated]
 module main
 
-@[export: 'reg_to_size']
 const reg_to_size = [0, 0, 1, 0, 2, 0, 0, 0, 3]!
 
-@[export: 'test_bits']
 const test_bits = [0, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 10, 11, 11, 12, 12,
 	13, 13, 14, 14, 15, 15]!
 
-@[export: 'segment_prefixes']
 const segment_prefixes = [38, 46, 54, 62, 100, 101]!
 
 pub type TCCErrorFunc = fn (voidptr, &char)
@@ -66,7 +63,7 @@ struct Operand {
 }
 
 @[export: 'asm_instrs']
-const asm_instrs = [
+__global asm_instrs = [
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_vmcall)
 		opcode: (u16((if (((193) & 65280) == 3840) {
@@ -3957,7 +3954,6 @@ const asm_instrs = [
 	},
 ]!
 
-@[export: 'op0_codes']
 const op0_codes = [248, 252, 250, 3846, 245, 159, 158, 156, 157, 156, 157, 249, 253, 251, 55, 63,
 	39, 47, 54538, 54282, 26264, 26265, 152, 153, 26264, 152, 26265, 153, 18585, 204, 206, 207,
 	26319, 207, 18639, 4010, 244, 155, 144, 62352, 215, 240, 243, 243, 243, 242, 242, 3848, 3849,
@@ -4349,7 +4345,8 @@ fn maybe_print_stats() {
 		already = 1
 		nb_op_vals = 0
 		C.memset(freq, 0, sizeof(freq))
-		for pa = asm_instrs; pa.sym != 0; unsafe { pa++ } {
+		pa = asm_instrs
+		for pa.sym != 0 {
 			freq[pa.nb_ops]++
 			for j = 0; j < nb_op_vals; j++ {
 				if pa.instr_type == op_vals[j] {
@@ -4359,7 +4356,7 @@ fn maybe_print_stats() {
 			op_vals[nb_op_vals++] = pa.instr_type
 			// RRRREG found id=0x7fffe23783c8
 			found:
-			0
+			unsafe { pa++ }
 		}
 		for i = 0; i < nb_op_vals; i++ {
 			v := op_vals[i]
@@ -4431,32 +4428,38 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 	s = 0
 	// RRRREG again id=0x7fffe2380130
 
-	again: for pa = asm_instrs; pa.sym != 0; unsafe { pa++ } {
+	pa = asm_instrs
+	again: for pa.sym != 0 {
 		it := pa.instr_type & 112
 		s = 0
 		if it == 64 {
 			v = opcode - pa.sym
 			if !(u32(v) < 8 * 6 && (v % 6) == 0) {
+				unsafe { pa++ }
 				continue
 			}
 		} else if it == 48 {
 			if !(opcode >= pa.sym && opcode < pa.sym + 8 * 5) {
+				unsafe { pa++ }
 				continue
 			}
 			s = (opcode - pa.sym) % 5
 			if (pa.instr_type & (1 | 4096)) == 4096 {
 				if ((opcode - pa.sym + 1) % 5) == 0 {
+					unsafe { pa++ }
 					continue
 				}
 				s++
 			}
 		} else if it == 32 {
 			if !(opcode >= pa.sym && opcode < pa.sym + 7 * 5) {
+				unsafe { pa++ }
 				continue
 			}
 			s = (opcode - pa.sym) % 5
 		} else if it == 80 {
 			if !(opcode >= pa.sym && opcode < pa.sym + 30) {
+				unsafe { pa++ }
 				continue
 			}
 			if pa.instr_type & 4096 {
@@ -4464,27 +4467,33 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 			}
 		} else if pa.instr_type & 1 {
 			if (pa.instr_type & 4096) != 4096 && !(opcode >= pa.sym && opcode < pa.sym + 5 - 1) {
+				unsafe { pa++ }
 				continue
 			}
 			if !(opcode >= pa.sym && opcode < pa.sym + 5) {
+				unsafe { pa++ }
 				continue
 			}
 			s = opcode - pa.sym
 		} else if pa.instr_type & 4096 {
 			if !(opcode >= pa.sym && opcode < pa.sym + 5 - 1) {
+				unsafe { pa++ }
 				continue
 			}
 			s = opcode - pa.sym + 1
 		} else {
 			if pa.sym != opcode {
+				unsafe { pa++ }
 				continue
 			}
 		}
 		if pa.nb_ops != nb_ops {
+			unsafe { pa++ }
 			continue
 		}
 		if pa.opcode == 176 && ops[0].type_ != (1 << opt_im64)&& (ops[1].type_ & ((1 << opt_reg8) | (1 << opt_reg16) | (1 << opt_reg32) | (1 << opt_reg64))) == (1 << opt_reg64)
 			&& !(pa.instr_type & 256) {
+			unsafe { pa++ }
 			continue
 		}
 		alltypes = 0
@@ -4530,7 +4539,7 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 
 		// RRRREG next id=0x7fffe237fdc0
 		next:
-		0
+		unsafe { pa++ }
 	}
 	if pa.sym == 0 {
 		if opcode >= Tcc_token.tok_asm_clc && opcode <= Tcc_token.tok_asm_emms {
@@ -4882,7 +4891,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	str := &rune(0)
 	regs_allocated := [16]u8{}
 	for i = 0; i < nb_operands; i++ {
-		op = &operands[i]
+		op = &ASMOperand(unsafe { &operands + i })
 		op.input_index = -1
 		op.ref_index = -1
 		op.reg = -1
@@ -4890,19 +4899,20 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 		op.is_rw = 0
 	}
 	for i = 0; i < nb_operands; i++ {
-		op = &operands[i]
+		op = &ASMOperand(unsafe { &operands + i })
 		str = op.constraint
 		str = skip_constraint_modifiers(str)
 		if isnum(*str) || *str == `[` {
-			k = find_constraint(operands, nb_operands, str, (unsafe { nil }))
+			k = find_constraint(unsafe { &operands + 0 }, nb_operands, str, (unsafe { nil }))
+			op_k := unsafe { &operands + k }
 			if u32(k) >= i || i < nb_outputs {
 				_tcc_error("invalid reference in constraint ${i} ('${str}')")
 			}
 			op.ref_index = k
-			if operands[k].input_index >= 0 {
+			if op_k.input_index >= 0 {
 				_tcc_error('cannot reference twice the same operand')
 			}
-			operands[k].input_index = i
+			op_k.input_index = i
 			op.priority = 5
 		} else if (op.vt.r & 63) == 50 && op.vt.sym && op.vt.sym.r & 63 < 48 {
 			reg = op.vt.sym.r & 63
@@ -4917,8 +4927,10 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	}
 	for i = 0; i < nb_operands - 1; i++ {
 		for j = i + 1; j < nb_operands; j++ {
-			p1 = operands[sorted_op[i]].priority
-			p2 = operands[sorted_op[j]].priority
+			op1 := unsafe { &operands + sorted_op[i] }
+			op2 := unsafe { &operands + sorted_op[j] }
+			p1 = op1.priority
+			p2 = op2.priority
 			if p2 < p1 {
 				tmp = sorted_op[i]
 				sorted_op[i] = sorted_op[j]
@@ -4937,7 +4949,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	regs_allocated[5] = 2 | 1
 	for i = 0; i < nb_operands; i++ {
 		j = sorted_op[i]
-		op = &operands[j]
+		op = unsafe { &operands + j }
 		str = op.constraint
 		if op.ref_index >= 0 {
 			continue
@@ -5065,13 +5077,14 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 			}
 		}
 		if op.input_index >= 0 {
-			operands[op.input_index].reg = op.reg
-			operands[op.input_index].is_llong = op.is_llong
+			op1 := unsafe { &operands + op.input_index }
+			op1.reg = op.reg
+			op1.is_llong = op.is_llong
 		}
 	}
 	*pout_reg = -1
 	for i = 0; i < nb_operands; i++ {
-		op = &operands[i]
+		op = unsafe { &operands + i }
 		if op.reg >= 0 && (op.vt.r & 63) == 49 && !op.is_memory {
 			for reg = 0; reg < 8; reg++ {
 				if !(regs_allocated[reg] & 1) {
@@ -5202,7 +5215,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 
 	C.memcpy(regs_allocated, clobber_regs, sizeof(regs_allocated))
 	for i = 0; i < nb_operands; i++ {
-		op = &operands[i]
+		op = unsafe { &operands + i }
 		if op.reg >= 0 {
 			regs_allocated[op.reg] = 1
 		}
@@ -5219,7 +5232,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 			}
 		}
 		for i = 0; i < nb_operands; i++ {
-			op = &operands[i]
+			op = unsafe { &operands + i }
 			if op.reg >= 0 {
 				if (op.vt.r & 63) == 49 && op.is_memory {
 					sv := SValue{}
@@ -5240,7 +5253,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 		}
 	} else {
 		for i = 0; i < nb_outputs; i++ {
-			op = &operands[i]
+			op = unsafe { &operands + i }
 			if op.reg >= 0 {
 				if (op.vt.r & 63) == 49 {
 					if !op.is_memory {

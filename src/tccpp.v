@@ -3,17 +3,17 @@ module main
 
 import strings
 
-const TOK_HASH_SIZE = 16384 // must be a power of two
-
 __global isidnum_table = [256 - CH_EOF]u8{}
 
 __global toksym_alloc = &TinyAlloc{}
 __global tokstr_alloc = &TinyAlloc{}
 
+__global tokstr_buf = TokenString{}
+
 __global cstr_buf = strings.new_builder(100)
 
 __global hash_ident = &[TOK_HASH_SIZE]TokenSym{}
-
+__global token_buf [STRING_MAX_SIZE + 1]char
 __global macro_stack = &TokenString{}
 
 __global pp_expr = int(0)
@@ -21,10 +21,139 @@ __global pp_counter = int(0)
 __global pp_debug_tok = int(0)
 __global pp_debug_symv = int(0)
 
-@[export: 'tcc_keywords']
-const tcc_keywords = c'int\000void\000char\000if\000else\000while\000break\000return\000for\000extern\000static\000unsigned\000goto\000do\000continue\000switch\000case\000_Atomic\000const\000__const\000__const__\000volatile\000__volatile\000__volatile__\000long\000register\000signed\000__signed\000__signed__\000auto\000inline\000__inline\000__inline__\000restrict\000__restrict\000__restrict__\000__extension__\000_Thread_local\000_Generic\000_Static_assert\000float\000double\000_Bool\000_Complex\000short\000struct\000union\000typedef\000default\000enum\000sizeof\000__attribute\000__attribute__\000__alignof\000__alignof__\000_Alignof\000_Alignas\000typeof\000__typeof\000__typeof__\000__label__\000asm\000__asm\000__asm__\000define\000include\000include_next\000ifdef\000ifndef\000elif\000endif\000defined\000undef\000error\000warning\000line\000pragma\000__LINE__\000__FILE__\000__DATE__\000__TIME__\000__FUNCTION__\000__VA_ARGS__\000__COUNTER__\000__has_include\000__has_include_next\000__func__\000__nan__\000__snan__\000__inf__\000__mzerosf\000__mzerodf\000section\000__section__\000aligned\000__aligned__\000packed\000__packed__\000weak\000__weak__\000alias\000__alias__\000unused\000__unused__\000nodebug\000__nodebug__\000cdecl\000__cdecl\000__cdecl__\000stdcall\000__stdcall\000__stdcall__\000fastcall\000__fastcall\000__fastcall__\000regparm\000__regparm__\000cleanup\000__cleanup__\000constructor\000__constructor__\000destructor\000__destructor__\000always_inline\000__always_inline__\000__mode__\000__QI__\000__DI__\000__HI__\000__SI__\000__word__\000dllexport\000dllimport\000nodecorate\000noreturn\000__noreturn__\000_Noreturn\000visibility\000__visibility__\000__builtin_types_compatible_p\000__builtin_choose_expr\000__builtin_constant_p\000__builtin_frame_address\000__builtin_return_address\000__builtin_expect\000__builtin_va_arg_types\000__atomic_store\000__atomic_load\000__atomic_exchange\000__atomic_compare_exchange\000__atomic_fetch_add\000__atomic_fetch_sub\000__atomic_fetch_or\000__atomic_fetch_xor\000__atomic_fetch_and\000__atomic_fetch_nand\000__atomic_add_fetch\000__atomic_sub_fetch\000__atomic_or_fetch\000__atomic_xor_fetch\000__atomic_and_fetch\000__atomic_nand_fetch\000pack\000comment\000lib\000push_macro\000pop_macro\000once\000option\000memcpy\000memmove\000memset\000__divdi3\000__moddi3\000__udivdi3\000__umoddi3\000__ashrdi3\000__lshrdi3\000__ashldi3\000__floatundisf\000__floatundidf\000__floatundixf\000__fixunsxfdi\000__fixunssfdi\000__fixunsdfdi\000alloca\000__bound_ptr_add\000__bound_ptr_indir1\000__bound_ptr_indir2\000__bound_ptr_indir4\000__bound_ptr_indir8\000__bound_ptr_indir12\000__bound_ptr_indir16\000__bound_main_arg\000__bound_local_new\000__bound_local_delete\000__bound_setjmp\000__bound_longjmp\000__bound_new_region\000sigsetjmp\000__sigsetjmp\000siglongjmp\000setjmp\000_setjmp\000longjmp\000.byte\000.word\000.align\000.balign\000.p2align\000.set\000.skip\000.space\000.string\000.asciz\000.ascii\000.file\000.globl\000.global\000.weak\000.hidden\000.ident\000.size\000.type\000.text\000.data\000.bss\000.previous\000.pushsection\000.popsection\000.fill\000.rept\000.endr\000.org\000.quad\000.code64\000.short\000.long\000.int\000.section\000al\000cl\000dl\000bl\000ah\000ch\000dh\000bh\000ax\000cx\000dx\000bx\000sp\000bp\000si\000di\000eax\000ecx\000edx\000ebx\000esp\000ebp\000esi\000edi\000rax\000rcx\000rdx\000rbx\000rsp\000rbp\000rsi\000rdi\000mm0\000mm1\000mm2\000mm3\000mm4\000mm5\000mm6\000mm7\000xmm0\000xmm1\000xmm2\000xmm3\000xmm4\000xmm5\000xmm6\000xmm7\000cr0\000cr1\000cr2\000cr3\000cr4\000cr5\000cr6\000cr7\000tr0\000tr1\000tr2\000tr3\000tr4\000tr5\000tr6\000tr7\000db0\000db1\000db2\000db3\000db4\000db5\000db6\000db7\000dr0\000dr1\000dr2\000dr3\000dr4\000dr5\000dr6\000dr7\000es\000cs\000ss\000ds\000fs\000gs\000st\000rip\000spl\000bpl\000sil\000dil\000movb\000movw\000movl\000movq\000mov\000addb\000addw\000addl\000addq\000add\000orb\000orw\000orl\000orq\000or\000adcb\000adcw\000adcl\000adcq\000adc\000sbbb\000sbbw\000sbbl\000sbbq\000sbb\000andb\000andw\000andl\000andq\000and\000subb\000subw\000subl\000subq\000sub\000xorb\000xorw\000xorl\000xorq\000xor\000cmpb\000cmpw\000cmpl\000cmpq\000cmp\000incb\000incw\000incl\000incq\000inc\000decb\000decw\000decl\000decq\000dec\000notb\000notw\000notl\000notq\000not\000negb\000negw\000negl\000negq\000neg\000mulb\000mulw\000mull\000mulq\000mul\000imulb\000imulw\000imull\000imulq\000imul\000divb\000divw\000divl\000divq\000div\000idivb\000idivw\000idivl\000idivq\000idiv\000xchgb\000xchgw\000xchgl\000xchgq\000xchg\000testb\000testw\000testl\000testq\000test\000rolb\000rolw\000roll\000rolq\000rol\000rorb\000rorw\000rorl\000rorq\000ror\000rclb\000rclw\000rcll\000rclq\000rcl\000rcrb\000rcrw\000rcrl\000rcrq\000rcr\000shlb\000shlw\000shll\000shlq\000shl\000shrb\000shrw\000shrl\000shrq\000shr\000sarb\000sarw\000sarl\000sarq\000sar\000shldw\000shldl\000shldq\000shld\000shrdw\000shrdl\000shrdq\000shrd\000pushw\000pushl\000pushq\000push\000popw\000popl\000popq\000pop\000inb\000inw\000inl\000in\000outb\000outw\000outl\000out\000movzbw\000movzbl\000movzbq\000movzb\000movzwl\000movsbw\000movsbl\000movswl\000movsbq\000movswq\000movzwq\000movslq\000leaw\000leal\000leaq\000lea\000les\000lds\000lss\000lfs\000lgs\000call\000jmp\000lcall\000ljmp\000jo\000jno\000jb\000jc\000jnae\000jnb\000jnc\000jae\000je\000jz\000jne\000jnz\000jbe\000jna\000jnbe\000ja\000js\000jns\000jp\000jpe\000jnp\000jpo\000jl\000jnge\000jnl\000jge\000jle\000jng\000jnle\000jg\000seto\000setno\000setb\000setc\000setnae\000setnb\000setnc\000setae\000sete\000setz\000setne\000setnz\000setbe\000setna\000setnbe\000seta\000sets\000setns\000setp\000setpe\000setnp\000setpo\000setl\000setnge\000setnl\000setge\000setle\000setng\000setnle\000setg\000setob\000setnob\000setbb\000setcb\000setnaeb\000setnbb\000setncb\000setaeb\000seteb\000setzb\000setneb\000setnzb\000setbeb\000setnab\000setnbeb\000setab\000setsb\000setnsb\000setpb\000setpeb\000setnpb\000setpob\000setlb\000setngeb\000setnlb\000setgeb\000setleb\000setngb\000setnleb\000setgb\000cmovo\000cmovno\000cmovb\000cmovc\000cmovnae\000cmovnb\000cmovnc\000cmovae\000cmove\000cmovz\000cmovne\000cmovnz\000cmovbe\000cmovna\000cmovnbe\000cmova\000cmovs\000cmovns\000cmovp\000cmovpe\000cmovnp\000cmovpo\000cmovl\000cmovnge\000cmovnl\000cmovge\000cmovle\000cmovng\000cmovnle\000cmovg\000bsfw\000bsfl\000bsfq\000bsf\000bsrw\000bsrl\000bsrq\000bsr\000btw\000btl\000btq\000bt\000btsw\000btsl\000btsq\000bts\000btrw\000btrl\000btrq\000btr\000btcw\000btcl\000btcq\000btc\000popcntw\000popcntl\000popcntq\000popcnt\000tzcntw\000tzcntl\000tzcntq\000tzcnt\000lzcntw\000lzcntl\000lzcntq\000lzcnt\000larw\000larl\000larq\000lar\000lslw\000lsll\000lslq\000lsl\000fadd\000faddp\000fadds\000fiaddl\000faddl\000fiadds\000fmul\000fmulp\000fmuls\000fimull\000fmull\000fimuls\000fcom\000fcom_1\000fcoms\000ficoml\000fcoml\000ficoms\000fcomp\000fcompp\000fcomps\000ficompl\000fcompl\000ficomps\000fsub\000fsubp\000fsubs\000fisubl\000fsubl\000fisubs\000fsubr\000fsubrp\000fsubrs\000fisubrl\000fsubrl\000fisubrs\000fdiv\000fdivp\000fdivs\000fidivl\000fdivl\000fidivs\000fdivr\000fdivrp\000fdivrs\000fidivrl\000fdivrl\000fidivrs\000xaddb\000xaddw\000xaddl\000xaddq\000xadd\000cmpxchgb\000cmpxchgw\000cmpxchgl\000cmpxchgq\000cmpxchg\000cmpsb\000cmpsw\000cmpsl\000cmpsq\000cmps\000scmpb\000scmpw\000scmpl\000scmpq\000scmp\000insb\000insw\000insl\000ins\000outsb\000outsw\000outsl\000outs\000lodsb\000lodsw\000lodsl\000lodsq\000lods\000slodb\000slodw\000slodl\000slodq\000slod\000movsb\000movsw\000movsl\000movsq\000movs\000smovb\000smovw\000smovl\000smovq\000smov\000scasb\000scasw\000scasl\000scasq\000scas\000sscab\000sscaw\000sscal\000sscaq\000ssca\000stosb\000stosw\000stosl\000stosq\000stos\000sstob\000sstow\000sstol\000sstoq\000ssto\000clc\000cld\000cli\000clts\000cmc\000lahf\000sahf\000pushfq\000popfq\000pushf\000popf\000stc\000std\000sti\000aaa\000aas\000daa\000das\000aad\000aam\000cbw\000cwd\000cwde\000cdq\000cbtw\000cwtl\000cwtd\000cltd\000cqto\000int3\000into\000iret\000iretw\000iretl\000iretq\000rsm\000hlt\000wait\000nop\000pause\000xlat\000lock\000rep\000repe\000repz\000repne\000repnz\000invd\000wbinvd\000cpuid\000wrmsr\000rdtsc\000rdmsr\000rdpmc\000syscall\000sysret\000ud2\000leave\000ret\000retq\000lret\000fucompp\000ftst\000fxam\000fld1\000fldl2t\000fldl2e\000fldpi\000fldlg2\000fldln2\000fldz\000f2xm1\000fyl2x\000fptan\000fpatan\000fxtract\000fprem1\000fdecstp\000fincstp\000fprem\000fyl2xp1\000fsqrt\000fsincos\000frndint\000fscale\000fsin\000fcos\000fchs\000fabs\000fninit\000fnclex\000fnop\000fwait\000fxch\000fnstsw\000emms\000vmcall\000vmlaunch\000vmresume\000vmxoff\000sysretq\000ljmpw\000ljmpl\000enter\000loopne\000loopnz\000loope\000loopz\000loop\000jecxz\000fld\000fldl\000flds\000fildl\000fildq\000fildll\000fldt\000fbld\000fst\000fstl\000fsts\000fstps\000fstpl\000fist\000fistp\000fistl\000fistpl\000fstp\000fistpq\000fistpll\000fstpt\000fbstp\000fucom\000fucomp\000finit\000fldcw\000fnstcw\000fstcw\000fstsw\000fclex\000fnstenv\000fstenv\000fldenv\000fnsave\000fsave\000frstor\000ffree\000ffreep\000fxsave\000fxrstor\000fxsaveq\000fxrstorq\000arpl\000lgdt\000lgdtq\000lidt\000lidtq\000lldt\000lmsw\000ltr\000sgdt\000sgdtq\000sidt\000sidtq\000sldt\000smsw\000str\000verr\000verw\000swapgs\000bswap\000bswapl\000bswapq\000invlpg\000cmpxchg8b\000cmpxchg16b\000fcmovb\000fcmove\000fcmovbe\000fcmovu\000fcmovnb\000fcmovne\000fcmovnbe\000fcmovnu\000fucomi\000fcomi\000fucomip\000fcomip\000movd\000packssdw\000packsswb\000packuswb\000paddb\000paddw\000paddd\000paddsb\000paddsw\000paddusb\000paddusw\000pand\000pandn\000pcmpeqb\000pcmpeqw\000pcmpeqd\000pcmpgtb\000pcmpgtw\000pcmpgtd\000pmaddwd\000pmulhw\000pmullw\000por\000psllw\000pslld\000psllq\000psraw\000psrad\000psrlw\000psrld\000psrlq\000psubb\000psubw\000psubd\000psubsb\000psubsw\000psubusb\000psubusw\000punpckhbw\000punpckhwd\000punpckhdq\000punpcklbw\000punpcklwd\000punpckldq\000pxor\000ldmxcsr\000stmxcsr\000movups\000movaps\000movhps\000addps\000cvtpi2ps\000cvtps2pi\000cvttps2pi\000divps\000maxps\000minps\000mulps\000pavgb\000pavgw\000pmaxsw\000pmaxub\000pminsw\000pminub\000rcpss\000rsqrtps\000sqrtps\000subps\000movnti\000movntil\000movntiq\000prefetchnta\000prefetcht0\000prefetcht1\000prefetcht2\000prefetchw\000lfence\000mfence\000sfence\000clflush\000'
+fn C.ldexp(f64, int) f64
+fn C.strtof(&char, &char) f64
+fn C.strtold(&char, &&char) f64
+fn C.strtod(&char, &&char) f64
+fn C.time(&C.time_t) C.time_t
+fn C.localtime(&C.time_t) C.tm
 
-@[export: 'tok_two_chars']
+@[typedef]
+struct C.time_t {}
+
+struct C.tm {
+	tm_sec   int
+	tm_min   int
+	tm_hour  int
+	tm_mday  int
+	tm_mon   int
+	tm_year  int
+	tm_wday  int
+	tm_yday  int
+	tm_isdst int
+}
+
+__global tcc_keywords = ['int', 'void', 'char', 'if', 'else', 'while', 'break', 'return', 'for',
+	'extern', 'static', 'unsigned', 'goto', 'do', 'continue', 'switch', 'case', '_Atomic', 'const',
+	'__const', '__const__', 'volatile', '__volatile', '__volatile__', 'long', 'register', 'signed',
+	'__signed', '__signed__', 'auto', 'inline', '__inline', '__inline__', 'restrict', '__restrict',
+	'__restrict__', '__extension__', '_Thread_local', '_Generic', '_Static_assert', 'float', 'double',
+	'_Bool', '_Complex', 'short', 'struct', 'union', 'typedef', 'default', 'enum', 'sizeof',
+	'__attribute', '__attribute__', '__alignof', '__alignof__', '_Alignof', '_Alignas', 'typeof',
+	'__typeof', '__typeof__', '__label__', 'asm', '__asm', '__asm__', 'define', 'include',
+	'include_next', 'ifdef', 'ifndef', 'elif', 'endif', 'defined', 'undef', 'error', 'warning',
+	'line', 'pragma', '__LINE__', '__FILE__', '__DATE__', '__TIME__', '__FUNCTION__', '__VA_ARGS__',
+	'__COUNTER__', '__has_include', '__has_include_next', '__func__', '__nan__', '__snan__',
+	'__inf__', '__mzerosf', '__mzerodf', 'section', '__section__', 'aligned', '__aligned__', 'packed',
+	'__packed__', 'weak', '__weak__', 'alias', '__alias__', 'unused', '__unused__', 'nodebug',
+	'__nodebug__', 'cdecl', '__cdecl', '__cdecl__', 'stdcall', '__stdcall', '__stdcall__', 'fastcall',
+	'__fastcall', '__fastcall__', 'regparm', '__regparm__', 'cleanup', '__cleanup__', 'constructor',
+	'__constructor__', 'destructor', '__destructor__', 'always_inline', '__always_inline__',
+	'__mode__', '__QI__', '__DI__', '__HI__', '__SI__', '__word__', 'dllexport', 'dllimport',
+	'nodecorate', 'noreturn', '__noreturn__', '_Noreturn', 'visibility', '__visibility__',
+	'__builtin_types_compatible_p', '__builtin_choose_expr', '__builtin_constant_p',
+	'__builtin_frame_address', '__builtin_return_address', '__builtin_expect',
+	'__builtin_va_arg_types', '__atomic_store', '__atomic_load', '__atomic_exchange',
+	'__atomic_compare_exchange', '__atomic_fetch_add', '__atomic_fetch_sub', '__atomic_fetch_or',
+	'__atomic_fetch_xor', '__atomic_fetch_and', '__atomic_fetch_nand', '__atomic_add_fetch',
+	'__atomic_sub_fetch', '__atomic_or_fetch', '__atomic_xor_fetch', '__atomic_and_fetch',
+	'__atomic_nand_fetch', 'pack', 'comment', 'lib', 'push_macro', 'pop_macro', 'once', 'option',
+	'memcpy', 'memmove', 'memset', '__divdi3', '__moddi3', '__udivdi3', '__umoddi3', '__ashrdi3',
+	'__lshrdi3', '__ashldi3', '__floatundisf', '__floatundidf', '__floatundixf', '__fixunsxfdi',
+	'__fixunssfdi', '__fixunsdfdi', 'alloca', '__bound_ptr_add', '__bound_ptr_indir1',
+	'__bound_ptr_indir2', '__bound_ptr_indir4', '__bound_ptr_indir8', '__bound_ptr_indir12',
+	'__bound_ptr_indir16', '__bound_main_arg', '__bound_local_new', '__bound_local_delete',
+	'__bound_setjmp', '__bound_longjmp', '__bound_new_region', 'sigsetjmp', '__sigsetjmp',
+	'siglongjmp', 'setjmp', '_setjmp', 'longjmp', '.byte', '.word', '.align', '.balign', '.p2align',
+	'.set', '.skip', '.space', '.string', '.asciz', '.ascii', '.file', '.globl', '.global', '.weak',
+	'.hidden', '.ident', '.size', '.type', '.text', '.data', '.bss', '.previous', '.pushsection',
+	'.popsection', '.fill', '.rept', '.endr', '.org', '.quad', '.code64', '.short', '.long', '.int',
+	'.section', 'al', 'cl', 'dl', 'bl', 'ah', 'ch', 'dh', 'bh', 'ax', 'cx', 'dx', 'bx', 'sp', 'bp',
+	'si', 'di', 'eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi', 'rax', 'rcx', 'rdx', 'rbx',
+	'rsp', 'rbp', 'rsi', 'rdi', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7', 'xmm0',
+	'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7', 'cr0', 'cr1', 'cr2', 'cr3', 'cr4',
+	'cr5', 'cr6', 'cr7', 'tr0', 'tr1', 'tr2', 'tr3', 'tr4', 'tr5', 'tr6', 'tr7', 'db0', 'db1',
+	'db2', 'db3', 'db4', 'db5', 'db6', 'db7', 'dr0', 'dr1', 'dr2', 'dr3', 'dr4', 'dr5', 'dr6',
+	'dr7', 'es', 'cs', 'ss', 'ds', 'fs', 'gs', 'st', 'rip', 'spl', 'bpl', 'sil', 'dil', 'movb',
+	'movw', 'movl', 'movq', 'mov', 'addb', 'addw', 'addl', 'addq', 'add', 'orb', 'orw', 'orl',
+	'orq', 'or', 'adcb', 'adcw', 'adcl', 'adcq', 'adc', 'sbbb', 'sbbw', 'sbbl', 'sbbq', 'sbb',
+	'andb', 'andw', 'andl', 'andq', 'and', 'subb', 'subw', 'subl', 'subq', 'sub', 'xorb', 'xorw',
+	'xorl', 'xorq', 'xor', 'cmpb', 'cmpw', 'cmpl', 'cmpq', 'cmp', 'incb', 'incw', 'incl', 'incq',
+	'inc', 'decb', 'decw', 'decl', 'decq', 'dec', 'notb', 'notw', 'notl', 'notq', 'not', 'negb',
+	'negw', 'negl', 'negq', 'neg', 'mulb', 'mulw', 'mull', 'mulq', 'mul', 'imulb', 'imulw', 'imull',
+	'imulq', 'imul', 'divb', 'divw', 'divl', 'divq', 'div', 'idivb', 'idivw', 'idivl', 'idivq',
+	'idiv', 'xchgb', 'xchgw', 'xchgl', 'xchgq', 'xchg', 'testb', 'testw', 'testl', 'testq', 'test',
+	'rolb', 'rolw', 'roll', 'rolq', 'rol', 'rorb', 'rorw', 'rorl', 'rorq', 'ror', 'rclb', 'rclw',
+	'rcll', 'rclq', 'rcl', 'rcrb', 'rcrw', 'rcrl', 'rcrq', 'rcr', 'shlb', 'shlw', 'shll', 'shlq',
+	'shl', 'shrb', 'shrw', 'shrl', 'shrq', 'shr', 'sarb', 'sarw', 'sarl', 'sarq', 'sar', 'shldw',
+	'shldl', 'shldq', 'shld', 'shrdw', 'shrdl', 'shrdq', 'shrd', 'pushw', 'pushl', 'pushq', 'push',
+	'popw', 'popl', 'popq', 'pop', 'inb', 'inw', 'inl', 'in', 'outb', 'outw', 'outl', 'out', 'movzbw',
+	'movzbl', 'movzbq', 'movzb', 'movzwl', 'movsbw', 'movsbl', 'movswl', 'movsbq', 'movswq', 'movzwq',
+	'movslq', 'leaw', 'leal', 'leaq', 'lea', 'les', 'lds', 'lss', 'lfs', 'lgs', 'call', 'jmp',
+	'lcall', 'ljmp', 'jo', 'jno', 'jb', 'jc', 'jnae', 'jnb', 'jnc', 'jae', 'je', 'jz', 'jne', 'jnz',
+	'jbe', 'jna', 'jnbe', 'ja', 'js', 'jns', 'jp', 'jpe', 'jnp', 'jpo', 'jl', 'jnge', 'jnl', 'jge',
+	'jle', 'jng', 'jnle', 'jg', 'seto', 'setno', 'setb', 'setc', 'setnae', 'setnb', 'setnc', 'setae',
+	'sete', 'setz', 'setne', 'setnz', 'setbe', 'setna', 'setnbe', 'seta', 'sets', 'setns', 'setp',
+	'setpe', 'setnp', 'setpo', 'setl', 'setnge', 'setnl', 'setge', 'setle', 'setng', 'setnle',
+	'setg', 'setob', 'setnob', 'setbb', 'setcb', 'setnaeb', 'setnbb', 'setncb', 'setaeb', 'seteb',
+	'setzb', 'setneb', 'setnzb', 'setbeb', 'setnab', 'setnbeb', 'setab', 'setsb', 'setnsb', 'setpb',
+	'setpeb', 'setnpb', 'setpob', 'setlb', 'setngeb', 'setnlb', 'setgeb', 'setleb', 'setngb',
+	'setnleb', 'setgb', 'cmovo', 'cmovno', 'cmovb', 'cmovc', 'cmovnae', 'cmovnb', 'cmovnc', 'cmovae',
+	'cmove', 'cmovz', 'cmovne', 'cmovnz', 'cmovbe', 'cmovna', 'cmovnbe', 'cmova', 'cmovs', 'cmovns',
+	'cmovp', 'cmovpe', 'cmovnp', 'cmovpo', 'cmovl', 'cmovnge', 'cmovnl', 'cmovge', 'cmovle', 'cmovng',
+	'cmovnle', 'cmovg', 'bsfw', 'bsfl', 'bsfq', 'bsf', 'bsrw', 'bsrl', 'bsrq', 'bsr', 'btw', 'btl',
+	'btq', 'bt', 'btsw', 'btsl', 'btsq', 'bts', 'btrw', 'btrl', 'btrq', 'btr', 'btcw', 'btcl',
+	'btcq', 'btc', 'popcntw', 'popcntl', 'popcntq', 'popcnt', 'tzcntw', 'tzcntl', 'tzcntq', 'tzcnt',
+	'lzcntw', 'lzcntl', 'lzcntq', 'lzcnt', 'larw', 'larl', 'larq', 'lar', 'lslw', 'lsll', 'lslq',
+	'lsl', 'fadd', 'faddp', 'fadds', 'fiaddl', 'faddl', 'fiadds', 'fmul', 'fmulp', 'fmuls', 'fimull',
+	'fmull', 'fimuls', 'fcom', 'fcom_1', 'fcoms', 'ficoml', 'fcoml', 'ficoms', 'fcomp', 'fcompp',
+	'fcomps', 'ficompl', 'fcompl', 'ficomps', 'fsub', 'fsubp', 'fsubs', 'fisubl', 'fsubl', 'fisubs',
+	'fsubr', 'fsubrp', 'fsubrs', 'fisubrl', 'fsubrl', 'fisubrs', 'fdiv', 'fdivp', 'fdivs', 'fidivl',
+	'fdivl', 'fidivs', 'fdivr', 'fdivrp', 'fdivrs', 'fidivrl', 'fdivrl', 'fidivrs', 'xaddb', 'xaddw',
+	'xaddl', 'xaddq', 'xadd', 'cmpxchgb', 'cmpxchgw', 'cmpxchgl', 'cmpxchgq', 'cmpxchg', 'cmpsb',
+	'cmpsw', 'cmpsl', 'cmpsq', 'cmps', 'scmpb', 'scmpw', 'scmpl', 'scmpq', 'scmp', 'insb', 'insw',
+	'insl', 'ins', 'outsb', 'outsw', 'outsl', 'outs', 'lodsb', 'lodsw', 'lodsl', 'lodsq', 'lods',
+	'slodb', 'slodw', 'slodl', 'slodq', 'slod', 'movsb', 'movsw', 'movsl', 'movsq', 'movs', 'smovb',
+	'smovw', 'smovl', 'smovq', 'smov', 'scasb', 'scasw', 'scasl', 'scasq', 'scas', 'sscab', 'sscaw',
+	'sscal', 'sscaq', 'ssca', 'stosb', 'stosw', 'stosl', 'stosq', 'stos', 'sstob', 'sstow', 'sstol',
+	'sstoq', 'ssto', 'clc', 'cld', 'cli', 'clts', 'cmc', 'lahf', 'sahf', 'pushfq', 'popfq', 'pushf',
+	'popf', 'stc', 'std', 'sti', 'aaa', 'aas', 'daa', 'das', 'aad', 'aam', 'cbw', 'cwd', 'cwde',
+	'cdq', 'cbtw', 'cwtl', 'cwtd', 'cltd', 'cqto', 'int3', 'into', 'iret', 'iretw', 'iretl', 'iretq',
+	'rsm', 'hlt', 'wait', 'nop', 'pause', 'xlat', 'lock', 'rep', 'repe', 'repz', 'repne', 'repnz',
+	'invd', 'wbinvd', 'cpuid', 'wrmsr', 'rdtsc', 'rdmsr', 'rdpmc', 'syscall', 'sysret', 'ud2',
+	'leave', 'ret', 'retq', 'lret', 'fucompp', 'ftst', 'fxam', 'fld1', 'fldl2t', 'fldl2e', 'fldpi',
+	'fldlg2', 'fldln2', 'fldz', 'f2xm1', 'fyl2x', 'fptan', 'fpatan', 'fxtract', 'fprem1', 'fdecstp',
+	'fincstp', 'fprem', 'fyl2xp1', 'fsqrt', 'fsincos', 'frndint', 'fscale', 'fsin', 'fcos', 'fchs',
+	'fabs', 'fninit', 'fnclex', 'fnop', 'fwait', 'fxch', 'fnstsw', 'emms', 'vmcall', 'vmlaunch',
+	'vmresume', 'vmxoff', 'sysretq', 'ljmpw', 'ljmpl', 'enter', 'loopne', 'loopnz', 'loope', 'loopz',
+	'loop', 'jecxz', 'fld', 'fldl', 'flds', 'fildl', 'fildq', 'fildll', 'fldt', 'fbld', 'fst',
+	'fstl', 'fsts', 'fstps', 'fstpl', 'fist', 'fistp', 'fistl', 'fistpl', 'fstp', 'fistpq', 'fistpll',
+	'fstpt', 'fbstp', 'fucom', 'fucomp', 'finit', 'fldcw', 'fnstcw', 'fstcw', 'fstsw', 'fclex',
+	'fnstenv', 'fstenv', 'fldenv', 'fnsave', 'fsave', 'frstor', 'ffree', 'ffreep', 'fxsave',
+	'fxrstor', 'fxsaveq', 'fxrstorq', 'arpl', 'lgdt', 'lgdtq', 'lidt', 'lidtq', 'lldt', 'lmsw',
+	'ltr', 'sgdt', 'sgdtq', 'sidt', 'sidtq', 'sldt', 'smsw', 'str', 'verr', 'verw', 'swapgs', 'bswap',
+	'bswapl', 'bswapq', 'invlpg', 'cmpxchg8b', 'cmpxchg16b', 'fcmovb', 'fcmove', 'fcmovbe', 'fcmovu',
+	'fcmovnb', 'fcmovne', 'fcmovnbe', 'fcmovnu', 'fucomi', 'fcomi', 'fucomip', 'fcomip', 'movd',
+	'packssdw', 'packsswb', 'packuswb', 'paddb', 'paddw', 'paddd', 'paddsb', 'paddsw', 'paddusb',
+	'paddusw', 'pand', 'pandn', 'pcmpeqb', 'pcmpeqw', 'pcmpeqd', 'pcmpgtb', 'pcmpgtw', 'pcmpgtd',
+	'pmaddwd', 'pmulhw', 'pmullw', 'por', 'psllw', 'pslld', 'psllq', 'psraw', 'psrad', 'psrlw',
+	'psrld', 'psrlq', 'psubb', 'psubw', 'psubd', 'psubsb', 'psubsw', 'psubusb', 'psubusw',
+	'punpckhbw', 'punpckhwd', 'punpckhdq', 'punpcklbw', 'punpcklwd', 'punpckldq', 'pxor', 'ldmxcsr',
+	'stmxcsr', 'movups', 'movaps', 'movhps', 'addps', 'cvtpi2ps', 'cvtps2pi', 'cvttps2pi', 'divps',
+	'maxps', 'minps', 'mulps', 'pavgb', 'pavgw', 'pmaxsw', 'pmaxub', 'pminsw', 'pminub', 'rcpss',
+	'rsqrtps', 'sqrtps', 'subps', 'movnti', 'movntil', 'movntiq', 'prefetchnta', 'prefetcht0',
+	'prefetcht1', 'prefetcht2', 'prefetchw', 'lfence', 'mfence', 'sfence', 'clflush']!
+
 const tok_two_chars = [`<`, `=`, 158, `>`, `=`, 157, `!`, `=`, 149, `&`, `&`, 144, `|`, `|`, 145,
 	`+`, `+`, 130, `-`, `-`, 128, `=`, `=`, 148, `<`, `<`, `<`, `>`, `>`, `>`, `+`, `=`, 176, `-`,
 	`=`, 177, `*`, `=`, 178, `/`, `=`, 179, `%`, `=`, 180, `&`, `=`, 181, `^`, `=`, 183, `|`, `=`,
@@ -164,26 +293,27 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 }
 
 fn cstr_realloc(cstr &CString, new_size int) {
-	size := 0
-	size = cstr.size_allocated
-	if size < 8 {
-		size = 8
-	}
-	for size < new_size {
-		size = size * 2
-	}
-	cstr.data = tcc_realloc(cstr.data, size)
-	cstr.size_allocated = size
+	// size := 0
+	// size = cstr.size_allocated
+	// if size < 8 {
+	// 	size = 8
+	// }
+	// for size < new_size {
+	// 	size = size * 2
+	// }
+	// cstr.data = tcc_realloc(cstr.data, size)
+	// cstr.size_allocated = size
 }
 
-fn cstr_ccat(cstr &CString, ch int) {
-	size := 0
-	size = cstr.size + 1
-	if size > cstr.size_allocated {
-		cstr_realloc(cstr, size)
-	}
-	(&u8(cstr.data))[size - 1] = ch
-	cstr.size = size
+fn cstr_ccat(cstr &strings.Builder, ch int) {
+	// size := 0
+	// size = cstr.size + 1
+	// if size > cstr.size_allocated {
+	// 	cstr_realloc(cstr, size)
+	// }
+	cstr.write_string(ch.str())
+	//(&u8(cstr.data))[size - 1] = ch
+	// cstr.size = size
 }
 
 fn unicode_to_utf8(b &i8, uc u32) &i8 {
@@ -219,42 +349,44 @@ fn cstr_u8cat(cstr &CString, ch int) {
 	cstr_cat(cstr, buf, e - buf)
 }
 
-fn cstr_cat(cstr &CString, str &i8, len int) {
-	size := 0
-	if len <= 0 {
-		len = C.strlen(str) + 1 + len
-	}
-	size = cstr.size + len
-	if size > cstr.size_allocated {
-		cstr_realloc(cstr, size)
-	}
-	C.memmove((&u8(cstr.data)) + cstr.size, str, len)
-	cstr.size = size
+fn cstr_cat(cstr &strings.Builder, str &char, len int) {
+	// size := 0
+	// if len <= 0 {
+	// 	len = C.strlen(str) + 1 + len
+	// }
+	// size = cstr.size + len
+	// if size > cstr.size_allocated {
+	// 	cstr_realloc(cstr, size)
+	// }
+	cstr.write_string(str.vstring())
+	// C.memmove((&u8(cstr.data)) + cstr.size, str, len)
+	// cstr.size = size
 }
 
-fn cstr_wccat(cstr &CString, ch int) {
-	size := 0
-	size = cstr.size + sizeof(Nwchar_t)
-	if size > cstr.size_allocated {
-		cstr_realloc(cstr, size)
-	}
-	*&Nwchar_t(((&u8(cstr.data)) + size - sizeof(Nwchar_t))) = ch
-	cstr.size = size
+fn cstr_wccat(cstr &strings.Builder, ch int) {
+	// size := 0
+	// size = cstr.size + sizeof(Nwchar_t)
+	// if size > cstr.size_allocated {
+	// 	cstr_realloc(cstr, size)
+	// }
+	cstr.write_string(ch.str())
+	// *&Nwchar_t(((&u8(cstr.data)) + size - sizeof(Nwchar_t))) = ch
+	// cstr.size = size
 }
 
-fn cstr_new(cstr &CString) {
-	C.memset(cstr, 0, sizeof(CString))
+fn cstr_new(cstr &strings.Builder) {
+	// C.memset(cstr, 0, sizeof(CString))
 }
 
 fn cstr_free(cstr &CString) {
-	tcc_free(cstr.data)
+	// tcc_free(cstr.data)
 }
 
 fn cstr_reset(cstr &CString) {
-	cstr.size = 0
+	// cstr.size = 0
 }
 
-fn cstr_vprintf(cstr &CString, msg string) int {
+fn cstr_vprintf(cstr &strings.Builder, msg string) int {
 	len := 0
 	size := 80
 
@@ -264,6 +396,8 @@ fn cstr_vprintf(cstr &CString, msg string) int {
 	// 		cstr_realloc(cstr, size)
 	// 	}
 	// 	size = cstr.size_allocated - cstr.size
+
+	cstr.write_string(msg)
 	// 	len = C.vsnprintf(&i8(cstr.data) + cstr.size, size, msg)
 	// 	if len >= 0 && len < size {
 	// 		break
@@ -271,11 +405,10 @@ fn cstr_vprintf(cstr &CString, msg string) int {
 	// 	size *= 2
 	// }
 	// cstr.size += len
-	return len
+	return msg.len
 }
 
-@[c2v_variadic]
-fn cstr_printf(cstr &CString, msg ...string) int {
+fn cstr_printf(cstr &CString, msg string) int {
 	len := cstr_vprintf(cstr, msg)
 	return len
 }
@@ -434,7 +567,7 @@ fn get_tok_str(v int, cv &CValue) &char {
 		}
 		else {
 			if v < 256 {
-				q := tok_two_chars
+				q := &u8(tok_two_chars[0])
 				for *q {
 					if q[2] == v {
 						unsafe {
@@ -821,7 +954,7 @@ fn tok_str_new(s &TokenString) {
 }
 
 fn tok_str_alloc() &TokenString {
-	str := tal_realloc_impl(&tokstr_alloc, 0, sizeof(*str))
+	str := &TokenString(tal_realloc_impl(&tokstr_alloc, 0, sizeof(TokenString)))
 	tok_str_new(str)
 	return str
 }
@@ -998,14 +1131,15 @@ fn macro_is_equal(a &int, b &int) int {
 	if !a || !b {
 		return 1
 	}
-	for *a && *b {
+	for a != 0 && b != 0 {
 		cstr_reset(&tokcstr)
 		for {
-			_t := **(&a)
+			_t := a
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &a, &cv)
 			} else { // 3
-				*(&t) = _t, *(&a)++$
+				*(&t) = _t
+				a++
 			}
 			// while()
 			if !(0) {
@@ -1014,12 +1148,12 @@ fn macro_is_equal(a &int, b &int) int {
 		}
 		cstr_cat(&tokcstr, get_tok_str(t, &cv), 0)
 		for {
-			_t := **(&b)
+			_t := b
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &b, &cv)
 			} else { // 3
 				*(&t) = _t
-				*(&b)++
+				b++
 			}
 			// while()
 			if !(0) {
@@ -1093,16 +1227,16 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 	c := 0
 	i := 0
 
-	name := [1024]i8{}
-	buf := [1024]i8{}
-	p := &i8(0)
+	name := [1024]u8{}
+	buf := [1024]u8{}
+	p := &char(0)
 
 	e := &CachedInclude(0)
 	c = skip_spaces()
 	if c == `<` || c == `"` {
 		cstr_reset(&tokcstr)
 		file.buf_ptr = parse_pp_string(file.buf_ptr, if c == `<` { `>` } else { c }, &tokcstr)
-		i = tokcstr.size
+		i = tokcstr.len
 		pstrncpy(name, tokcstr.data, if i >= sizeof(name) { sizeof(name) - 1 } else { i })
 		next_nomacro()
 	} else {
@@ -1112,7 +1246,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 			next()
 			p = name
 			i = C.strlen(p) - 1
-			if i > 0 && ((p[0] == '"' && p[i] == '"') || (p[0] == '<' && p[i] == '>')) {
+			if i > 0 && ((p[0] == c'"' && p[i] == c'"') || (p[0] == c'<' && p[i] == c'>')) {
 				break
 			}
 			if tok == 10 {
@@ -1128,7 +1262,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 	for ; true; {
 		i++$
 		if i == 0 {
-			if !(name[0] == '/') {
+			if !(name[0] == c'/') {
 				continue
 			}
 			buf[0] = `\x00`
@@ -1251,7 +1385,7 @@ fn expr_preprocess(s1 &TCCState) int {
 			if tok == `(` {
 				_tcc_error("function-like macro '${get_tok_str(t, (unsafe { nil }))}' is not defined")
 			}
-			goto _GOTO_PLACEHOLDER_0x7fffd88bbd88 // id: 0x7fffd88bbd88
+			goto redo // id: 0x7fffd88bbd88
 		}
 		tok_str_add_tok(str)
 	}
@@ -1262,7 +1396,7 @@ fn expr_preprocess(s1 &TCCState) int {
 	next()
 	c = expr_const()
 	end_macro()
-	return c != 0
+	return int(c != 0)
 }
 
 fn parse_define() {
@@ -1279,7 +1413,7 @@ fn parse_define() {
 	saved_parse_flags := parse_flags
 	v = tok
 	if v < 256 || v == Tcc_token.tok_defined {
-		_tcc_error("invalid macro name '%s'", get_tok_str(tok, &tokc))
+		_tcc_error("invalid macro name '${get_tok_str(tok, &tokc)}'")
 	}
 	first = (unsafe { nil })
 	t = 0
@@ -1524,8 +1658,8 @@ fn pragma_parse(s1 &TCCState) {
 			tcc_free(p)
 		}
 	} else { // 3
-		tcc_state.warn_num = (usize(&(&TCCState(0)).warn_unsupported)) - (usize(&(&TCCState(0)).warn_none))
-		_tcc_warning('#pragma %s ignored', get_tok_str(tok, &tokc))
+		tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
+		_tcc_warning('#pragma ${get_tok_str(tok, &tokc)} ignored')
 	}
 	return
 
@@ -1550,13 +1684,13 @@ fn preprocess(is_bof int) {
 	// RRRREG redo id=0x7fffd88c9688
 	redo:
 	match tok {
-		.tok_define { // case comp body kind=BinaryOperator is_enum=true
+		int(Tcc_token.tok_define) { // case comp body kind=BinaryOperator is_enum=true
 			pp_debug_tok = tok
 			next_nomacro()
 			pp_debug_symv = tok
 			parse_define()
 		}
-		.tok_undef { // case comp body kind=BinaryOperator is_enum=true
+		int(Tcc_token.tok_undef) { // case comp body kind=BinaryOperator is_enum=true
 			pp_debug_tok = tok
 			next_nomacro()
 			pp_debug_symv = tok
@@ -1565,24 +1699,28 @@ fn preprocess(is_bof int) {
 				define_undef(s)
 			}
 		}
-		.tok_include, .tok_include_next {
+		int(Tcc_token.tok_include), int(Tcc_token.tok_include_next) {
 			parse_include(s1, tok - Tcc_token.tok_include, 0)
 		}
-		.tok_ifndef { // case comp body kind=BinaryOperator is_enum=true
+		int(Tcc_token.tok_ifndef) { // case comp body kind=BinaryOperator is_enum=true
 			c = 1
 			goto do_ifdef // id: 0x7fffd88c7650
 		}
-		.tok_if { // case comp body kind=BinaryOperator is_enum=true
+		int(Tcc_token.tok_if) { // case comp body kind=BinaryOperator is_enum=true
 			c = expr_preprocess(s1)
 			goto do_if // id: 0x7fffd88c7850
 		}
-		.tok_ifdef { // case comp body kind=BinaryOperator is_enum=true
+		int(Tcc_token.tok_ifdef) { // case comp body kind=BinaryOperator is_enum=true
 			c = 0
 			// RRRREG do_ifdef id=0x7fffd88c7650
 			do_ifdef:
 			next_nomacro()
 			if tok < 256 {
-				_tcc_error("invalid argument for '#if%sdef'", if c { c'n' } else { c'' })
+				if c {
+					_tcc_error("invalid argument for '#ifndef'")
+				} else {
+					_tcc_error("invalid argument for '#ifdef'")
+				}
 			}
 			if is_bof {
 				if c {
@@ -1601,7 +1739,7 @@ fn preprocess(is_bof int) {
 			*s1.ifdef_stack_ptr++ = c
 			goto test_skip // id: 0x7fffd88c8390
 		}
-		.tok_else { // case comp body kind=IfStmt is_enum=true
+		int(Tcc_token.tok_else) { // case comp body kind=IfStmt is_enum=true
 			if s1.ifdef_stack_ptr == s1.ifdef_stack {
 				_tcc_error('#else without matching #if')
 			}
@@ -1612,7 +1750,7 @@ fn preprocess(is_bof int) {
 			c = s1.ifdef_stack_ptr[-1]
 			goto test_else // id: 0x7fffd88c8a38
 		}
-		.tok_elif { // case comp body kind=IfStmt is_enum=true
+		int(Tcc_token.tok_elif) { // case comp body kind=IfStmt is_enum=true
 			if s1.ifdef_stack_ptr == s1.ifdef_stack {
 				_tcc_error('#elif without matching #if')
 			}
@@ -1636,10 +1774,10 @@ fn preprocess(is_bof int) {
 			if !(c & 1) {
 				preprocess_skip()
 				is_bof = 0
-				goto _GOTO_PLACEHOLDER_0x7fffd88c9688 // id: 0x7fffd88c9688
+				goto the_end // id: 0x7fffd88c9688
 			}
 		}
-		.tok_endif { // case comp body kind=IfStmt is_enum=true
+		int(Tcc_token.tok_endif) { // case comp body kind=IfStmt is_enum=true
 			if s1.ifdef_stack_ptr <= file.ifdef_stack_ptr {
 				_tcc_error('#endif without matching #if')
 			}
@@ -1655,10 +1793,10 @@ fn preprocess(is_bof int) {
 			}
 		}
 		205 { // case comp body kind=BinaryOperator is_enum=true
-			n = strtoul(&i8(tokc.str.data), &q, 10)
+			n = C.strtoul(&i8(tokc.str.data), &q, 10)
 			goto _line_num // id: 0x7fffd88ca278
 		}
-		.tok_line { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_line) { // case comp body kind=CallExpr is_enum=true
 			next()
 			if tok != 194 {
 				// RRRREG _line_err id=0x7fffd88ca4d0
@@ -1676,9 +1814,10 @@ fn preprocess(is_bof int) {
 					}
 					q = &i8(tokc.str.data)
 					buf[0] = 0
-					if !(q[0] == `/`) {
+					if !(q[0] == c'/') {
 						pstrcpy(buf, sizeof(buf), file.truefilename)
-						*tcc_basename(buf) = 0
+						mut tmp := tcc_basename(buf)
+						*tmp = 0
 					}
 					pstrcat(buf, sizeof(buf), q)
 					tcc_debug_putfile(s1, buf)
@@ -1693,7 +1832,7 @@ fn preprocess(is_bof int) {
 			}
 			file.line_num = n
 		}
-		.tok_error, .tok_warning {
+		int(Tcc_token.tok_error), int(Tcc_token.tok_warning) {
 			q = buf
 			c = skip_spaces()
 			for c != `\n` && c != (-1) {
@@ -1704,12 +1843,12 @@ fn preprocess(is_bof int) {
 			}
 			*q = `\x00`
 			if tok == Tcc_token.tok_error {
-				_tcc_error('#error %s', buf)
+				_tcc_error('#error ${buf}')
 			} else { // 3
-				_tcc_warning('#warning %s', buf)
+				_tcc_warning('#warning ${buf}')
 			}
 		}
-		.tok_pragma { // case comp body kind=CallExpr is_enum=true
+		int(Tcc_token.tok_pragma) { // case comp body kind=CallExpr is_enum=true
 			pragma_parse(s1)
 		}
 		10 { // case comp body kind=GotoStmt is_enum=true
@@ -1717,8 +1856,8 @@ fn preprocess(is_bof int) {
 			if tok == `!` && is_bof {
 				goto ignore // id: 0x7fffd88cc340
 			}
-			_tcc_warning('Ignoring unknown preprocessing directive #%s', get_tok_str(tok,
-				&tokc))
+			_tcc_warning('Ignoring unknown preprocessing directive #${get_tok_str(tok,
+				&tokc)}')
 			// RRRREG ignore id=0x7fffd88cc340
 			ignore:
 			file.buf_ptr = parse_line_comment(file.buf_ptr - 1)
@@ -1753,7 +1892,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 		if c == `\\` {
 			p++
 			c = *p
-			match c {
+			match rune(c) {
 				`0`, `1`, `2`, `3`, `4`, `5`, `6`, `7` {
 					n = c - `0`
 					p++
@@ -1841,14 +1980,14 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 					}
 					c = 27
 				}
-				`'`, `"`, `\\`, `?` {}
+				`'`, `\"`, `\\`, `?` {}
 				else {
 					// RRRREG invalid_escape id=0x7fffd88cf630
 					invalid_escape:
 					if c >= `!` && c <= `~` {
-						_tcc_warning("unknown escape sequence: '\\%c'", c)
+						_tcc_warning("unknown escape sequence: '\\${c}'")
 					} else { // 3
-						_tcc_warning("unknown escape sequence: '\\x%x'", c)
+						_tcc_warning("unknown escape sequence: '\\x${c}")
 					}
 				}
 			}
@@ -1904,7 +2043,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 			goto add_char_nonext // id: 0x7fffd88ce020
 			// RRRREG invalid_utf8_sequence id=0x7fffd88d0150
 			invalid_utf8_sequence:
-			_tcc_warning("ill-formed UTF-8 subsequence starting with: '\\x%x'", c)
+			_tcc_warning("ill-formed UTF-8 subsequence starting with: '\\x${c}'")
 			c = 65533
 			p += skip
 			goto add_char_nonext // id: 0x7fffd88ce020
@@ -1927,19 +2066,19 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 
 fn parse_string(s &i8, len int) {
 	buf := [1000]u8{}
-	p := buf
+	p := unsafe { &buf[0] }
 
 	is_long := 0
 	sep := 0
 
-	is_long = *s == `L`
+	is_long = *s == c'L'
 	if is_long {
 		s++$, len--$
 	}
 	sep = *s++
 	len -= 2
 	if len >= sizeof(buf) {
-		p = tcc_malloc(len + 1)
+		p = &char(tcc_malloc(len + 1))
 	}
 	C.memcpy(p, s, len)
 	p[len] = 0
@@ -1961,12 +2100,12 @@ fn parse_string(s &i8, len int) {
 			tok = 193
 			char_size = sizeof(Nwchar_t)
 		}
-		n = tokcstr.size / char_size - 1
+		n = tokcstr.len / char_size - 1
 		if n < 1 {
 			_tcc_error('empty character constant')
 		}
 		if n > 1 {
-			tcc_state.warn_num = (usize(&(&TCCState(0)).warn_all)) - (usize(&(&TCCState(0)).warn_none))
+			tcc_state.warn_num = __offsetof(TCCState, warn_all) - __offsetof(TCCState, warn_none)
 			_tcc_warning('multi-character character constant')
 		}
 		c = 0
@@ -1979,7 +2118,7 @@ fn parse_string(s &i8, len int) {
 		}
 		tokc.i = c
 	} else {
-		tokc.str.size = tokcstr.size
+		tokc.str.size = tokcstr.len
 		tokc.str.data = tokcstr.data
 		if !is_long {
 			tok = 200
@@ -2125,7 +2264,7 @@ fn parse_number(p &i8) {
 			}
 			exp_val = exp_val * s
 			d = f64(bn[1]) * 4294967296 + f64(bn[0])
-			d = ldexp(d, exp_val - frac_bits)
+			d = C.ldexp(d, exp_val - frac_bits)
 			t = toup(ch)
 			if t == `F` {
 				ch = *p++
@@ -2182,18 +2321,18 @@ fn parse_number(p &i8) {
 			}
 			*q = `\x00`
 			t = toup(ch)
-			(*__errno_location()) = 0
+			C.errno = 0
 			if t == `F` {
 				ch = *p++
 				tok = 202
-				tokc.f = strtof(token_buf, (unsafe { nil }))
+				tokc.f = C.strtof(token_buf, (unsafe { nil }))
 			} else if t == `L` {
 				ch = *p++
 				tok = 204
-				tokc.ld = strtold(token_buf, (unsafe { nil }))
+				tokc.ld = C.strtold(token_buf, (unsafe { nil }))
 			} else {
 				tok = 203
-				tokc.d = strtod(token_buf, (unsafe { nil }))
+				tokc.d = C.strtod(token_buf, (unsafe { nil }))
 			}
 		}
 	} else {
@@ -2207,7 +2346,7 @@ fn parse_number(p &i8) {
 		p1 := &i8(0)
 		*q = `\x00`
 		q = token_buf
-		if b == 10 && *q == `0` {
+		if b == 10 && *q == c'0' {
 			b = 8
 			q++
 		}
@@ -2242,7 +2381,7 @@ fn parse_number(p &i8) {
 					_tcc_error("three 'l's in integer constant")
 				}
 				if lcount && *(p - 1) != ch {
-					_tcc_error('incorrect integer suffix: %s', p1)
+					_tcc_error('incorrect integer suffix: ${p1}')
 				}
 				lcount++
 				ch = *p++
@@ -2259,7 +2398,7 @@ fn parse_number(p &i8) {
 		if ucount == 0 && b == 10 {
 			if lcount <= (8 == 4) {
 				if n >= 2147483648 {
-					lcount = (8 == 4) + 1
+					lcount = int(8 == 4) + 1
 				}
 			}
 			if n >= 9223372036854775808 {
@@ -2269,7 +2408,7 @@ fn parse_number(p &i8) {
 		} else {
 			if lcount <= (8 == 4) {
 				if n >= 4294967296 {
-					lcount = (8 == 4) + 1
+					lcount = int(8 == 4) + 1
 				} else if n >= 2147483648 {
 					ucount = 1
 				}
@@ -2289,7 +2428,7 @@ fn parse_number(p &i8) {
 			}
 		}
 		if ucount {
-			tok++$
+			unsafe { tok++ }
 		}
 		tokc.i = n
 	}
@@ -2313,7 +2452,7 @@ fn next_nomacro1() {
 	// RRRREG redo_no_start id=0x7fffd88e0230
 	redo_no_start:
 	c = *p
-	match c {
+	match rune(c) {
 		` `, `\t` {
 			tok = c
 			p++
@@ -2356,7 +2495,7 @@ fn next_nomacro1() {
 					}
 					tcc_debug_eincl(tcc_state)
 					tcc_close()
-					s1.include_stack_ptr--
+					unsafe { s1.include_stack_ptr-- }
 					p = file.buf_ptr
 					if p == file.buffer {
 						tok_flags = 2
@@ -2465,13 +2604,13 @@ fn next_nomacro1() {
 					}
 					0
 				}
-				ts = tok_alloc(tokcstr.data, tokcstr.size)
+				ts = tok_alloc(tokcstr.data, tokcstr.len)
 			}
 			tok = ts.tok
 		}
 		`L` { // case comp body kind=BinaryOperator is_enum=false
 			t = p[1]
-			if t != `\\` && t != `'` && t != `"` {
+			if t != `\\` && t != `'` && t != `\"` {
 				goto parse_ident_fast // id: 0x7fffd88e41e0
 			} else {
 				{
@@ -2481,7 +2620,7 @@ fn next_nomacro1() {
 					}
 				}
 				0
-				if c == `'` || c == `"` {
+				if c == `'` || c == `\"` {
 					is_long = 1
 					goto str_const // id: 0x7fffd88e6b20
 				} else {
@@ -2507,7 +2646,7 @@ fn next_nomacro1() {
 				cstr_ccat(&tokcstr, t)
 				if !(isidnum_table[c - (-1)] & (2 | 4) || c == `.`
 					|| ((c == `+` || c == `-`) && (((t == `e` || t == `E`) && !(parse_flags & 8
-					&& (&i8(tokcstr.data))[0] == `0` && toup((&i8(tokcstr.data))[1]) == `X`))
+					&& (&i8(tokcstr.data))[0] == c'0' && toup((&i8(tokcstr.data))[1]) == `X`))
 					|| t == `p` || t == `P`))) {
 				}
 				t = c
@@ -2520,7 +2659,7 @@ fn next_nomacro1() {
 				0
 			}
 			cstr_ccat(&tokcstr, `\x00`)
-			tokc.str.size = tokcstr.size
+			tokc.str.size = tokcstr.len
 			tokc.str.data = tokcstr.data
 			tok = 205
 		}
@@ -2556,7 +2695,7 @@ fn next_nomacro1() {
 				tok = `.`
 			}
 		}
-		`'`, `"` {
+		`'`, `\"` {
 			is_long = 0
 			// RRRREG str_const id=0x7fffd88e6b20
 			str_const:
@@ -2568,7 +2707,7 @@ fn next_nomacro1() {
 			p = parse_pp_string(p, c, &tokcstr)
 			cstr_ccat(&tokcstr, c)
 			cstr_ccat(&tokcstr, `\x00`)
-			tokc.str.size = tokcstr.size
+			tokc.str.size = tokcstr.len
 			tokc.str.data = tokcstr.data
 			tok = 206
 		}
@@ -2800,7 +2939,7 @@ fn next_nomacro1() {
 			if parse_flags & 8 {
 				goto parse_simple // id: 0x7fffd88e0af8
 			}
-			_tcc_error('unrecognized character \\x%02x', c)
+			_tcc_error('unrecognized character \\x${c}')
 		}
 		else {
 			if c >= 128 && c <= 255 {
@@ -2829,11 +2968,12 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 	t1 = t0
 	for 1 {
 		for {
-			_t := **(&macro_str)
+			_t := macro_str
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &macro_str, &cval)
 			} else { // 3
-				*(&t) = _t, *(&macro_str)++$
+				*(&t) = _t
+				macro_str++
 			}
 			// while()
 			if !(0) {
@@ -2845,11 +2985,12 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 		}
 		if t == `#` {
 			for {
-				_t := **(&macro_str)
+				_t := macro_str
 				if (_t >= 192 && _t <= 207) {
 					tok_get(&t, &macro_str, &cval)
 				} else { // 3
-					*(&t) = _t, *(&macro_str)++$
+					*(&t) = _t
+					macro_str++
 				}
 				// while()
 				if !(0) {
@@ -2860,18 +3001,19 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 				goto bad_stringy // id: 0x7fffd88f10a0
 			}
 			s = sym_find2(args, t)
-			if s {
+			if s != unsafe { nil } {
 				cstr_reset(&tokcstr)
-				cstr_ccat(&tokcstr, `"`)
+				cstr_ccat(&tokcstr, `\"`)
 				st = s.d
 				spc = 0
 				for *st >= 0 {
 					for {
-						_t := **(&st)
+						_t := st
 						if (_t >= 192 && _t <= 207) {
 							tok_get(&t, &st, &cval)
 						} else { // 3
-							*(&t) = _t, *(&st)++$
+							*(&t) = _t
+							st++
 						}
 						// while()
 						if !(0) {
@@ -2879,21 +3021,21 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 						}
 					}
 					if t != 165 && 0 == check_space(t, &spc) {
-						s = get_tok_str(t, &cval)
-						for *s {
-							if t == 206 && *s != `'` {
-								add_char(&tokcstr, *s)
+						s2 := get_tok_str(t, &cval)
+						for *s2 {
+							if t == 206 && *s2 != `'` {
+								add_char(&tokcstr, *s2)
 							} else { // 3
-								cstr_ccat(&tokcstr, *s)
+								cstr_ccat(&tokcstr, *s2)
 							}
-							s++$
+							unsafe { s2++ }
 						}
 					}
 				}
-				tokcstr.size -= spc
-				cstr_ccat(&tokcstr, `"`)
+				// tokcstr.size -= spc
+				cstr_ccat(&tokcstr, `\"`)
 				cstr_ccat(&tokcstr, `\x00`)
-				cval.str.size = tokcstr.size
+				cval.str.size = tokcstr.len
 				cval.str.data = tokcstr.data
 				tok_str_add2(&str, 206, &cval)
 			} else {
@@ -2938,7 +3080,8 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 						if (_t >= 192 && _t <= 207) {
 							tok_get(&t2, &st, &cval)
 						} else { // 3
-							*(&t2) = _t, *(&st)++$
+							*(&t2) = _t
+							st++
 						}
 						// while()
 						if !(0) {
@@ -2963,7 +3106,6 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 	return str.str
 }
 
-@[export: 'ab_month_name']
 const ab_month_name = [c'Jan', c'Feb', c'Mar', c'Apr', c'May', c'Jun', c'Jul', c'Aug', c'Sep',
 	c'Oct', c'Nov', c'Dec']!
 
@@ -2975,13 +3117,13 @@ fn paste_tokens(t1 int, v1 &CValue, t2 int, v2 &CValue) int {
 	if t1 != 164 {
 		cstr_cat(&tokcstr, get_tok_str(t1, v1), -1)
 	}
-	n = tokcstr.size
+	n = tokcstr.len
 	if t2 != 164 {
 		cstr_cat(&tokcstr, get_tok_str(t2, v2), -1)
 	}
 	cstr_ccat(&tokcstr, `\x00`)
-	tcc_open_bf(tcc_state, c':paste:', tokcstr.size)
-	C.memcpy(file.buffer, tokcstr.data, tokcstr.size)
+	tcc_open_bf(tcc_state, c':paste:', tokcstr.len)
+	C.memcpy(file.buffer, tokcstr.data, tokcstr.len)
 	tok_flags = 0
 	for ; true; {
 		next_nomacro1()
@@ -2991,8 +3133,7 @@ fn paste_tokens(t1 int, v1 &CValue, t2 int, v2 &CValue) int {
 		if is_space(tok) {
 			continue
 		}
-		_tcc_warning('pasting "%.*s" and "%s" does not give a valid preprocessing token',
-			n, file.buffer, file.buffer + n)
+		_tcc_warning('pasting "${file.buffer}" and "${file.buffer + n}" does not give a valid preprocessing token')
 		ret = 0
 		break
 	}
@@ -3008,11 +3149,12 @@ fn macro_twosharps(ptr0 &int) &int {
 	ptr := &int(0)
 	for ptr = ptr0; true; {
 		for {
-			_t := **(&ptr)
+			_t := ptr
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &ptr, &cval)
 			} else { // 3
-				*(&t) = _t, *(&ptr)++$
+				*(&t) = _t
+				ptr++
 			}
 			// while()
 			if !(0) {
@@ -3029,11 +3171,12 @@ fn macro_twosharps(ptr0 &int) &int {
 	tok_str_new(&macro_str1)
 	for ptr = ptr0; true; {
 		for {
-			_t := **(&ptr)
+			_t := ptr
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &ptr, &cval)
 			} else { // 3
-				*(&t) = _t, *(&ptr)++$
+				*(&t) = _t
+				ptr++
 			}
 			// while()
 			if !(0) {
@@ -3058,11 +3201,12 @@ fn macro_twosharps(ptr0 &int) &int {
 			}
 			if t1 && t1 != 166 {
 				for {
-					_t := **(&ptr)
+					_t := ptr
 					if (_t >= 192 && _t <= 207) {
 						tok_get(&t1, &ptr, &cv1)
 					} else { // 3
-						*(&t1) = _t, *(&ptr)++$
+						*(&t1) = _t
+						ptr++
 					}
 					// while()
 					if !(0) {
@@ -3100,14 +3244,14 @@ fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 	t := 0
 	p := &int(0)
 	sa := &Sym(0)
-	for ; true; {
+	for {
 		if macro_ptr {
 			p = macro_ptr
 			t = *p
 			if ws_str {
 				for is_space(t) || 10 == t {
-					tok_str_add(ws_str, t), *p++$
-					t = tok_str_add(ws_str, t)
+					tok_str_add(ws_str, t)
+					t = *p++
 				}
 			}
 			if t == 0 {
@@ -3169,6 +3313,7 @@ fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 		next_nomacro()
 		return tok
 	}
+	return 0
 }
 
 fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
@@ -3195,10 +3340,10 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 		cstrval = file.filename
 		goto add_cstr // id: 0x7fffd88fced0
 	} else if tok == Tcc_token.tok___date__ || tok == Tcc_token.tok___time__ {
-		ti := Time_t{}
-		tm := &Tm(0)
-		time(&ti)
-		tm = localtime(&ti)
+		ti := C.time_t{}
+		tm := &C.tm(0)
+		C.time(&ti)
+		tm = C.localtime(&ti)
 		if tok == Tcc_token.tok___date__ {
 			C.snprintf(buf, sizeof(buf), c'%s %2d %d', ab_month_name[tm.tm_mon], tm.tm_mday,
 				tm.tm_year + 1900)
@@ -3213,7 +3358,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 		add_cstr1:
 		cstr_reset(&tokcstr)
 		cstr_cat(&tokcstr, cstrval, 0)
-		cval.str.size = tokcstr.size
+		cval.str.size = tokcstr.len
 		cval.str.data = tokcstr.data
 		tok_str_add2(tok_str, t1, &cval)
 	} else if s.d {
@@ -3266,8 +3411,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 					break
 				}
 				if !sa {
-					_tcc_error("macro '%s' used with too many args", get_tok_str(s.v,
-						0))
+					_tcc_error("macro '${get_tok_str(s.v, unsafe { nil })}' used with too many args")
 				}
 				tok_str_new(&str)
 				parlevel = 0
@@ -3299,7 +3443,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 				sa1.d = str.str
 				sa = sa.next
 				if tok == `)` {
-					if sa && sa.type_.t && tcc_state.gnu_ext {
+					if sa != unsafe { nil } && sa.type_.t && tcc_state.gnu_ext {
 						goto empty_arg // id: 0x7fffd88ffdc8
 					}
 					break
@@ -3309,7 +3453,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 				}
 			}
 			if sa {
-				_tcc_error("macro '%s' used with too few args", get_tok_str(s.v, 0))
+				_tcc_error("macro '${get_tok_str(s.v, unsafe { nil })}' used with too few args")
 			}
 			mstr = macro_arg_subst(nested_list, mstr, args)
 			sa = args
@@ -3353,11 +3497,12 @@ fn macro_subst(tok_str &TokenString, nested_list &&Sym, macro_str &int) {
 	nosubst = spc
 	for 1 {
 		for {
-			_t := **(&macro_str)
+			_t := macro_str
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &macro_str, &cval)
 			} else { // 3
-				*(&t) = _t, *(&macro_str)++$
+				*(&t) = _t
+				macro_str++
 			}
 			// while()
 			if !(0) {
@@ -3424,13 +3569,13 @@ fn next_nomacro() {
 			tok_get(&tok, &macro_ptr, &tokc)
 			if t == 207 {
 				file.line_num = tokc.i
-				goto _GOTO_PLACEHOLDER_0x7fffd8905950 // id: 0x7fffd8905950
+				goto redo // id: 0x7fffd8905950
 			}
 		} else {
 			macro_ptr++
 			if t < 256 {
 				if !(parse_flags & 16) && isidnum_table[t - (-1)] & 1 {
-					goto _GOTO_PLACEHOLDER_0x7fffd8905950 // id: 0x7fffd8905950
+					goto redo // id: 0x7fffd8905950
 				}
 			}
 			tok = t
@@ -3491,17 +3636,15 @@ fn unget_tok(last_tok int) {
 	tok = last_tok
 }
 
-@[export: 'target_os_defs']
-const target_os_defs = c'__linux__\000__linux\000__unix__\000__unix\000'
+const target_os_defs = ['__linux__', '__linux', '__unix__', '__unix']
 
-fn putdef(cs &CString, p &i8) {
-	cstr_printf(cs, c'#define %s%s\n', p, &c' 1'[!!C.strchr(p, ` `) * 2])
+fn putdef(cs &strings.Builder, p string) {
+	cs.write_string('#define ${p}${' 1'[int(!!C.strchr(p.str, ` `)) * 2]}\n')
 }
 
-fn putdefs(cs &CString, p &i8) {
-	for *p {
-		putdef(cs, p), C.strchr(p, 0) + 1
-		p = putdef(cs, p)
+fn putdefs(cs &CString, strs []string) {
+	for str in strs {
+		putdef(cs, str)
 	}
 }
 
@@ -3510,45 +3653,45 @@ fn tcc_predefs(s1 &TCCState, cs &CString, is_asm int) {
 	b := 0
 	c := 0
 
-	C.sscanf(c'0.9.28rc', c'%d.%d.%d', &a, &b, &c)
-	cstr_printf(cs, c'#define __TINYC__ %d\n', a * 10000 + b * 100 + c)
+	C.sscanf(c'0_9_28', c'%d_%d_%d', &a, &b, &c)
+	cstr_printf(cs, '#define __TINYC__ ${a * 10000 + b * 100 + c}\n')
 	putdefs(cs, target_machine_defs)
 	putdefs(cs, target_os_defs)
 	if is_asm {
-		putdef(cs, c'__ASSEMBLER__')
+		putdef(cs, '__ASSEMBLER__')
 	}
 	if s1.output_type == 5 {
-		putdef(cs, c'__TCC_PP__')
+		putdef(cs, '__TCC_PP__')
 	}
 	if s1.output_type == 1 {
-		putdef(cs, c'__TCC_RUN__')
+		putdef(cs, '__TCC_RUN__')
 	}
 	if s1.do_backtrace {
-		putdef(cs, c'__TCC_BACKTRACE__')
+		putdef(cs, '__TCC_BACKTRACE__')
 	}
 	if s1.do_bounds_check {
-		putdef(cs, c'__TCC_BCHECK__')
+		putdef(cs, '__TCC_BCHECK__')
 	}
 	if s1.char_is_unsigned {
-		putdef(cs, c'__CHAR_UNSIGNED__')
+		putdef(cs, '__CHAR_UNSIGNED__')
 	}
 	if s1.optimize > 0 {
-		putdef(cs, c'__OPTIMIZE__')
+		putdef(cs, '__OPTIMIZE__')
 	}
 	if s1.option_pthread {
-		putdef(cs, c'_REENTRANT')
+		putdef(cs, '_REENTRANT')
 	}
 	if s1.leading_underscore {
-		putdef(cs, c'__leading_underscore')
+		putdef(cs, '__leading_underscore')
 	}
-	cstr_printf(cs, c'#define __SIZEOF_POINTER__ %d\n', 8)
-	cstr_printf(cs, c'#define __SIZEOF_LONG__ %d\n', 8)
+	cstr_printf(cs, '#define __SIZEOF_POINTER__ 8\n')
+	cstr_printf(cs, '#define __SIZEOF_LONG__ 8\n')
 	if !is_asm {
-		putdef(cs, c'__STDC__')
-		cstr_printf(cs, c'#define __STDC_VERSION__ %dL\n', s1.cversion)
+		putdef(cs, '__STDC__')
+		cstr_printf(cs, '#define __STDC_VERSION__ ${s1.cversion}L\n')
 		cstr_cat(cs, c'#include <tccdefs.h>\n', -1)
 	}
-	cstr_printf(cs, c'#define __BASE_FILE__ "%s"\n', file.filename)
+	cstr_printf(cs, '#define __BASE_FILE__ "${file.filename}"\n')
 }
 
 fn preprocess_start(s1 &TCCState, filetype int) {
@@ -3566,18 +3709,20 @@ fn preprocess_start(s1 &TCCState, filetype int) {
 	set_idnum(`$`, if !is_asm && s1.dollars_in_identifiers { 2 } else { 0 })
 	set_idnum(`.`, if is_asm { 2 } else { 0 })
 	if !(filetype & 2) {
-		cstr := CString{}
+		cstr := strings.new_builder(100)
 		cstr_new(&cstr)
 		tcc_predefs(s1, &cstr, is_asm)
-		if s1.cmdline_defs.size {
-			cstr_cat(&cstr, s1.cmdline_defs.data, s1.cmdline_defs.size)
+		if s1.cmdline_defs.len {
+			cstr_cat(&cstr, s1.cmdline_defs.data, s1.cmdline_defs.len)
 		}
-		if s1.cmdline_incl.size {
-			cstr_cat(&cstr, s1.cmdline_incl.data, s1.cmdline_incl.size)
+		if s1.cmdline_incl.len {
+			cstr_cat(&cstr, s1.cmdline_incl.data, s1.cmdline_incl.len)
 		}
-		*s1.include_stack_ptr++ = file
-		tcc_open_bf(s1, c'<command line>', cstr.size)
-		C.memcpy(file.buffer, cstr.data, cstr.size)
+		unsafe {
+			*s1.include_stack_ptr++ = file
+		}
+		tcc_open_bf(s1, c'<command line>', cstr.len)
+		C.memcpy(file.buffer, cstr.data, cstr.len)
 		cstr_free(&cstr)
 	}
 	parse_flags = if is_asm { 8 } else { 0 }
@@ -3625,7 +3770,7 @@ fn tccpp_new(s &TCCState) {
 	tal_new(&toksym_alloc, 256, (768 * 1024))
 	tal_new(&tokstr_alloc, 128, (768 * 1024))
 	C.memset(hash_ident, 0, 16384 * sizeof(&TokenSym))
-	C.memset(s.cached_includes_hash, 0, sizeofs.cached_includes_hash)
+	C.memset(s.cached_includes_hash, 0, sizeof(s.cached_includes_hash))
 	cstr_new(&tokcstr)
 	cstr_new(&cstr_buf)
 	cstr_realloc(&cstr_buf, 1024)
@@ -3684,11 +3829,12 @@ fn tok_print(msg &i8, str &int) {
 	C.fprintf(fp, c'%s', msg)
 	for str {
 		for {
-			_t := **(&str)
+			_t := str
 			if (_t >= 192 && _t <= 207) {
 				tok_get(&t, &str, &cval)
 			} else { // 3
-				*(&t) = _t, *(&str)++$
+				*(&t) = _t
+				str++
 			}
 			// while()
 			if !(0) {
@@ -3698,8 +3844,8 @@ fn tok_print(msg &i8, str &int) {
 		if !t {
 			break
 		}
-		C.fprintf(fp, &c' %s'[s], get_tok_str(t, &cval)), 1
-		s = C.fprintf(fp, &c' %s'[s], get_tok_str(t, &cval))
+		C.fprintf(fp, &c' %s'[s], get_tok_str(t, &cval))
+		s = 1
 	}
 	C.fprintf(fp, c'\n')
 }
@@ -3709,13 +3855,14 @@ fn pp_line(s1 &TCCState, f &BufferedFile, level int) {
 	if s1.dflag & 4 {
 		return
 	}
-	if s1.Pflag == Line_macro_output_format.line_macro_output_format_none {
+	if s1.pflag == Line_macro_output_format.line_macro_output_format_none {
 		0
 	} else if level == 0 && f.line_ref && d < 8 {
 		for d > 0 {
-			fputs(c'\n', s1.ppfp), d--$
+			C.fputs(c'\n', s1.ppfp)
+			d--
 		}
-	} else if s1.Pflag == Line_macro_output_format.line_macro_output_format_std {
+	} else if s1.pflag == Line_macro_output_format.line_macro_output_format_std {
 		C.fprintf(s1.ppfp, c'#line %d "%s"\n', f.line_num, f.filename)
 	} else {
 		C.fprintf(s1.ppfp, c'# %d "%s"%s\n', f.line_num, f.filename, if level > 0 {
@@ -3789,7 +3936,7 @@ fn pp_debug_builtins(s1 &TCCState) {
 	}
 }
 
-fn pp_need_space(a int, b int) int {
+fn pp_need_space(a int, b int) bool {
 	return if `E` == a {
 		`+` == b || `-` == b
 	} else {
@@ -3816,7 +3963,7 @@ fn pp_need_space(a int, b int) int {
 @[c: 'pp_check_he0xE']
 fn pp_check_he0xe(t int, p &i8) int {
 	if t == 205 && toup(C.strchr(p, 0)[-1]) == `E` {
-		return `E`
+		return int(c'E')
 	}
 	return t
 }
@@ -3830,9 +3977,9 @@ fn tcc_preprocess(s1 &TCCState) int {
 	p := &i8(0)
 	white := [400]i8{}
 	parse_flags = 1 | (parse_flags & 8) | 4 | 16 | 32
-	if s1.Pflag == Line_macro_output_format.line_macro_output_format_p10 {
+	if s1.pflag == Line_macro_output_format.line_macro_output_format_p10 {
 		parse_flags |= 2
-		s1.Pflag = 1
+		s1.pflag = 1
 	}
 	if s1.do_bench {
 		for {
@@ -3861,7 +4008,7 @@ fn tcc_preprocess(s1 &TCCState) int {
 		if tok == (-1) {
 			break
 		}
-		level = s1.include_stack_ptr - iptr
+		level = unsafe { s1.include_stack_ptr - voidptr(iptr) }
 		if level {
 			if level > 0 {
 				pp_line(s1, *iptr, 0)
@@ -3891,10 +4038,10 @@ fn tcc_preprocess(s1 &TCCState) int {
 			white[spcs++] = ` `
 		}
 		white[spcs] = 0
-		fputs(white, s1.ppfp)
+		C.fputs(white, s1.ppfp)
 		spcs = 0
 		p = get_tok_str(tok, &tokc)
-		fputs(p, s1.ppfp)
+		C.fputs(p, s1.ppfp)
 		token_seen = pp_check_he0xe(tok, p)
 	}
 	return 0

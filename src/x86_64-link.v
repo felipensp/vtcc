@@ -17,16 +17,16 @@ fn code_reloc(reloc_type int) int {
 fn gotplt_entry_type(reloc_type int) int {
 	match reloc_type {
 		6, 7, 5, 8 {
-			return Gotplt_entry.no_gotplt_entry
+			return int(Gotplt_entry.no_gotplt_entry)
 		}
 		10, 11, 1, 2, 24 {
-			return Gotplt_entry.auto_gotplt_entry
+			return int(Gotplt_entry.auto_gotplt_entry)
 		}
 		22 { // case comp body kind=ReturnStmt is_enum=false
-			return Gotplt_entry.build_got_only
+			return int(Gotplt_entry.build_got_only)
 		}
 		3, 27, 26, 29, 25, 9, 41, 19, 20, 21, 23, 17, 18, 42, 4, 31 {
-			return Gotplt_entry.always_gotplt_entry
+			return int(Gotplt_entry.always_gotplt_entry)
 		}
 		else {}
 	}
@@ -78,7 +78,9 @@ fn relocate_plt(s1 &TCCState) {
 		add32le(p + 8, x - 6)
 		p += 16
 		for p < p_end {
-			add32le(p + 2, x + (s1.plt.data - p))
+			t := x
+			t += (s1.plt.data - p)
+			add32le(p + 2, t)
 			p += 16
 		}
 	}
@@ -86,8 +88,9 @@ fn relocate_plt(s1 &TCCState) {
 		rel := &Elf64_Rela(0)
 		x := s1.plt.sh_addr + 16 + 6
 		p = s1.got.data
-		for rel = &Elf64_Rela(s1.plt.reloc.data) + 0; rel < &Elf64_Rela((s1.plt.reloc.data +
-			s1.plt.reloc.data_offset)); rel++ {
+		for rel = unsafe { &Elf64_Rela(s1.plt.reloc.data) }; unsafe {
+			voidptr(rel) < &Elf64_Rela((s1.plt.reloc.data + s1.plt.reloc.data_offset))
+		}; unsafe { rel++ } {
 			write64le(p + rel.r_offset, x)
 			x += 16
 		}
@@ -105,13 +108,17 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				esym_index = get_sym_attr(s1, sym_index, 0).dyn_index
 				s1.qrel.r_offset = rel.r_offset
 				if esym_index {
-					s1.qrel.r_info = (((Elf64_Xword(esym_index)) << 32) + (1))
-					s1.qrel.r_addend = rel.r_addend
-					s1.qrel++
+					s1.qrel.r_info = (((Elf64_Xword(u64(esym_index))) << 32) + (1))
+					$if i386 {
+						s1.qrel.r_addend = rel.r_addend
+					}
+					unsafe { s1.qrel++ }
 				} else {
 					s1.qrel.r_info = (((Elf64_Xword((0))) << 32) + (8))
-					s1.qrel.r_addend = read64le(ptr) + val
-					s1.qrel++
+					$if i386 {
+						s1.qrel.r_addend = read64le(ptr) + val
+					}
+					unsafe { s1.qrel++ }
 				}
 			}
 			add64le(ptr, val)
@@ -120,8 +127,10 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 			if s1.output_type & 4 {
 				s1.qrel.r_offset = rel.r_offset
 				s1.qrel.r_info = (((Elf64_Xword((0))) << 32) + (8))
-				s1.qrel.r_addend = int(read32le(ptr)) + val
-				s1.qrel++
+				$if i386 {
+					s1.qrel.r_addend = int(read32le(ptr)) + val
+				}
+				unsafe { s1.qrel++ }
 			}
 			add32le(ptr, val)
 		}
@@ -130,9 +139,11 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				esym_index = get_sym_attr(s1, sym_index, 0).dyn_index
 				if esym_index {
 					s1.qrel.r_offset = rel.r_offset
-					s1.qrel.r_info = (((Elf64_Xword(esym_index)) << 32) + (2))
-					s1.qrel.r_addend = int(read32le(ptr)) + rel.r_addend
-					s1.qrel++
+					s1.qrel.r_info = (((Elf64_Xword(u64(esym_index))) << 32) + (2))
+					$if i386 {
+						s1.qrel.r_addend = int(read32le(ptr)) + rel.r_addend
+					}
+					unsafe { s1.qrel++ }
 				}
 			}
 			goto plt32pc32 // id: 0x7fffcf338500
@@ -144,7 +155,7 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				diff := i64(0)
 				diff = i64(val) - addr
 				if diff < -2147483648 || diff > 2147483647 {
-					_tcc_error_noabort(c'internal error: relocation failed')
+					_tcc_error_noabort('internal error: relocation failed')
 				}
 				add32le(ptr, diff)
 			}
@@ -159,9 +170,11 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				esym_index = get_sym_attr(s1, sym_index, 0).dyn_index
 				if esym_index {
 					s1.qrel.r_offset = rel.r_offset
-					s1.qrel.r_info = (((Elf64_Xword(esym_index)) << 32) + (24))
-					s1.qrel.r_addend = read64le(ptr) + rel.r_addend
-					s1.qrel++
+					s1.qrel.r_info = (((Elf64_Xword(u64(esym_index))) << 32) + (24))
+					$if i386 {
+						s1.qrel.r_addend = read64le(ptr) + rel.r_addend
+					}
+					unsafe { s1.qrel++ }
 				}
 			}
 			add64le(ptr, val - addr)
@@ -207,7 +220,7 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				x = sym.st_value - sec.sh_addr - sec.data_offset
 				add32le(ptr + 8, x)
 			} else { // 3
-				_tcc_error_noabort(c'unexpected R_X86_64_TLSGD pattern')
+				_tcc_error_noabort('unexpected R_X86_64_TLSGD pattern')
 			}
 		}
 		20 {
@@ -220,7 +233,7 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				C.memcpy(ptr - 3, replace, sizeof(replace))
 				rel[1].r_info = (((Elf64_Xword((0))) << 32) + (0))
 			} else { // 3
-				_tcc_error_noabort(c'unexpected R_X86_64_TLSLD pattern')
+				_tcc_error_noabort('unexpected R_X86_64_TLSLD pattern')
 			}
 		}
 		21, 23 {

@@ -1,14 +1,18 @@
 @[translated]
 module main
 
-@[weak]
+import strings
+
+__global last_text_section = &Section{}
+// to handle .previous asm directive
+__global asmgoto_n int
+
 __global (
-	last_text_section &Section
+	tok int
 )
 
-@[weak]
 __global (
-	asmgoto_n int
+	tok_flags int
 )
 
 fn asm_get_prefix_name(s1 &TCCState, prefix &i8, n u32) int {
@@ -31,7 +35,7 @@ fn asm2cname(v int, addeddot &int) int {
 	if !name {
 		return v
 	}
-	if name[0] == '_' {
+	if name[0] == c'_' {
 		v = tok_alloc_const(unsafe { name + 1 })
 	} else if unsafe { !C.strchr(name, c'.') } {
 		newname := [256]i8{}
@@ -96,10 +100,10 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 		205 { // case comp body kind=BinaryOperator is_enum=false
 			p = unsafe { tokc.str.data }
 			n = C.strtoull(p, &&i8(&p), 0)
-			if *p == 'b' || *p == 'f' {
+			if *p == c'b' || *p == c'f' {
 				label = asm_get_local_label_name(s1, n)
 				sym = asm_label_find(label)
-				if *p == 'b' {
+				if *p == c'b' {
 					if sym != unsafe { nil } && (!sym.c || elfsym(sym).st_shndx == 0) {
 						sym = sym.prev_tok
 					}
@@ -114,7 +118,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 				pe.v = 0
 				pe.sym = sym
 				pe.pcrel = 0
-			} else if *p == '\x00' {
+			} else if *p == c'\x00' {
 				pe.v = n
 				pe.sym = (unsafe { nil })
 				pe.pcrel = 0
@@ -446,7 +450,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 	sec := &Section(0)
 	ptr := &u8(0)
 	sec = tcc_state.cur_text_section
-	match tok {
+	match Tcc_token(tok) {
 		.tok_asmdir_align, .tok_asmdir_balign, .tok_asmdir_p2align, .tok_asmdir_skip,
 		.tok_asmdir_space {
 			tok1 = tok
@@ -589,7 +593,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			repeat = asm_int_expr(s1)
 			init_str = tok_str_alloc()
 			next()
-			for tok != .tok_asmdir_endr {
+			for Tcc_token(tok) != .tok_asmdir_endr {
 				if tok == (-1) {
 					_tcc_error('we at end of file, .endr not found')
 				}
@@ -867,7 +871,7 @@ fn tcc_assemble_internal(s1 &TCCState, do_preprocess int, global int) int {
 			n := 0
 			p = unsafe { tokc.str.data }
 			n = C.strtoul(p, &&i8(&p), 10)
-			if *p != '\x00' {
+			if *p != c'\x00' {
 				expect(c"':'")
 			}
 			asm_new_label(s1, asm_get_local_label_name(s1, n), 1)
@@ -942,7 +946,7 @@ fn find_constraint(operands &ASMOperand, nb_operands int, name &i8, pp &&u8) int
 		if u32(index) >= nb_operands {
 			index = -1
 		}
-	} else if *name == '[' {
+	} else if *name == c'[' {
 		unsafe { name++ }
 		p = unsafe { C.strchr(name, `]`) }
 		if p {
@@ -979,8 +983,8 @@ fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, s
 	sv := SValue{}
 	for ; true; {
 		c = unsafe { *str++ }
-		if c == '%' {
-			if *str == '%' {
+		if c == c'%' {
+			if *str == c'%' {
 				unsafe { str++ }
 				unsafe {
 					goto add_char
@@ -991,11 +995,11 @@ fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, s
 				|| *str == `k` || *str == `q` || *str == `l` || *str == `P` {
 				modifier = unsafe { *str++ }
 			}
-			index = find_constraint(operands, nb_operands, str, &str)
+			index = find_constraint(unsafe { &operands + 0 }, nb_operands, str, &str)
 			if index < 0 {
 				_tcc_error('invalid operand reference after %%')
 			}
-			op = &operands[index]
+			op = unsafe { &operands + index }
 			if modifier == `l` {
 				cstr_cat(out_str, get_tok_str(op.is_label, (unsafe { nil })), -1)
 			} else {
@@ -1029,7 +1033,7 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 			if nb_operands >= 30 {
 				_tcc_error('too many asm operands')
 			}
-			op = &operands[nb_operands++]
+			op = unsafe { &operands + nb_operands++ }
 			op.id = 0
 			if tok == `[` {
 				next()
@@ -1067,8 +1071,8 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 }
 
 fn asm_instr() {
-	astr := CString{}
-	astr1 := &CString(0)
+	astr := strings.new_builder(100)
+	astr1 := &CString(unsafe { nil })
 
 	operands := [30]ASMOperand{}
 	nb_outputs := 0
@@ -1087,7 +1091,7 @@ fn asm_instr() {
 	astr1 = parse_asm_str()
 	cstr_new(&astr)
 	dynarray_add(&stk_data, &nb_stk_data, &(&astr).data)
-	cstr_cat(&astr, astr1.data, astr1.size)
+	cstr_cat(&astr, astr1.data, astr1.len)
 	nb_operands = 0
 	nb_outputs = 0
 	nb_labels = 0
@@ -1122,7 +1126,7 @@ fn asm_instr() {
 				}
 				if tok == `:` {
 					next()
-					for ; true; {
+					for {
 						csym := &Sym(0)
 						asmname := 0
 						if nb_operands + nb_labels >= 30 {
@@ -1141,7 +1145,7 @@ fn asm_instr() {
 							}
 						}
 						next()
-						asmname = asm_get_prefix_name(tcc_state, c'LG.', asmgoto_n++$)
+						asmname = asm_get_prefix_name(tcc_state, c'LG.', asmgoto_n++)
 						if !csym.c {
 							put_extern_sym2(csym, 0, 0, 0, 1)
 						}
@@ -1164,13 +1168,13 @@ fn asm_instr() {
 	asm_compute_constraints(operands, nb_operands, nb_outputs, clobber_regs, &out_reg)
 	if must_subst {
 		cstr_reset(astr1)
-		cstr_cat(astr1, astr.data, astr.size)
+		cstr_cat(astr1, astr.data, astr.len)
 		cstr_reset(&astr)
 		subst_asm_operands(operands, nb_operands + nb_labels, &astr, astr1.data)
 	}
 	asm_gen_code(operands, nb_operands, nb_outputs, 0, clobber_regs, out_reg)
 	sec = tcc_state.cur_text_section
-	tcc_assemble_inline(tcc_state, astr.data, astr.size - 1, 0)
+	tcc_assemble_inline(tcc_state, astr.data, astr.len - 1, 0)
 	cstr_free(&astr)
 	nb_stk_data--
 	if sec != tcc_state.cur_text_section {
@@ -1185,7 +1189,7 @@ fn asm_instr() {
 }
 
 fn asm_global_instr() {
-	astr := &CString(0)
+	astr := &CString(unsafe { nil })
 	saved_nocode_wanted := nocode_wanted
 	nocode_wanted = 0
 	next()
@@ -1196,7 +1200,7 @@ fn asm_global_instr() {
 	}
 	tcc_state.cur_text_section = tcc_state.text_section
 	ind = tcc_state.cur_text_section.data_offset
-	tcc_assemble_inline(tcc_state, astr.data, astr.size - 1, 1)
+	tcc_assemble_inline(tcc_state, astr.data, astr.len - 1, 1)
 	tcc_state.cur_text_section.data_offset = ind
 	next()
 	nocode_wanted = saved_nocode_wanted
