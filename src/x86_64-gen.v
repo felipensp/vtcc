@@ -1156,7 +1156,7 @@ fn gfunc_epilog() {
 	ind = saved_ind
 }
 
-fn gen_fill_nops(bytes int) {
+pub fn gen_fill_nops(bytes int) {
 	for bytes-- {
 		g(144)
 	}

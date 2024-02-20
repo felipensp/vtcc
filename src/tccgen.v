@@ -1,6 +1,8 @@
 @[translated]
 module main
 
+fn C.qsort(voidptr, usize, usize, fn (voidptr, voidptr) int)
+
 __global _vstack = [1 + VSTACK_SIZE]SValue{}
 __global int_type = CType{}
 __global func_old_type = CType{}
@@ -22,7 +24,7 @@ __global nb_sym_pools = int(0)
 __global all_cleanups = &Sym{}
 __global pending_gotos = &Sym{}
 __global local_scope = int(0)
-__global debug_modes = ''
+__global debug_modes = c''
 
 struct Case_t {
 	v1  i64
@@ -304,7 +306,7 @@ fn tccgen_finish(s1 &TCCState) {
 }
 
 pub fn elfsym(s &Sym) &Elf64_Sym {
-	if !s || !s.c {
+	if s == unsafe { nil } || !s.c {
 		return unsafe { nil }
 	}
 	return &(&Elf64_Sym(tcc_state.symtab_section.data))[s.c]
@@ -422,7 +424,7 @@ fn __sym_malloc() &Sym {
 	for i = 0; i < (8192 / sizeof(Sym)); i++ {
 		sym.next = last_sym
 		last_sym = sym
-		sym++
+		unsafe { sym++ }
 	}
 	sym_free_first = last_sym
 	return last_sym
@@ -515,7 +517,7 @@ fn sym_push(v int, type_ &CType, r int, c int) &Sym {
 		*ps = s
 		s.sym_scope = local_scope
 		if s.prev_tok && sym_scope(s.prev_tok) == s.sym_scope {
-			_tcc_error("redeclaration of '%s'", get_tok_str(v & ~1073741824, (unsafe { nil })))
+			_tcc_error("redeclaration of '${get_tok_str(v & ~1073741824, (unsafe { nil }))}'")
 		}
 	}
 	return s
@@ -600,10 +602,10 @@ fn label_pop(ptop &&Sym, slast &Sym, keep int) {
 	for s = *ptop; s != slast; s = s1 {
 		s1 = s.prev
 		if s.r == 2 {
-			tcc_state.warn_num = (usize(&(&TCCState(0)).warn_all)) - (usize(&(&TCCState(0)).warn_none))
-			_tcc_warning("label '%s' declared but not used", get_tok_str(s.v, (unsafe { nil })))
+			tcc_state.warn_num = __offsetof(TCCState, warn_all) - __offsetof(TCCState, warn_none)
+			_tcc_warning("label '${get_tok_str(s.v, (unsafe { nil }))}' declared but not used")
 		} else if s.r == 1 {
-			_tcc_error("label '%s' used but not defined", get_tok_str(s.v, (unsafe { nil })))
+			_tcc_error("label '${get_tok_str(s.v, (unsafe { nil }))}' used but not defined")
 		} else {
 			if s.c {
 				put_extern_sym(s, tcc_state.cur_text_section, s.jnext, 1)
@@ -634,7 +636,7 @@ fn vsetc(type_ &CType, r int, vc &CValue) {
 		_tcc_error('memory full (vstack)')
 	}
 	vcheck_cmp()
-	vtop++
+	unsafe { vtop++ }
 	vtop.type_ = *type_
 	vtop.r = r
 	vtop.r2 = 48
@@ -659,7 +661,7 @@ fn vpop() {
 		gsym(vtop.jtrue)
 		gsym(vtop.jfalse)
 	}
-	vtop--
+	unsafe { vtop-- }
 }
 
 fn vpush(type_ &CType) {
@@ -704,7 +706,7 @@ fn vpushv(v &SValue) {
 	if vtop >= (_vstack + 1) + (512 - 1) {
 		_tcc_error('memory full (vstack)')
 	}
-	vtop++
+	unsafe { vtop++ }
 	*vtop = *v
 }
 
@@ -2598,7 +2600,9 @@ fn gen_cast(type_ &CType) {
 					}
 					vtop.c.i &= m
 					if !(dbt & 16) {
-						vtop.c.i |= unsafe { -(vtop.c.i & ((m >> 1) + 1)) }
+						mut r := vtop.c.i 
+						r &= ((m >> 1) + 1)
+						vtop.c.i |= -r
 					}
 				}
 			}
@@ -3551,7 +3555,7 @@ fn struct_decl(type_ &CType, u int) {
 				}
 				ss = sym_find(v)
 				if ss && !local_stack {
-					_tcc_error("redefinition of enumerator '%s'", get_tok_str(v, (unsafe { nil })))
+					_tcc_error("redefinition of enumerator '${get_tok_str(v, (unsafe { nil }))}'")
 				}
 				next()
 				if tok == `=` {
@@ -5834,7 +5838,7 @@ fn block(flags int) {
 		}
 		prev_scope(&o, flags & 1)
 		if debug_modes {
-			tcc_debug_stabn(tcc_state, __stab_debug_code.n_rbrac, ind - func_ind)
+			tcc_debug_stabn(tcc_state, Stab_debug_code.n_rbrac, ind - func_ind)
 		}
 		if local_scope {
 			next()
@@ -5851,7 +5855,7 @@ fn block(flags int) {
 				if vtop.type_.t != 0 {
 					_tcc_warning('void function returns a value')
 				}
-				vtop--
+				unsafe { vtop-- }
 			}
 		} else if b {
 			_tcc_warning("'return' with no value")
@@ -5950,7 +5954,7 @@ fn block(flags int) {
 		skip(`(`)
 		gexpr()
 		skip(`)`)
-		sw.sv = *vtop--
+		sw.sv = unsafe { *vtop-- }
 		a = 0
 		b = gjmp_acs(0)
 		lblock(&a, (unsafe { nil }))
@@ -5976,7 +5980,8 @@ fn block(flags int) {
 		}
 		vpushv(&sw.sv)
 		gv(1)
-		d = 0, gcase(sw.p, sw.n, &d)
+		d = 0
+		gcase(sw.p, sw.n, &d)
 		vpop()
 		if sw.def_sym {
 			gsym_addr(d, sw.def_sym)
@@ -6037,7 +6042,7 @@ fn block(flags int) {
 				s.r = 1
 			}
 			if s.r & 1 {
-				if cur_scope.cl.s && !nocode_wanted {
+				if cur_scope.cl.s != unsafe { nil } && !nocode_wanted {
 					sym_push2(&pending_gotos, 536870912, 0, cur_scope.cl.n)
 					pending_gotos.prev_tok = s
 					s = sym_push2(&s.next, 536870912, 0, 0)
@@ -6093,7 +6098,7 @@ fn block(flags int) {
 					goto again // id: 0x7fffed4f0b70
 				}
 			} else {
-				tcc_state.warn_num = (usize(&(&TCCState(0)).warn_all)) - (usize(&(&TCCState(0)).warn_none))
+				tcc_state.warn_num = __offsetof(TCCState, warn_all) - __offsetof(TCCState, warn_none)
 				_tcc_warning('deprecated use of label at end of compound statement')
 			}
 		} else {
@@ -6113,7 +6118,8 @@ fn block(flags int) {
 		}
 	}
 	if debug_modes {
-		tcc_tcov_check_line(tcc_state, 0), tcc_tcov_block_end(tcc_state, 0)
+		tcc_tcov_check_line(tcc_state, 0)
+		tcc_tcov_block_end(tcc_state, 0)
 	}
 }
 
@@ -6180,8 +6186,7 @@ fn init_assert(p &Init_params, offset int) {
 	} else {
 		!nocode_wanted && offset > p.local_offset
 	} {
-		_tcc_error('internal compiler error\n%s:%d: in %s(): initializer overflow', c'/home/felipe/github/tcc/tccgen.c',
-			7368, @FN)
+		_tcc_error('internal compiler error\n${@FILE}:${@LINE}: in ${@FN}(): initializer overflow')
 	}
 }
 
@@ -6208,16 +6213,16 @@ fn decl_design_delrels(sec &Section, c int, size int) {
 	rel = &Elf64_Rela(sec.reloc.data)
 	rel2 = rel
 	rel_end = &Elf64_Rela((sec.reloc.data + sec.reloc.data_offset))
-	for rel < rel_end {
+	for voidptr(rel) < rel_end {
 		if rel.r_offset >= c && rel.r_offset < c + size {
 			sec.reloc.data_offset -= sizeof(*rel)
 		} else {
 			if rel2 != rel {
-				C.memcpy(rel2, rel, sizeof(*rel))
+				unsafe { C.memcpy(rel2, rel, sizeof(*rel)) }
 			}
-			rel2++$
+			unsafe { rel2++ }
 		}
-		rel++$
+		unsafe { rel++ }
 	}
 }
 
@@ -6249,7 +6254,8 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 		goto no_designator // id: 0x7fffed508320
 	}
 	if tcc_state.gnu_ext && tok >= Tcc_token.tok_define {
-		l = tok, next()
+		l = tok
+		next()
 		if tok == `:` {
 			goto struct_field // id: 0x7fffed508638
 		}
@@ -6317,7 +6323,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 			c += index * elem_size
 		} else {
 			f = *cur_field
-			for f && f.v & 268435456 && is_integer_btype(f.type_.t & 15) {
+			for f != unsafe { nil } && f.v & 268435456 && is_integer_btype(f.type_.t & 15) {
 				*cur_field = f.next
 				f = *cur_field
 			}
@@ -6343,7 +6349,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 
 		t1 := CType{}
 		i := 0
-		if p.sec || type_.t & 64 {
+		if p.sec != unsafe { nil } || type_.t & 64 {
 			aref.c = elem_size
 			t1.t = 7
 			t1.ref = &aref
@@ -6394,7 +6400,7 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 			_tcc_error('initializer element is not computable at load time')
 		}
 		if (nocode_wanted > 0) {
-			vtop--
+			unsafe { vtop-- }
 			return
 		}
 		ptr = sec.data + c
@@ -6436,7 +6442,7 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 				bit_pos = (((vtop.type_.t) >> 20) & 63)
 				bit_size = (((vtop.type_.t) >> (20 + 6)) & 63)
 				p = &u8(ptr) + (bit_pos >> 3)
-				bit_pos &= 7, 0
+				bit_pos &= 7
 				bits = 0
 				for bit_size {
 					n = 8 - bit_pos
@@ -6449,12 +6455,12 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 					bits += n
 					bit_size -= n
 					bit_pos = 0
-					p++
+					unsafe { p++ }
 				}
 			} else { // 3
 			}
 		}
-		vtop--
+		unsafe { vtop-- }
 	} else {
 		vset(&dtype, 50 | 256, c)
 		vswap()
@@ -6478,7 +6484,8 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 	indexsym := Sym{}
 	t1 := &CType(0)
 	if debug_modes && !(flags & 2) && !p.sec {
-		tcc_debug_line(tcc_state), tcc_tcov_check_line(tcc_state, 1)
+		tcc_debug_line(tcc_state)
+		tcc_tcov_check_line(tcc_state, 1)
 	}
 	if !(flags & 4) && tok != `{` && tok != 201 && tok != 200 && (!(flags & 2)
 		|| (type_.t & 15) == 7) {
@@ -6607,7 +6614,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 			skip(`}`)
 		}
 	} else if flags & 4 && is_compatible_unqualified_types(type_, &vtop.type_) {
-		goto _GOTO_PLACEHOLDER_0x7fffed5235f8 // id: 0x7fffed5235f8
+		goto do_init_list // id: 0x7fffed5235f8
 	} else if (type_.t & 15) == 7 {
 		no_oblock = 1
 		if flags & 1 || tok == `{` {
@@ -6635,7 +6642,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 	align := 0
 	addr := 0
 
-	init_str := (unsafe { nil })
+	init_str := &TokenString(unsafe { nil })
 	sec := &Section(0)
 	flexible_array := &Sym(0)
 	sym := &Sym(0)
@@ -6745,7 +6752,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 		if v && global {
 			sym = sym_find(v)
 			if sym {
-				if p.flex_array_ref && sym.type_.t & type_.t & 64 && sym.type_.ref.c > type_.ref.c {
+				if p.flex_array_ref != unsafe{ nil } && sym.type_.t & type_.t & 64 && sym.type_.ref.c > type_.ref.c {
 					type_.ref.c = sym.type_.ref.c
 					size = type_size(type_, &align)
 				}
@@ -6804,7 +6811,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 			goto no_alloc // id: 0x7fffed52b7b8
 		}
 		if cur_scope.vla.num == 0 {
-			if cur_scope.prev && cur_scope.prev.vla.num {
+			if cur_scope.prev != unsafe { nil } && cur_scope.prev.vla.num {
 				cur_scope.vla.locorig = cur_scope.prev.vla.loc
 			} else {
 				loc -= 8
@@ -6870,7 +6877,7 @@ fn func_vla_arg(sym &Sym) {
 }
 
 fn gen_function(sym &Sym) {
-	f := Scope{
+	mut f := Scope{
 		prev: 0
 	}
 
@@ -6880,7 +6887,9 @@ fn gen_function(sym &Sym) {
 	ind = tcc_state.cur_text_section.data_offset
 	if sym.a.aligned {
 		newoff := section_add(tcc_state.cur_text_section, 0, 1 << (sym.a.aligned - 1))
-		gen_fill_nops(newoff - ind)
+		mut a := int(newoff)
+		a -= ind
+		gen_fill_nops(a)
 	}
 	funcname = get_tok_str(sym.v, (unsafe { nil }))
 	func_ind = ind
@@ -6937,7 +6946,7 @@ fn gen_inline_functions(s &TCCState) {
 		for i = 0; i < s.nb_inline_fns; i++ {
 			fnc = s.inline_fns[i]
 			sym = fnc.sym
-			if sym && (sym.c || !(sym.type_.t & 32768)) {
+			if sym != unsafe { nil } && (sym.c || !(sym.type_.t & 32768)) {
 				fnc.sym = (unsafe { nil })
 				tcc_debug_putfile(s, fnc.filename)
 				begin_macro(fnc.func_str, 1)
@@ -6970,18 +6979,18 @@ fn free_inline_functions(s &TCCState) {
 @[c: 'do_Static_assert']
 fn do_static_assert() {
 	c := 0
-	msg := &i8(0)
+	mut msg := ''
 	next()
 	skip(`(`)
 	c = expr_const()
-	msg = c'_Static_assert fail'
+	msg = '_Static_assert fail'
 	if tok == `,` {
 		next()
 		msg = parse_mult_str(c'string constant').data
 	}
 	skip(`)`)
 	if c == 0 {
-		_tcc_error('%s', msg)
+		_tcc_error(msg)
 	}
 	skip(`;`)
 }
@@ -7094,7 +7103,7 @@ fn decl(l int) int {
 				if sym.type_.t & 32768 {
 					fnc := &InlineFunc(0)
 					fnc = tcc_malloc(sizeof(*fnc) + C.strlen(file.filename))
-					strcpy(fnc.filename, file.filename)
+					C.strcpy(fnc.filename, file.filename)
 					fnc.sym = sym
 					skip_or_save_block(&fnc.func_str)
 					dynarray_add(&tcc_state.inline_fns, &tcc_state.nb_inline_fns, fnc)
@@ -7113,16 +7122,14 @@ fn decl(l int) int {
 							goto found // id: 0x7fffed53b268
 						}
 					}
-					_tcc_error("declaration for parameter '%s' but no such parameter",
-						get_tok_str(v, (unsafe { nil })))
+					_tcc_error("declaration for parameter '${get_tok_str(v, (unsafe { nil }))}' but no such parameter")
 					// RRRREG found id=0x7fffed53b268
 					found:
 					if type_.t & (4096 | 8192 | 16384 | 32768) {
-						_tcc_error("storage class specified for '%s'", get_tok_str(v,
-							(unsafe { nil })))
+						_tcc_error("storage class specified for '${get_tok_str(v,(unsafe { nil }))}'")
 					}
 					if sym.type_.t != 0 {
-						_tcc_error("redefinition of parameter '%s'", get_tok_str(v, (unsafe { nil })))
+						_tcc_error("redefinition of parameter '${get_tok_str(v, (unsafe { nil }))}'")
 					}
 					convert_parameter_type(&type_)
 					sym.type_ = type_
@@ -7130,8 +7137,7 @@ fn decl(l int) int {
 					sym = sym_find(v)
 					if sym && sym.sym_scope == local_scope {
 						if !is_compatible_types(&sym.type_, &type_) || !(sym.type_.t & 16384) {
-							_tcc_error("incompatible redefinition of '%s'", get_tok_str(v,
-								(unsafe { nil })))
+							_tcc_error("incompatible redefinition of '${get_tok_str(v,(unsafe { nil }))}'")
 						}
 						sym.type_ = type_
 					} else {

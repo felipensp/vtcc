@@ -4,6 +4,7 @@ module main
 fn C.dlsym(voidptr, &char) voidptr
 fn C.dlclose(int)
 fn C.unlink(&char)
+fn C.strtol(&char, &&char, int) u64
 
 @[export: 'shf_RELRO']
 const shf_RELRO = (1 << 1) | (1 << 0)
@@ -1698,6 +1699,9 @@ fn set_sec_sizes(s1 &TCCState) int {
 struct Dyn_inf {
 	dynamic  &Section
 	dynstr   &Section
+	data_offset u64
+	rel_addr usize
+	rel_size usize
 	phdr     &Elf64_Phdr
 	phnum    int
 	interp   &Section
@@ -2193,10 +2197,10 @@ fn tcc_write_elf_file(s1 &TCCState, filename &i8, phnum int, phdr &Elf64_Phdr, f
 	} else { // 3
 		mode = 511
 	}
-	unlink(filename)
+	C.unlink(filename)
 	fd = C.open(filename, 1 | 64 | 512 | 0, mode)
 	if fd < 0 {
-		f = fdopen(fd, c'wb')
+		f = C.fdopen(fd, c'wb')
 		if f == unsafe { nil } {
 			return _tcc_error_noabort("could not write '%s: %s'", filename, strerror((*__errno_location())))
 		}
@@ -2247,15 +2251,15 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 			}
 		}
 	}
-	for sym = &Elf64_Sym(s1.symtab_section.data) + 1; sym < &Elf64_Sym((s1.symtab_section.data +
-		s1.symtab_section.data_offset)); sym++ {
+	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1}; unsafe { sym < &Elf64_Sym((s1.symtab_section.data +
+		s1.symtab_section.data_offset)) }; unsafe { sym++ } {
 		if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 			sym.st_shndx = backmap[sym.st_shndx]
 		}
 	}
 	if !s1.static_link {
-		for sym = &Elf64_Sym(s1.dynsym.data) + 1; sym < &Elf64_Sym((s1.dynsym.data +
-			s1.dynsym.data_offset)); sym++ {
+		for sym = unsafe { &Elf64_Sym(s1.dynsym.data) + 1 }; unsafe { sym < &Elf64_Sym((s1.dynsym.data +
+			s1.dynsym.data_offset)) }; unsafe { sym++ } {
 			if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 				sym.st_shndx = backmap[sym.st_shndx]
 			}
@@ -2301,14 +2305,14 @@ fn elf_output_file(s1 &TCCState, filename &i8) int {
 	if !s1.static_link {
 		if file_type & 2 {
 			ptr := &i8(0)
-			elfint := getenv(c'LD_SO')
+			elfint := C.getenv(c'LD_SO')
 			if elfint == (unsafe { nil }) {
 				elfint = c'/lib64/ld-linux-x86-64.so.2'
 			}
 			interp = new_section(s1, c'.interp', 1, (1 << 1))
 			interp.sh_addralign = 1
 			ptr = section_ptr_add(interp, 1 + C.strlen(elfint))
-			strcpy(ptr, elfint)
+			C.strcpy(ptr, elfint)
 			dyninf.interp = interp
 		}
 		s1.dynsym = new_symtab(s1, c'.dynsym', 11, (1 << 1), c'.dynstr', c'.hash', (1 << 1))
@@ -2321,7 +2325,7 @@ fn elf_output_file(s1 &TCCState, filename &i8) int {
 		if file_type & 2 {
 			bind_exe_dynsyms(s1, file_type & 4)
 			if s1.nb_errors {
-				goto _GOTO_PLACEHOLDER_0x7fffe904af18 // id: 0x7fffe904af18
+				goto the_end // id: 0x7fffe904af18
 			}
 		}
 		build_got_entries(s1, got_sym)
@@ -2383,7 +2387,7 @@ fn elf_output_file(s1 &TCCState, filename &i8) int {
 	}
 	relocate_syms(s1, s1.symtab, 0)
 	if s1.nb_errors != 0 {
-		goto _GOTO_PLACEHOLDER_0x7fffe904af18 // id: 0x7fffe904af18
+		goto the_end // id: 0x7fffe904af18
 	}
 	relocate_sections(s1)
 	if dynamic {
@@ -2471,6 +2475,7 @@ fn full_read(fd int, buf voidptr, count usize) isize {
 		rnum += num
 		cbuf += num
 	}
+	return 0
 }
 
 fn load_data(fd int, file_offset u32, size u32) voidptr {
@@ -2565,7 +2570,7 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		if sh.sh_type == 2 {
 			if symtab {
 				_tcc_error_noabort('object must contain only one symtab')
-				goto _GOTO_PLACEHOLDER_0x7fffe9056020 // id: 0x7fffe9056020
+				goto found // id: 0x7fffe9056020
 			}
 			nb_syms = sh.sh_size / sizeof(Elf64_Sym)
 			symtab = load_data(fd, file_offset + sh.sh_offset, sh.sh_size)
@@ -2623,7 +2628,7 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		found:
 		if sh.sh_type != s.sh_type {
 			_tcc_error_noabort('invalid section type')
-			goto _GOTO_PLACEHOLDER_0x7fffe9056020 // id: 0x7fffe9056020
+			goto next // id: 0x7fffe9056020
 		}
 		s.data_offset += -s.data_offset & (sh.sh_addralign - 1)
 		if sh.sh_addralign > s.sh_addralign {
@@ -2642,7 +2647,6 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		}
 		// RRRREG next id=0x7fffe90586f0
 		next:
-		0
 	}
 	if stab_index && stabstr_index {
 		a := &Stab_Sym(0)
@@ -2653,16 +2657,16 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		a = &Stab_Sym((s.data + sm_table[stab_index].offset))
 		b = &Stab_Sym((s.data + s.data_offset))
 		o = sm_table[stabstr_index].offset
-		for a < b {
+		for unsafe { voidptr(a) < b } {
 			if a.n_strx {
 				a.n_strx += o
 			}
-			a++
+			unsafe { a++ }
 		}
 	}
 	for i = 1; i < ehdr.e_shnum; i++ {
 		s = sm_table[i].s
-		if !s || !sm_table[i].new_section {
+		if s == unsafe { nil } || !sm_table[i].new_section {
 			continue
 		}
 		sh = &shdr[i]
@@ -2675,8 +2679,8 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		}
 	}
 	old_to_new_syms = tcc_mallocz(nb_syms * sizeof(int))
-	sym = symtab + 1
-	for i = 1; i < nb_syms; i++, sym++ {
+	sym = unsafe { symtab + 1 }
+	for i = 1; i < nb_syms; i++, unsafe { sym++ } {
 		if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 			sm = &sm_table[sym.st_shndx]
 			if sm.link_once {
@@ -2711,8 +2715,8 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		match s.sh_type {
 			4 { // case comp body kind=BinaryOperator is_enum=false
 				offseti = sm_table[sh.sh_info].offset
-				for rel = &Elf64_Rela(s.data) + (offset / sizeof(*rel)); rel <
-					&Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel)); rel++ {
+				for rel = unsafe { &Elf64_Rela(s.data) + (offset / sizeof(*rel)) }; unsafe { voidptr(rel) <
+					&Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel)) }; unsafe { rel++ } {
 					type_ := 0
 					sym_index = u32(0)
 					type_ = ((rel.r_info) & 4294967295)
@@ -2724,11 +2728,10 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 					if !sym_index && !sm_table[sh.sh_info].link_once {
 						// RRRREG invalid_reloc id=0x7fffe905e8c0
 						invalid_reloc:
-						_tcc_error_noabort("Invalid relocation entry [%2d] '%s' @ %.8x",
-							i, strsec + sh.sh_name, int(rel.r_offset))
-						goto _GOTO_PLACEHOLDER_0x7fffe9056020 // id: 0x7fffe9056020
+						_tcc_error_noabort("Invalid relocation entry [${i}] '${strsec + sh.sh_name}' @ ${int(rel.r_offset)}")
+						goto the_end // id: 0x7fffe9056020
 					}
-					rel.r_info = (((Elf64_Xword(sym_index)) << 32) + type_)
+					rel.r_info = (((Elf64_Xword(u64(sym_index))) << 32) + type_)
 					rel.r_offset += offseti
 				}
 			}
@@ -2760,7 +2763,8 @@ struct ArchiveHeader {
 fn get_be(b &u8, n int) i64 {
 	ret := 0
 	for n {
-		ret = (ret << 8) | *b++, n--$
+		ret = (ret << 8) | *b++
+		n--
 	}
 	return ret
 }
@@ -2776,7 +2780,7 @@ fn read_ar_header(fd int, offset int, hdr &ArchiveHeader) int {
 		return if len { -1 } else { 0 }
 	}
 	p = hdr.ar_name
-	for e = p + sizeof(hdr.ar_name); e > p && e[-1] == ` `; {
+	for e = p + sizeof(hdr.ar_name); e > p && e[-1] == ' '; {
 		e--$
 	}
 	*e = `\x00`
@@ -2813,14 +2817,16 @@ fn tcc_load_alacarte(s1 &TCCState, fd int, size int, entrysize int) int {
 		bound = 0
 		p = ar_names
 
-		for i = 0; i < nsyms; p += C.strlen(p) + 1, i++ {
+		for i = 0; i < nsyms; i++ {
 			s := s1.symtab_section
 			sym_index = find_elf_sym(s, p)
 			if !sym_index {
+				p += C.strlen(p) + 1
 				continue
 			}
 			sym = &(&Elf64_Sym(s.data))[sym_index]
 			if sym.st_shndx != 0 {
+				p += C.strlen(p) + 1
 				continue
 			}
 			off = get_be(ar_index + i * entrysize, entrysize)
@@ -2840,7 +2846,8 @@ fn tcc_load_alacarte(s1 &TCCState, fd int, size int, entrysize int) int {
 					goto the_end
 				} // id: 0x7fffe90626c0
 			}
-			bound++$
+			bound++
+			p += C.strlen(p) + 1
 		}
 		// while()
 		if !bound {
@@ -2871,7 +2878,7 @@ fn tcc_load_archive(s1 &TCCState, fd int, alacarte int) int {
 			return _tcc_error_noabort('invalid archive')
 		}
 		file_offset += len
-		size = strtol(hdr.ar_size, (unsafe { nil }), 0)
+		size = C.strtol(hdr.ar_size, (unsafe { nil }), 0)
 		size = (size + 1) & ~1
 		if alacarte {
 			if !C.strcmp(hdr.ar_name, c'/') {
@@ -3070,14 +3077,14 @@ fn tcc_load_dll(s1 &TCCState, fd int, filename &i8, level int) int {
 		goto ret_success // id: 0x7fffe90717c0
 	}
 	if v.nb_versyms != nb_syms {
-		tcc_free(v.versym), (unsafe { nil })
-		v.versym = tcc_free(v.versym)
+		tcc_free(v.versym)
+		v.versym = unsafe { nil }
 	} else { // 3
 		store_version(s1, &v, dynstr)
 	}
 	i = 1
 
-	for sym = dynsym + 1; i < nb_syms; i++, unsafe { sym++ } {
+	for sym = unsafe { dynsym + 1}; i < nb_syms; i++, unsafe { sym++ } {
 		sym_bind = ((u8((sym.st_info))) >> 4)
 		if sym_bind == 0 {
 			continue

@@ -8,12 +8,14 @@ __global ind = int(0)
 __global loc = int(0)
 __global global_expr = int(0)
 __global func_ind = int(0)
+//__global global_label_stack = &Sym{}
 
 struct C.jmp_buf {
 }
 
 pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
 
+pub const CH_EOF   = (-1)   // end of file
 pub const VSTACK_SIZE = 512
 const IFDEF_STACK_SIZE = 64
 const CACHED_INCLUDES_HASH_SIZE = 32
@@ -28,7 +30,7 @@ pub struct TokenSym {
 	sym_identifier &Sym
 	tok            int
 	len            int
-	str            [1]i8
+	str            &char
 }
 
 type Nwchar_t = int
