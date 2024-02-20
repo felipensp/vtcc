@@ -2600,7 +2600,7 @@ fn gen_cast(type_ &CType) {
 					}
 					vtop.c.i &= m
 					if !(dbt & 16) {
-						mut r := vtop.c.i 
+						mut r := vtop.c.i
 						r &= ((m >> 1) + 1)
 						vtop.c.i |= -r
 					}
@@ -6752,7 +6752,8 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 		if v && global {
 			sym = sym_find(v)
 			if sym {
-				if p.flex_array_ref != unsafe{ nil } && sym.type_.t & type_.t & 64 && sym.type_.ref.c > type_.ref.c {
+				if p.flex_array_ref != unsafe { nil } && sym.type_.t & type_.t & 64
+					&& sym.type_.ref.c > type_.ref.c {
 					type_.ref.c = sym.type_.ref.c
 					size = type_size(type_, &align)
 				}
@@ -7126,7 +7127,7 @@ fn decl(l int) int {
 					// RRRREG found id=0x7fffed53b268
 					found:
 					if type_.t & (4096 | 8192 | 16384 | 32768) {
-						_tcc_error("storage class specified for '${get_tok_str(v,(unsafe { nil }))}'")
+						_tcc_error("storage class specified for '${get_tok_str(v, (unsafe { nil }))}'")
 					}
 					if sym.type_.t != 0 {
 						_tcc_error("redefinition of parameter '${get_tok_str(v, (unsafe { nil }))}'")
@@ -7137,7 +7138,8 @@ fn decl(l int) int {
 					sym = sym_find(v)
 					if sym && sym.sym_scope == local_scope {
 						if !is_compatible_types(&sym.type_, &type_) || !(sym.type_.t & 16384) {
-							_tcc_error("incompatible redefinition of '${get_tok_str(v,(unsafe { nil }))}'")
+							_tcc_error("incompatible redefinition of '${get_tok_str(v,
+								(unsafe { nil }))}'")
 						}
 						sym.type_ = type_
 					} else {

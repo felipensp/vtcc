@@ -1697,18 +1697,18 @@ fn set_sec_sizes(s1 &TCCState) int {
 }
 
 struct Dyn_inf {
-	dynamic  &Section
-	dynstr   &Section
+	dynamic     &Section
+	dynstr      &Section
 	data_offset u64
-	rel_addr usize
-	rel_size usize
-	phdr     &Elf64_Phdr
-	phnum    int
-	interp   &Section
-	note     &Section
-	gnu_hash &Section
-	_roinf   Section
-	roinf    &Section
+	rel_addr    usize
+	rel_size    usize
+	phdr        &Elf64_Phdr
+	phnum       int
+	interp      &Section
+	note        &Section
+	gnu_hash    &Section
+	_roinf      Section
+	roinf       &Section
 }
 
 fn sort_sections(s1 &TCCState, sec_order &int, interp &Section) int {
@@ -2251,15 +2251,17 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 			}
 		}
 	}
-	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1}; unsafe { sym < &Elf64_Sym((s1.symtab_section.data +
-		s1.symtab_section.data_offset)) }; unsafe { sym++ } {
+	for sym = unsafe { &Elf64_Sym(s1.symtab_section.data) + 1 }; unsafe {
+		sym < &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
+	}; unsafe { sym++ } {
 		if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 			sym.st_shndx = backmap[sym.st_shndx]
 		}
 	}
 	if !s1.static_link {
-		for sym = unsafe { &Elf64_Sym(s1.dynsym.data) + 1 }; unsafe { sym < &Elf64_Sym((s1.dynsym.data +
-			s1.dynsym.data_offset)) }; unsafe { sym++ } {
+		for sym = unsafe { &Elf64_Sym(s1.dynsym.data) + 1 }; unsafe {
+			sym < &Elf64_Sym((s1.dynsym.data + s1.dynsym.data_offset))
+		}; unsafe { sym++ } {
 			if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 				sym.st_shndx = backmap[sym.st_shndx]
 			}
@@ -2715,8 +2717,9 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 		match s.sh_type {
 			4 { // case comp body kind=BinaryOperator is_enum=false
 				offseti = sm_table[sh.sh_info].offset
-				for rel = unsafe { &Elf64_Rela(s.data) + (offset / sizeof(*rel)) }; unsafe { voidptr(rel) <
-					&Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel)) }; unsafe { rel++ } {
+				for rel = unsafe { &Elf64_Rela(s.data) + (offset / sizeof(*rel)) }; unsafe {
+					voidptr(rel) < &Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel))
+				}; unsafe { rel++ } {
 					type_ := 0
 					sym_index = u32(0)
 					type_ = ((rel.r_info) & 4294967295)
@@ -3084,7 +3087,7 @@ fn tcc_load_dll(s1 &TCCState, fd int, filename &i8, level int) int {
 	}
 	i = 1
 
-	for sym = unsafe { dynsym + 1}; i < nb_syms; i++, unsafe { sym++ } {
+	for sym = unsafe { dynsym + 1 }; i < nb_syms; i++, unsafe { sym++ } {
 		sym_bind = ((u8((sym.st_info))) >> 4)
 		if sym_bind == 0 {
 			continue

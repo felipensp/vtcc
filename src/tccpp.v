@@ -3,11 +3,11 @@ module main
 
 import strings
 
-const TOK_HASH_SIZE =       16384 // must be a power of two
+const TOK_HASH_SIZE = 16384 // must be a power of two
 
 __global isidnum_table = [256 - CH_EOF]u8{}
 
-__global  toksym_alloc = &TinyAlloc{}
+__global toksym_alloc = &TinyAlloc{}
 __global tokstr_alloc = &TinyAlloc{}
 
 __global cstr_buf = strings.new_builder(100)
@@ -206,7 +206,7 @@ fn unicode_to_utf8(b &i8, uc u32) &i8 {
 		*b++ = 128 + uc % 64
 	} else { // 3
 		error:
-		_tcc_error("0x${uc} is not a valid universal character");
+		_tcc_error('0x${uc} is not a valid universal character')
 	}
 	return b
 }
@@ -275,7 +275,7 @@ fn cstr_vprintf(cstr &CString, msg string) int {
 }
 
 @[c2v_variadic]
-fn cstr_printf(cstr &CString, msg string) int {
+fn cstr_printf(cstr &CString, msg ...string) int {
 	len := cstr_vprintf(cstr, msg)
 	return len
 }
@@ -360,8 +360,8 @@ fn get_tok_str(v int, cv &CValue) &char {
 	i := 0
 	len := 0
 
-	//cstr_reset(&cstr_buf)
-	//p = cstr_buf.data
+	// cstr_reset(&cstr_buf)
+	// p = cstr_buf.data
 	match v {
 		194, 195, 198, 199, 196, 197 {
 			C.sprintf(p, c'%llu', i64(cv.i))
@@ -439,8 +439,8 @@ fn get_tok_str(v int, cv &CValue) &char {
 					if q[2] == v {
 						unsafe {
 							*p++ = q[0]
-						*p++ = q[1]
-						*p = `\x00`
+							*p++ = q[1]
+							*p = `\x00`
 						}
 						return cstr_buf.data
 					}
@@ -453,7 +453,7 @@ fn get_tok_str(v int, cv &CValue) &char {
 				addv:
 				unsafe {
 					*p++ = v
-				*p = `\x00`
+					*p = `\x00`
 				}
 			} else if v < tok_ident {
 				return table_ident[v - 256].str
@@ -1156,7 +1156,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 		}
 		pstrcat(buf, sizeof(buf), name)
 		e = search_cached_include(s1, buf, 0)
-		if e != unsafe{ nil } && (define_find(e.ifndef_macro) || e.once != unsafe { nil }) {
+		if e != unsafe { nil } && (define_find(e.ifndef_macro) || e.once != unsafe { nil }) {
 			return 1
 		}
 		if tcc_open(s1, buf) >= 0 {
@@ -1169,7 +1169,9 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 		if s1.include_stack_ptr >= s1.include_stack + 32 {
 			_tcc_error('#include recursion too deep')
 		}
-		unsafe { *s1.include_stack_ptr++ = file.prev }
+		unsafe {
+			*s1.include_stack_ptr++ = file.prev
+		}
 		file.include_next_index = i
 		if s1.gen_deps {
 			bf := file
@@ -1247,7 +1249,7 @@ fn expr_preprocess(s1 &TCCState) int {
 			tok_str_add_tok(str)
 			next()
 			if tok == `(` {
-				_tcc_error("function-like macro '${get_tok_str(t,(unsafe { nil }))}' is not defined")
+				_tcc_error("function-like macro '${get_tok_str(t, (unsafe { nil }))}' is not defined")
 			}
 			goto _GOTO_PLACEHOLDER_0x7fffd88bbd88 // id: 0x7fffd88bbd88
 		}
