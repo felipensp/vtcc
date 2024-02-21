@@ -3,7 +3,11 @@ module main
 
 import strings
 
+#include <unistd.h>
+
 type uintptr_t = usize
+
+fn C.realloc(voidptr, int) voidptr
 
 fn C.strcpy(&char, &char) &char
 fn C.lseek(int, int, int) int
@@ -13,7 +17,9 @@ fn C.longjmp(&C.jmp_buf, int)
 // fn C.setjmp(&C.jmp_buf) int
 fn C._setjmp(&C.jmp_buf) int
 fn C.open(&char, int) int
-fn C.dlopen(&char, int) int
+fn C.dlopen(&char, int) voidptr
+fn C.dlsym(voidptr, &char) voidptr
+fn C.dlclose(voidptr) int
 fn C.strcat(&char, &char) &char
 fn C.strtoul(&char, &&char, int) u32
 fn C.strtoull(&char, &&char, int) i64
@@ -204,13 +210,17 @@ pub fn tcc_load_text(fd int) &i8 {
 }
 
 fn default_reallocator(ptr voidptr, size usize) voidptr {
-	ptr1 := &voidptr(0)
+	ptr1 := unsafe { nil }
 	if size == 0 {
 		C.free(ptr)
-		ptr1 = (unsafe { nil })
+		ptr1 = unsafe { nil }
+	} else if ptr != unsafe { nil } {
+		ptr1 = C.malloc(size)
 	} else {
+		eprintln('>> ${ptr1} ${size}')
 		ptr1 = C.realloc(ptr, size)
-		if !ptr1 {
+		eprintln('>> ${ptr1} ${size}')
+		if ptr1 == unsafe { nil } {
 			C.fprintf(C.stderr, c'memory full\n')
 			C.exit(1)
 		}
@@ -222,10 +232,9 @@ fn libc_free(ptr voidptr) {
 	C.free(ptr)
 }
 
-@[weak]
-__global (
-	reallocator = TCCReallocFunc(default_reallocator)
-)
+pub type TCCReallocFunc = fn (voidptr, usize) voidptr
+
+__global reallocator = TCCReallocFunc(default_reallocator)
 
 pub fn tcc_set_realloc(realloc TCCReallocFunc) {
 	reallocator = realloc
@@ -248,9 +257,8 @@ pub fn tcc_realloc(ptr voidptr, size u32) voidptr {
 }
 
 pub fn tcc_mallocz(size u32) voidptr {
-	ptr := &voidptr(0)
-	ptr = tcc_malloc(size)
-	if size {
+	ptr := &voidptr(tcc_malloc(size))
+	if ptr != unsafe { nil } && size {
 		C.memset(ptr, 0, size)
 	}
 	return ptr
@@ -525,6 +533,7 @@ pub fn tcc_open(s1 &TCCState, filename &i8) int {
 }
 
 pub fn tcc_compile(s1 &TCCState, filetype int, str &i8, fd int) int {
+	eprintln('>> ${@FN}')
 	tcc_enter_state(s1)
 	s1.error_set_jmp_enabled = 1
 	if C._setjmp(s1.error_jmp_buf) == 0 {
@@ -578,9 +587,15 @@ pub fn tcc_undefine_symbol(s1 &TCCState, sym &i8) {
 	cstr_printf(&s1.cmdline_defs, '#undef ${sym}\n')
 }
 
+pub fn vcc_trace(msg string) {
+	$if tracecall ? {
+		eprintln(msg)
+	}
+}
+
 pub fn tcc_new() &TCCState {
-	s := &TCCState(0)
-	s = tcc_mallocz(sizeof(TCCState))
+	vcc_trace('>> ${@FN}')
+	s := &TCCState(tcc_mallocz(sizeof(TCCState)))
 	if !s {
 		return unsafe { nil }
 	}
@@ -593,8 +608,9 @@ pub fn tcc_new() &TCCState {
 	s.warn_discarded_qualifiers = 1
 	s.ms_extensions = 1
 	s.ppfp = C.stdout
-	s.include_stack_ptr = s.include_stack
+	s.include_stack_ptr = &s.include_stack[0]
 	tcc_set_lib_path(s, c'/usr/local/lib/tcc')
+
 	return s
 }
 
@@ -859,20 +875,24 @@ pub fn tcc_set_lib_path(s &TCCState, path &i8) {
 	s.tcc_lib_path = tcc_strdup(path)
 }
 
-fn strstart(val &i8, str &&u8) int {
-	p := &i8(0)
-	q := &i8(0)
+fn strstart(val &char, str &&char) int {
+	vcc_trace('${@FN}')
+	p := &char(0)
+	q := &char(0)
 
 	p = *str
 	q = val
-	for *q {
-		if *p != *q {
+	for q && *q {
+		if p && *p != *q {
+			vcc_trace('${@FN}')
 			return 0
 		}
-		p++
-		q++
+		unsafe { p++ }
+		unsafe { q++ }
 	}
+	vcc_trace('${@FN}')
 	*str = p
+
 	return 1
 }
 
@@ -1479,7 +1499,7 @@ fn set_flag(s &TCCState, flags &FlagDef, name &i8) int {
 	return ret
 }
 
-const dumpmachine_str = c'x86_64-pc-linux-gnu'
+const dumpmachine_str = 'x86_64-pc-linux-gnu'
 
 fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
 	ret := 0
@@ -1552,10 +1572,11 @@ fn args_parser_listfile(s &TCCState, filename &i8, optind int, pargc &int, pargv
 	return 0
 }
 
-pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
+pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
+	vcc_trace('>> ${@FN}')
 	popt := &TCCOption(0)
-	optarg := &rune(0)
-	r := &rune(0)
+	optarg := &u8(0)
+	r := &u8(0)
 
 	run := (unsafe { nil })
 	x := 0
@@ -1563,24 +1584,30 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 	arg_start := 0
 	noaction := optind
 
-	argv := *pargv
-	argc := *pargc
+	argv := pargv
+	argc := pargc
+	vcc_trace('>> ${@LOCATION}')
 	cstr_reset(&s.linker_arg)
 	for optind < argc {
-		r = argv[optind]
+		r = argv[optind].str
+		vcc_trace('>> ${@LOCATION} ${optind} ${argv}')
 		if r[0] == `@` && r[1] != `\x00` {
 			if args_parser_listfile(s, r + 1, optind, &argc, &argv) {
 				return -1
 			}
+			vcc_trace('>> ${@LOCATION} ${optind}')
 			continue
 		}
+		vcc_trace('>> ${@LOCATION} ${optind}')
 		optind++
+		vcc_trace('>> ${@LOCATION} ${optind} ${r}')
 		if tool {
 			if r[0] == `-` && r[1] == `v` && r[2] == 0 {
 				s.verbose++
 			}
 			continue
 		}
+		vcc_trace('>> ${@LOCATION} ${optind}')
 		// RRRREG reparse id=0x7fffbf5aa950
 		reparse:
 		if r[0] != `-` || r[1] == `\x00` {
@@ -1596,6 +1623,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			continue
 		}
+		vcc_trace('>> ${@LOCATION} ${optind}')
 		if r[1] == `-` && r[2] == `\x00` && run {
 			unsafe {
 				goto dorun
@@ -1608,10 +1636,13 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			if p1 == (unsafe { nil }) {
 				return _tcc_error_noabort("invalid option -- '${r}'")
 			}
+			vcc_trace('>> ${@LOCATION} ${optind} ${p1} ${r1}')
 			if !strstart(p1, &r1) {
 				unsafe { popt++ }
+				vcc_trace('>> ${@LOCATION} ${optind} ${optarg}')
 				continue
 			}
+			vcc_trace('>> ${@LOCATION} ${optind} ${optarg}')
 			optarg = r1
 			if popt.flags & 1 {
 				if *r1 == `\x00` && !(popt.flags & 2) {
@@ -1620,7 +1651,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 						arg_err:
 						return _tcc_error_noabort("argument to '${r}' is missing")
 					}
-					optarg = argv[optind++]
+					optarg = argv[optind++].str
 				}
 			} else if *r1 != `\x00` {
 				unsafe { popt++ }
@@ -1628,6 +1659,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			}
 			break
 		}
+		vcc_trace('>> ${@LOCATION} ${optind}')
 		match popt.index {
 			tcc_option_help { // case comp body kind=BinaryOperator is_enum=true
 				x = 1
@@ -1770,6 +1802,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				} // id: 0x7fffbf5ae198
 			}
 			tcc_option_v { // case comp body kind=DoStmt is_enum=true
+				vcc_trace('>> ${@LOCATION} ${optind}')
 				for {
 					s.verbose
 					// while()
@@ -1865,7 +1898,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				s.gen_phony_deps = 1
 			}
 			tcc_option_dumpmachine { // case comp body kind=CallExpr is_enum=true
-				C.printf(c'%s\n', dumpmachine_str)
+				C.printf(c'%s\n', dumpmachine_str.str)
 				C.exit(0)
 			}
 			tcc_option_dumpversion { // case comp body kind=CallExpr is_enum=true
@@ -1919,6 +1952,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 				_tcc_warning("unsupported option '${r}'")
 			}
 		}
+		vcc_trace('>> ${@LOCATION} ${optind}')
 	}
 	if s.linker_arg.len {
 		r = s.linker_arg.data
@@ -1926,9 +1960,10 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 			goto arg_err
 		} // id: 0x7fffbf5ab8d0
 	}
+	vcc_trace('>> ${@LOCATION}')
 	unsafe {
-		*pargc = argc - arg_start
-		*pargv = argv + arg_start
+		*pargc = *argc - arg_start
+		pargv = argv[arg_start..]
 	}
 	if tool {
 		return tool
@@ -1946,7 +1981,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&i8, optind int) int {
 }
 
 pub fn tcc_set_options(s &TCCState, r &i8) int {
-	argv := (unsafe { nil })
+	argv := []string{}
 	argc := 0
 	ret := 0
 

@@ -3,6 +3,8 @@ module main
 
 import strings
 
+const STRING_MAX_SIZE = 1024
+
 __global isidnum_table = [256 - CH_EOF]u8{}
 
 __global toksym_alloc = &TinyAlloc{}
@@ -13,7 +15,7 @@ __global tokstr_buf = TokenString{}
 __global cstr_buf = strings.new_builder(100)
 
 __global hash_ident = &[TOK_HASH_SIZE]TokenSym{}
-__global token_buf [STRING_MAX_SIZE + 1]char
+__global token_buf = [STRING_MAX_SIZE + 1]char{}
 __global macro_stack = &TokenString{}
 
 __global pp_expr = int(0)
@@ -1669,6 +1671,7 @@ fn pragma_parse(s1 &TCCState) {
 }
 
 fn preprocess(is_bof int) {
+	eprintln('>> ${@FN}')
 	s1 := tcc_state
 	c := 0
 	n := 0

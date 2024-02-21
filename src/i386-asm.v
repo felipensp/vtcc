@@ -10,8 +10,6 @@ const segment_prefixes = [38, 46, 54, 62, 100, 101]!
 
 pub type TCCErrorFunc = fn (voidptr, &char)
 
-pub type TCCReallocFunc = fn (voidptr, usize) voidptr
-
 // empty enum
 const opt_reg8 = 0
 const opt_reg16 = 1

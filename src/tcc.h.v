@@ -32,7 +32,6 @@ __global funcname = &char(0)
 
 pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
 
-pub const STRING_MAX_SIZE = 1024
 pub const TOK_HASH_SIZE = 16384 // must be a power of two
 
 pub const CH_EOF = (-1) // end of file
@@ -161,6 +160,7 @@ pub struct Section {
 	name           [1]i8
 }
 
+@[minify]
 struct TCCState {
 	verbose          u8  // if true, display some information during compilation
 	nostdinc         u8  // if true, no standard headers are added
@@ -1654,6 +1654,10 @@ fn write64le(p &u8, x u64) {
 
 fn add64le(p &u8, x i64) {
 	write64le(p, read64le(p) + x)
+}
+
+@[typedef]
+struct C.sem_t {
 }
 
 pub struct TCCSem {

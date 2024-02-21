@@ -3,6 +3,10 @@ module main
 
 import os
 
+#flag -ldl
+
+#include <dlfcn.h>
+
 const help = "Tiny C Compiler 0.9.28rc - Copyright (C) 2001-2006 Fabrice Bellard\nUsage: tcc [options...] [-o outfile] [-c] infile(s)...\n       tcc [options...] -run infile (or --) [arguments...]\nGeneral options:\n  -c           compile only - generate an object file\n  -o outfile   set output filename\n  -run         run compiled source\n  -fflag       set or reset (with 'no-' prefix) 'flag' (see tcc -hh)\n  -std=c99     Conform to the ISO 1999 C standard (default).\n  -std=c11     Conform to the ISO 2011 C standard.\n  -Wwarning    set or reset (with 'no-' prefix) 'warning' (see tcc -hh)\n  -w           disable all warnings\n  -v --version show version\n  -vv          show search paths or loaded files\n  -h -hh       show this, show more help\n  -bench       show compilation statistics\n  -            use stdin pipe as infile\n  @listfile    read arguments from listfile\nPreprocessor options:\n  -Idir        add include path 'dir'\n  -Dsym[=val]  define 'sym' with value 'val'\n  -Usym        undefine 'sym'\n  -E           preprocess only\nLinker options:\n  -Ldir        add library path 'dir'\n  -llib        link with dynamic or static library 'lib'\n  -r           generate (relocatable) object file\n  -shared      generate a shared library/dll\n  -rdynamic    export all global symbols to dynamic linker\n  -soname      set name for shared library to be used at runtime\n  -Wl,-opt[=val]  set linker option (see tcc -hh)\nDebugger options:\n  -g           generate stab runtime debug info\n  -gdwarf[-x]  generate dwarf runtime debug info\n  -b           compile with built-in memory and bounds checker (implies -g)\n  -bt[N]       link with backtrace (stack dump) support [show max N callers]\nMisc. options:\n  -x[c|a|b|n]  specify type of the next infile (C,ASM,BIN,NONE)\n  -nostdinc    do not use standard system include paths\n  -nostdlib    do not link with standard crt and libraries\n  -Bdir        set tcc's private include/library dir\n  -M[M]D       generate make dependency file [ignore system files]\n  -M[M]        as above but no other output\n  -MF file     specify dependency file name\n  -m32/64      defer to i386/x86_64 cross compiler\nTools:\n  create library  : tcc -ar [crstvx] lib [files]\n"
 
 const help2 = "Tiny C Compiler 0.9.28rc - More Options\nSpecial options:\n  -P -P1                        with -E: no/alternative #line output\n  -dD -dM                       with -E: output #define directives\n  -pthread                      same as -D_REENTRANT and -lpthread\n  -On                           same as -D__OPTIMIZE__ for n > 0\n  -Wp,-opt                      same as -opt\n  -include file                 include 'file' above each input file\n  -isystem dir                  add 'dir' to system include path\n  -static                       link to static libraries (not recommended)\n  -dumpversion                  print version\n  -print-search-dirs            print search paths\n  -dt                           with -run/-E: auto-define 'test_...' macros\nIgnored options:\n  -arch -C --param -pedantic -pipe -s -traditional\n-W[no-]... warnings:\n  all                           turn on some (*) warnings\n  error[=warning]               stop after warning (any or specified)\n  write-strings                 strings are const\n  unsupported                   warn about ignored options, pragmas, etc.\n  implicit-function-declaration warn for missing prototype (*)\n  discarded-qualifiers          warn when const is dropped (*)\n-f[no-]... flags:\n  unsigned-char                 default char is unsigned\n  signed-char                   default char is signed\n  common                        use common section instead of bss\n  leading-underscore            decorate extern symbols\n  ms-extensions                 allow anonymous struct in struct\n  dollars-in-identifiers        allow '$' in C symbols\n  test-coverage                 create code coverage code\n-m... target specific options:\n  ms-bitfields                  use MSVC bitfield layout\n  no-sse                        disable floats on x86_64\n-Wl,... linker options:\n  -nostdlib                     do not link with standard crt/libs\n  -[no-]whole-archive           load lib(s) fully/only as needed\n  -export-all-symbols           same as -rdynamic\n  -export-dynamic               same as -rdynamic\n  -image-base= -Ttext=          set base address of executable\n  -section-alignment=           set section alignment in executable\n  -rpath=                       set dynamic library search path\n  -enable-new-dtags             set DT_RUNPATH instead of DT_RPATH\n  -soname=                      set DT_SONAME elf tag\n  -Bsymbolic                    set DT_SYMBOLIC elf tag\n  -oformat=[elf32/64-* binary]  set executable output format\n  -init= -fini= -Map= -as-needed -O   (ignored)\nPredefined macros:\n  tcc -E -dM - < /dev/null\nSee also the manual for more details.\n"
@@ -83,18 +87,21 @@ fn main() {
 	redo:
 	argc := os.args.len
 	argv := os.args
+
 	s = tcc_new()
-	opt = tcc_parse_args(s, &argc, &argv, 1)
+	vcc_trace('${argv[0]}')
+	opt = tcc_parse_args(s, argc, argv, 1)
 	if opt < 0 {
 		return
 	}
+	eprintln('>> ${opt}')
 	if n == 0 {
 		if opt == 1 {
 			eprintln(help)
 			if !s.verbose {
 				return
 			}
-			opt++$
+			opt++
 		}
 		if opt == 2 {
 			eprintln(help2)
@@ -118,9 +125,11 @@ fn main() {
 			print_search_dirs(s)
 			return
 		}
+		eprintln('>> --')
 		if s.nb_files == 0 {
 			_tcc_error_noabort('no input files')
 		} else if s.output_type == 5 {
+			eprintln('>> -1')
 			if s.outfile && 0 != unsafe { C.strcmp(c'-', s.outfile) } {
 				ppfp = C.fopen(s.outfile, c'w')
 				if !ppfp {
@@ -141,10 +150,12 @@ fn main() {
 			start_time = getclock_ms()
 		}
 	}
+	eprintln('>> 0')
 	set_environment(s)
 	if s.output_type == 0 {
 		s.output_type = 2
 	}
+	eprintln('>> a')
 	tcc_set_output_type(s, s.output_type)
 	s.ppfp = ppfp
 	if (s.output_type == 1 || s.output_type == 5) && s.dflag & 16 {

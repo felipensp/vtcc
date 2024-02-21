@@ -1728,7 +1728,7 @@ fn sort_sections(s1 &TCCState, sec_order &int, interp &Section) int {
 	n := 0
 
 	nb_sections := s1.nb_sections
-	sec_cls := sec_order + nb_sections
+	sec_cls := unsafe { sec_order + nb_sections }
 	for i = 1; i < nb_sections; i++ {
 		s = s1.sections[i]
 		if s.sh_flags & (1 << 1) {
@@ -1766,7 +1766,7 @@ fn sort_sections(s1 &TCCState, sec_order &int, interp &Section) int {
 			k = 67
 		} else if s == s1.bounds_section || s == s1.lbounds_section {
 			k = 68
-		} else if s == s1.rodata_section || 0 == C.strcmp(s.name, c'.data.rel.ro') {
+		} else if s == s1.rodata_section || 0 == unsafe { C.strcmp(s.name, c'.data.rel.ro') } {
 			k = 69
 		} else if s.sh_type == 6 {
 			k = 70
@@ -2080,7 +2080,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 
 	file_type = s1.output_type
 	shnum = s1.nb_sections
-	C.memset(&ehdr, 0, sizeof(ehdr))
+	unsafe { C.memset(&ehdr, 0, sizeof(ehdr)) }
 	if phnum > 0 {
 		ehdr.e_phentsize = sizeof(Elf64_Phdr)
 		ehdr.e_phnum = phnum
@@ -2336,7 +2336,9 @@ fn elf_output_file(s1 &TCCState, filename &i8) int {
 		if file_type & 2 {
 			bind_exe_dynsyms(s1, file_type & 4)
 			if s1.nb_errors {
-				goto the_end // id: 0x7fffe904af18
+				unsafe {
+					goto the_end
+				} // id: 0x7fffe904af18
 			}
 		}
 		build_got_entries(s1, got_sym)
@@ -2398,7 +2400,9 @@ fn elf_output_file(s1 &TCCState, filename &i8) int {
 	}
 	relocate_syms(s1, s1.symtab, 0)
 	if s1.nb_errors != 0 {
-		goto the_end // id: 0x7fffe904af18
+		unsafe {
+			goto the_end
+		} // id: 0x7fffe904af18
 	}
 	relocate_sections(s1)
 	if dynamic {
@@ -2508,7 +2512,7 @@ struct SectionMergeInfo {
 
 fn tcc_object_type(fd int, h &Elf64_Ehdr) int {
 	size := full_read(fd, h, sizeof(*h))
-	if size == sizeof(*h) && 0 == C.memcmp(h, c'\177ELF', 4) {
+	if size == sizeof(*h) && 0 == unsafe { C.memcmp(h, c'\177ELF', 4) } {
 		if h.e_type == 1 {
 			return 1
 		}
@@ -2516,7 +2520,7 @@ fn tcc_object_type(fd int, h &Elf64_Ehdr) int {
 			return 2
 		}
 	} else if size >= 8 {
-		if 0 == C.memcmp(h, c'!<arch>\n', 8) {
+		if 0 == unsafe { C.memcmp(h, c'!<arch>\n', 8) } {
 			return 3
 		}
 	}
@@ -2559,7 +2563,9 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 	s := &Section(0)
 	C.lseek(fd, file_offset, 0)
 	if tcc_object_type(fd, &ehdr) != 1 {
-		goto invalid // id: 0x7fffe9054a68
+		unsafe {
+			goto invalid
+		} // id: 0x7fffe9054a68
 	}
 	if ehdr.e_ident[5] != 1 || ehdr.e_machine != 62 {
 		// RRRREG invalid id=0x7fffe9054a68
@@ -2604,7 +2610,8 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 			sh = &shdr[sh.sh_info]
 		}
 		if sh.sh_type != 1 && sh.sh_type != 7 && sh.sh_type != 8 && sh.sh_type != 16
-			&& sh.sh_type != 14 && sh.sh_type != 15 && C.strcmp(strsec + sh.sh_name, c'.stabstr') {
+			&& sh.sh_type != 14 && sh.sh_type != 15
+			&& unsafe { C.strcmp(strsec + sh.sh_name, c'.stabstr') } {
 			continue
 		}
 		if seencompressed && 0 == C.strncmp(strsec + sh.sh_name, c'.debug_', 7) {
@@ -2748,7 +2755,7 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 							invalid_reloc:
 							_tcc_error_noabort("Invalid relocation entry [${i}] '${strsec +
 								sh.sh_name}' @ ${int(rel.r_offset)}")
-							goto the_end // id: 0x7fffe9056020
+							goto the_end
 						}
 						rel.r_info = ((Elf64_Xword(u64(sym_index))) << 32)
 						rel.r_info += type_
@@ -3085,7 +3092,9 @@ fn tcc_load_dll(s1 &TCCState, fd int, filename &i8, level int) int {
 		}
 	}
 	if !dynamic {
-		goto the_end // id: 0x7fffe9071040
+		unsafe {
+			goto the_end
+		} // id: 0x7fffe9071040
 	}
 	soname = tcc_basename(filename)
 	i = 0

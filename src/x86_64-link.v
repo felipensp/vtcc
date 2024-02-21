@@ -88,11 +88,12 @@ fn relocate_plt(s1 &TCCState) {
 		rel := &Elf64_Rela(0)
 		x := s1.plt.sh_addr + 16 + 6
 		p = s1.got.data
-		for rel = unsafe { &Elf64_Rela(s1.plt.reloc.data) }; unsafe {
-			voidptr(rel) < &Elf64_Rela((s1.plt.reloc.data + s1.plt.reloc.data_offset))
-		}; unsafe { rel++ } {
-			write64le(p + rel.r_offset, x)
-			x += 16
+		unsafe {
+			for rel = &Elf64_Rela(s1.plt.reloc.data); voidptr(rel) < &Elf64_Rela((
+				s1.plt.reloc.data + s1.plt.reloc.data_offset)); rel++ {
+				write64le(p + rel.r_offset, x)
+				x += 16
+			}
 		}
 	}
 }
