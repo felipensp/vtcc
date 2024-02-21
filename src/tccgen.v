@@ -262,22 +262,31 @@ fn tccgen_init(s1 &TCCState) {
 }
 
 fn tccgen_compile(s1 &TCCState) int {
-	tcc_state.cur_text_section = (unsafe { nil })
+	vcc_trace('${@LOCATION}')
+	tcc_state.cur_text_section = unsafe { nil }
 	funcname = c''
 	func_ind = -1
 	anon_sym = 268435456
 	nocode_wanted = 2147483648
 	local_scope = 0
 	debug_modes = (if s1.do_debug { 1 } else { 0 }) | s1.test_coverage << 1
+	vcc_trace('${@LOCATION}')
 	tcc_debug_start(s1)
+	vcc_trace('${@LOCATION}')
 	tcc_tcov_start(s1)
+	vcc_trace('${@LOCATION}')
 	parse_flags = 1 | 2 | 64
+	vcc_trace('${@LOCATION}')
 	next()
+	vcc_trace('${@LOCATION}')
 	decl(48)
+	vcc_trace('${@LOCATION}')
 	gen_inline_functions(s1)
 	check_vstack()
+	vcc_trace('${@LOCATION}')
 	tcc_debug_end(s1)
 	tcc_tcov_end(s1)
+	vcc_trace('${@LOCATION}')
 	return 0
 }
 
@@ -436,8 +445,7 @@ fn sym_free(sym &Sym) {
 }
 
 fn sym_push2(ps &&Sym, v int, t int, c int) &Sym {
-	s := &Sym(0)
-	s = sym_malloc()
+	s := &Sym(sym_malloc())
 	C.memset(s, 0, sizeof(*s))
 	s.v = v
 	s.type_.t = t
@@ -3732,6 +3740,7 @@ fn parse_btype_qualify(type_ &CType, qualifiers int) {
 }
 
 fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
+	vcc_trace('${@LOCATION}')
 	t := 0
 	u := 0
 	bt := 0
@@ -3751,6 +3760,7 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 	st = bt
 	type_.ref = (unsafe { nil })
 	for {
+		vcc_trace('${@LOCATION} ${tok}')
 		match Tcc_token(tok) {
 			.tok_extension { // case comp body kind=CallExpr is_enum=true
 				next()
@@ -7010,9 +7020,11 @@ fn decl(l int) int {
 	ad := AttributeDef{}
 	adbase := AttributeDef{}
 
-	for 1 {
+	for {
+		vcc_trace('${@LOCATION}')
 		oldint = 0
 		if !parse_btype(&btype, &adbase, l == 50) {
+			vcc_trace('${@LOCATION}')
 			if l == 52 {
 				return 0
 			}
@@ -7055,7 +7067,7 @@ fn decl(l int) int {
 				continue
 			}
 		}
-		for 1 {
+		for {
 			type_ = btype
 			ad = adbase
 			type_decl(&type_, &ad, &v, 2)
@@ -7099,6 +7111,7 @@ fn decl(l int) int {
 						sym.type_ = int_type
 					}
 				}
+				vcc_trace('${@LOCATION}')
 				merge_funcattr(&type_.ref.f, &ad.f)
 				type_.t &= ~4096
 				sym = external_sym(v, &type_, 0, &ad)
@@ -7201,9 +7214,11 @@ fn decl(l int) int {
 					skip(`;`)
 					break
 				}
+				vcc_trace('${@LOCATION}')
 				next()
 			}
 		}
+		vcc_trace('${@LOCATION}')
 	}
 	return 0
 }

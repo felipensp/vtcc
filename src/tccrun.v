@@ -335,7 +335,7 @@ fn set_pages_executable(s1 &TCCState, mode int, ptr voidptr, length u32) int {
 	end = Elf64_Addr(ptr) + length
 	end = (end + C.sysconf(C._SC_PAGESIZE) - 1) & ~(C.sysconf(C._SC_PAGESIZE) - 1)
 	if C.mprotect(voidptr(start), end - start, protect[mode]) {
-		return _tcc_error_noabort('mprotect failed: did you mean to configure --with-selinux?')
+		return _tcc_error_noabort(s1, 'mprotect failed: did you mean to configure --with-selinux?')
 	}
 	return 0
 }

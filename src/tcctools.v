@@ -335,7 +335,7 @@ fn tcc_tool_cross(s1 &TCCState, argv &&char, target int) int {
 		argv[0] = program
 		C.execvp(program, argv)
 	}
-	_tcc_error_noabort("could not run '${program}'")
+	_tcc_error_noabort(s1, "could not run '${program}'")
 	return 1
 }
 
@@ -371,7 +371,7 @@ fn gen_makedeps(s1 &TCCState, target &char, filename &char) int {
 		depout = C.fopen(filename, c'w')
 	}
 	if !depout {
-		return _tcc_error_noabort("could not open '${filename}'")
+		return _tcc_error_noabort(s1, "could not open '${filename}'")
 	}
 	if s1.verbose {
 		C.printf(c'<- %s\n', filename)

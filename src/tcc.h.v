@@ -30,9 +30,9 @@ __global func_vc = int(0)
 __global func_ind = int(0)
 __global funcname = &char(0)
 
-pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
+__global tcc_state = &TCCState(0)
 
-pub const TOK_HASH_SIZE = 16384 // must be a power of two
+pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
 
 pub const CH_EOF = (-1) // end of file
 pub const VSTACK_SIZE = 512
@@ -49,7 +49,7 @@ pub struct TokenSym {
 	sym_identifier &Sym
 	tok            int
 	len            int
-	str            &char
+	str            [1]char
 }
 
 pub type Nwchar_t = int
@@ -126,7 +126,7 @@ pub struct Sym {
 	f             FuncAttr
 	auxtype       int
 	enum_val      u64
-	d             int
+	d             &int
 	ncl           &Sym
 	type_         CType
 	vla_array_str &int
@@ -157,7 +157,7 @@ pub struct Section {
 	reloc          &Section
 	hash           &Section
 	prev           &Section
-	name           [1]i8
+	name           [1]char
 }
 
 @[minify]
@@ -398,7 +398,7 @@ pub struct DLLReference {
 	handle voidptr
 	found  u8
 	index  u8
-	name   [1]i8
+	name   [1]char
 }
 
 pub struct BufferedFile {
@@ -443,14 +443,14 @@ pub struct AttributeDef {
 pub struct InlineFunc {
 	func_str &TokenString
 	sym      &Sym
-	filename [1]i8
+	filename [1]char
 }
 
 pub struct CachedInclude {
 	ifndef_macro int
 	once         int
 	hash_next    int
-	filename     [1]i8
+	filename     [1]char
 }
 
 pub struct ExprValue {
@@ -482,8 +482,8 @@ pub struct Sym_attr {
 }
 
 pub struct Filespec {
-	type_ i8
-	name  [1]i8
+	type_ int
+	name  [1]char
 }
 
 enum Tcc_token as u16 {
@@ -1549,35 +1549,7 @@ enum Tcc_token as u16 {
 	tok_asm_clflush
 }
 
-@[weak]
-__global (
-	tokc CValue
-)
-
-@[weak]
-__global (
-	macro_ptr &int
-)
-
-@[weak]
-__global (
-	parse_flags int
-)
-
-@[weak]
-__global (
-	tokcstr CString
-)
-
-@[weak]
-__global (
-	tok_ident int
-)
-
-@[weak]
-__global (
-	table_ident &&TokenSym
-)
+__global tokcstr = strings.new_builder(100)
 
 enum Line_macro_output_format {
 	line_macro_output_format_gcc

@@ -10,7 +10,7 @@ struct DefaultDebug {
 	type_    int
 	size     int
 	encoding int
-	name     &i8
+	name     &char
 }
 
 const default_debug = [
@@ -217,7 +217,7 @@ fn tcc_debug_new(s1 &TCCState) {
 	}
 }
 
-fn put_stabs(s1 &TCCState, str &i8, type_ int, other int, desc int, value u32) {
+fn put_stabs(s1 &TCCState, str &char, type_ int, other int, desc int, value u32) {
 	sym := &Stab_Sym(0)
 	offset := u32(0)
 	offset = s1.stab_section.data_offset
@@ -239,7 +239,7 @@ fn put_stabs(s1 &TCCState, str &i8, type_ int, other int, desc int, value u32) {
 	sym.n_value = value
 }
 
-fn put_stabs_r(s1 &TCCState, str &i8, type_ int, other int, desc int, value u32, sec &Section, sym_index int) {
+fn put_stabs_r(s1 &TCCState, str &char, type_ int, other int, desc int, value u32, sec &Section, sym_index int) {
 	put_elf_reloc(s1.symtab_section, s1.stab_section, s1.stab_section.data_offset + 8,
 		if sizeof(u32) == 8 { 1 } else { 11 }, sym_index)
 	put_stabs(s1, str, type_, other, desc, value)
@@ -260,12 +260,12 @@ fn dwarf_reloc(s &Section, sym int, rel int) {
 	put_elf_reloca(s1.symtab_section, s, s.data_offset, rel, sym, 0)
 }
 
-fn dwarf_string(s &Section, dw &Section, sym int, str &i8) {
+fn dwarf_string(s &Section, dw &Section, sym int, str &char) {
 	s1 := s.s1
 	offset := 0
 	len := 0
 
-	ptr := &i8(0)
+	ptr := &char(0)
 	len = unsafe { C.strlen(str) + 1 }
 	offset = dw.data_offset
 	ptr = section_ptr_add(dw, len)
@@ -274,12 +274,12 @@ fn dwarf_string(s &Section, dw &Section, sym int, str &i8) {
 	write32le(section_ptr_add(s, 4), (if 8 == 4 { offset } else { 0 }))
 }
 
-fn dwarf_strp(s &Section, str &i8) {
+fn dwarf_strp(s &Section, str &char) {
 	s1 := s.s1
 	dwarf_string(s, s1.dwarf_str_section, s1.dState.dwarf_sym.str, str)
 }
 
-fn dwarf_line_strp(s &Section, str &i8) {
+fn dwarf_line_strp(s &Section, str &char) {
 	s1 := s.s1
 	dwarf_string(s, s1.dwarf_line_str_section, s1.dState.dwarf_sym.line_str, str)
 }
@@ -297,7 +297,7 @@ fn dwarf_file(s1 &TCCState) {
 	i := 0
 	j := 0
 
-	filename := &i8(0)
+	filename := &char(0)
 	index_offset := s1.dwarf < 5
 	if unsafe { !C.strcmp(file.filename, c'<command line>') } {
 		s1.dState.dwarf_line.cur_file = 1
@@ -336,7 +336,7 @@ fn dwarf_file(s1 &TCCState) {
 		if i == s1.dState.dwarf_line.dir_size {
 			s1.dState.dwarf_line.dir_size++
 			s1.dState.dwarf_line.dir_table = &&u8(tcc_realloc(s1.dState.dwarf_line.dir_table,
-				s1.dState.dwarf_line.dir_size * sizeof(&i8)))
+				s1.dState.dwarf_line.dir_size * sizeof(&char)))
 			s1.dState.dwarf_line.dir_table[i] = tcc_strdup(dir)
 		}
 		*undo = `/`
@@ -431,11 +431,15 @@ fn dwarf_sleb128_op(s1 &TCCState, value i64) {
 }
 
 fn tcc_debug_start(s1 &TCCState) {
+	vcc_trace('${@LOCATION}')
 	i := 0
-	buf := [512]i8{}
-	filename := &i8(0)
+	buf := [512]char{}
+	filename := &char(0)
+	vcc_trace('${@LOCATION}')
 	filename = if file.prev { file.prev.filename } else { file.filename }
+	vcc_trace('${@LOCATION} ${s1.symtab_section != unsafe { nil }}')
 	put_elf_sym(s1.symtab_section, 0, 0, (((0) << 4) + ((4) & 15)), 0, 65521, filename)
+	vcc_trace('${@LOCATION}')
 	if s1.do_debug {
 		s1.dState.new_file = 0
 		s1.dState.last_line_num = s1.dState.new_file
@@ -444,11 +448,13 @@ fn tcc_debug_start(s1 &TCCState) {
 		s1.dState.debug_anon_hash = (unsafe { nil })
 		s1.dState.n_debug_hash = 0
 		s1.dState.n_debug_anon_hash = 0
+		vcc_trace('${@LOCATION}')
 		C.getcwd(buf, sizeof(buf))
+		vcc_trace('${@LOCATION}')
 		if s1.dwarf {
 			start_abbrev := 0
 			ptr := &u8(0)
-			undo := &i8(0)
+			undo := &char(0)
 			start_abbrev = s1.dwarf_abbrev_section.data_offset
 			ptr = section_ptr_add(s1.dwarf_abbrev_section, sizeof(dwarf_abbrev_init))
 			unsafe { C.memcpy(ptr, dwarf_abbrev_init, sizeof(dwarf_abbrev_init)) }
@@ -472,20 +478,24 @@ fn tcc_debug_start(s1 &TCCState) {
 					ptr += 2
 				}
 			}
+			vcc_trace('${@LOCATION}')
 			s1.dState.dwarf_sym.info = dwarf_get_section_sym(s1.dwarf_info_section)
 			s1.dState.dwarf_sym.abbrev = dwarf_get_section_sym(s1.dwarf_abbrev_section)
 			s1.dState.dwarf_sym.line = dwarf_get_section_sym(s1.dwarf_line_section)
 			s1.dState.dwarf_sym.str = dwarf_get_section_sym(s1.dwarf_str_section)
+			vcc_trace('${@LOCATION}')
 			if tcc_state.dwarf >= 5 {
 				s1.dState.dwarf_sym.line_str = dwarf_get_section_sym(s1.dwarf_line_str_section)
 			} else {
 				s1.dwarf_line_str_section = s1.dwarf_str_section
 				s1.dState.dwarf_sym.line_str = s1.dState.dwarf_sym.str
 			}
+			vcc_trace('${@LOCATION}')
 			s1.dState.section_sym = dwarf_get_section_sym(s1.text_section)
 			s1.dState.dwarf_info.start = s1.dwarf_info_section.data_offset
 			write32le(section_ptr_add((s1.dwarf_info_section), 4), (0))
 			write16le(section_ptr_add((s1.dwarf_info_section), 2), (s1.dwarf))
+			vcc_trace('${@LOCATION}')
 			if s1.dwarf >= 5 {
 				{
 					p := &char(section_ptr_add((s1.dwarf_info_section), 1))
@@ -571,7 +581,7 @@ fn tcc_debug_start(s1 &TCCState) {
 				*undo = 0
 			}
 			s1.dState.dwarf_line.dir_size = 1 + (undo != (unsafe { nil }))
-			s1.dState.dwarf_line.dir_table = &&u8(tcc_malloc(sizeof(&i8) * s1.dState.dwarf_line.dir_size))
+			s1.dState.dwarf_line.dir_table = &&u8(tcc_malloc(sizeof(&char) * s1.dState.dwarf_line.dir_size))
 			s1.dState.dwarf_line.dir_table[0] = tcc_strdup(buf)
 			if undo {
 				s1.dState.dwarf_line.dir_table[1] = tcc_strdup(filename)
@@ -807,7 +817,7 @@ fn put_new_file(s1 &TCCState) &BufferedFile {
 	return f
 }
 
-fn tcc_debug_putfile(s1 &TCCState, filename &i8) {
+fn tcc_debug_putfile(s1 &TCCState, filename &char) {
 	if 0 == unsafe { C.strcmp(file.filename, filename) } {
 		return
 	}
@@ -904,7 +914,7 @@ fn tcc_debug_line(s1 &TCCState) {
 	}
 }
 
-fn tcc_debug_stabs(s1 &TCCState, str &i8, type_ int, value u32, sec &Section, sym_index int, info int) {
+fn tcc_debug_stabs(s1 &TCCState, str &char, type_ int, value u32, sec &Section, sym_index int, info int) {
 	s := &Debug_sym(0)
 	if s1.dState.debug_info {
 		s1.dState.debug_info.sym = &Debug_sym(tcc_realloc(s1.dState.debug_info.sym, sizeof(Debug_sym) * (
@@ -1892,7 +1902,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 		return
 	}
 	if s1.dState.tcov_data.last_file_name == 0
-		|| unsafe { C.strcmp(&i8((s1.tcov_section.data + s1.dState.tcov_data.last_file_name)), file.truefilename) != 0 } {
+		|| unsafe { C.strcmp(&char((s1.tcov_section.data + s1.dState.tcov_data.last_file_name)), file.truefilename) != 0 } {
 		wd := [1024]i8{}
 		cstr := strings.new_builder(100)
 		if s1.dState.tcov_data.last_func_name {
@@ -1917,7 +1927,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 		cstr_free(&cstr)
 	}
 	if s1.dState.tcov_data.last_func_name == 0
-		|| unsafe { C.strcmp(&i8((s1.tcov_section.data + s1.dState.tcov_data.last_func_name)), funcname) != 0 } {
+		|| unsafe { C.strcmp(&char((s1.tcov_section.data + s1.dState.tcov_data.last_func_name)), funcname) != 0 } {
 		len := usize(0)
 		if s1.dState.tcov_data.last_func_name {
 			section_ptr_add(s1.tcov_section, 1)

@@ -13,7 +13,7 @@ const help2 = "Tiny C Compiler 0.9.28rc - More Options\nSpecial options:\n  -P -
 
 const version = 'tcc version 0.9.28rc (x86_64 Linux)\n'
 
-fn print_dirs(msg &i8, paths &&u8, nb_paths int) {
+fn print_dirs(msg &char, paths &&char, nb_paths int) {
 	i := 0
 	C.printf(c'%s:\n%s', msg, if nb_paths { c'' } else { c'  -\n' })
 	for i = 0; i < nb_paths; i++ {
@@ -31,24 +31,28 @@ fn print_search_dirs(s &TCCState) {
 }
 
 fn set_environment(s &TCCState) {
-	path := &i8(0)
-	path = C.getenv(c'C_INCLUDE_PATH')
-	if path != (unsafe { nil }) {
+	vcc_trace('${@LOCATION}')
+	path := C.getenv(c'C_INCLUDE_PATH')
+	if path != unsafe { nil } {
+		vcc_trace('${@LOCATION}')
 		tcc_add_sysinclude_path(s, path)
 	}
 	path = C.getenv(c'CPATH')
-	if path != (unsafe { nil }) {
+	if path != unsafe { nil } {
+		vcc_trace('${@LOCATION}')
 		tcc_add_include_path(s, path)
 	}
 	path = C.getenv(c'LIBRARY_PATH')
-	if path != (unsafe { nil }) {
+	if path != unsafe { nil } {
+		vcc_trace('${@LOCATION}')
 		tcc_add_library_path(s, path)
 	}
+	vcc_trace('${@LOCATION}')
 }
 
 fn default_outputfile(s &TCCState, first_file &char) &char {
 	buf := [1024]char{}
-	ext := &i8(0)
+	ext := &char(0)
 	name := c'a'
 	if first_file && unsafe { C.strcmp(first_file, c'-') } {
 		name = tcc_basename(first_file)
@@ -71,6 +75,7 @@ fn getclock_ms() u64 {
 
 fn main() {
 	s := &TCCState(0)
+	s1 := &TCCState(0)
 
 	ret := 0
 	opt := 0
@@ -81,28 +86,31 @@ fn main() {
 	start_time := 0
 	end_time := 0
 
-	first_file := &i8(0)
-	ppfp := &C.stdout
+	first_file := &char(0)
+	ppfp := C.stdout
 	// RRRREG redo id=0x7ffff0d74558
 	redo:
 	argc := os.args.len
 	argv := os.args
 
 	s = tcc_new()
-	vcc_trace('${argv[0]}')
+	s1 = s
+	vcc_trace('${@LOCATION} ${argv}')
 	opt = tcc_parse_args(s, argc, argv, 1)
 	if opt < 0 {
 		return
 	}
-	eprintln('>> ${opt}')
 	if n == 0 {
 		if opt == 1 {
+			vcc_trace('${@LOCATION} ${opt}')
 			eprintln(help)
 			if !s.verbose {
+				vcc_trace('${@LOCATION} ${opt}')
 				return
 			}
 			opt++
 		}
+		vcc_trace('${@LOCATION} ${opt}')
 		if opt == 2 {
 			eprintln(help2)
 			return
@@ -119,28 +127,33 @@ fn main() {
 		if opt == 3 {
 			return
 		}
+		vcc_trace('${@LOCATION}')
 		if opt == 4 {
+			vcc_trace('${@LOCATION}')
 			set_environment(s)
+			vcc_trace('${@LOCATION}')
 			tcc_set_output_type(s, 1)
+			vcc_trace('${@LOCATION}')
 			print_search_dirs(s)
+			vcc_trace('${@LOCATION}')
 			return
 		}
-		eprintln('>> --')
+		vcc_trace('${@LOCATION}')
 		if s.nb_files == 0 {
-			_tcc_error_noabort('no input files')
+			_tcc_error_noabort(s1, 'no input files')
 		} else if s.output_type == 5 {
 			eprintln('>> -1')
 			if s.outfile && 0 != unsafe { C.strcmp(c'-', s.outfile) } {
 				ppfp = C.fopen(s.outfile, c'w')
 				if !ppfp {
-					_tcc_error_noabort("could not write '${s.outfile}'")
+					_tcc_error_noabort(s1, "could not write '${s.outfile}'")
 				}
 			}
 		} else if s.output_type == 3 && !s.option_r {
 			if s.nb_libraries {
-				_tcc_error_noabort('cannot specify libraries with -c')
+				_tcc_error_noabort(s1, 'cannot specify libraries with -c')
 			} else if s.nb_files > 1 && s.outfile {
-				_tcc_error_noabort('cannot specify output file with -c many files')
+				_tcc_error_noabort(s1, 'cannot specify output file with -c many files')
 			}
 		}
 		if s.nb_errors {
@@ -150,13 +163,14 @@ fn main() {
 			start_time = getclock_ms()
 		}
 	}
-	eprintln('>> 0')
+	vcc_trace('${@LOCATION}')
 	set_environment(s)
 	if s.output_type == 0 {
 		s.output_type = 2
 	}
-	eprintln('>> a')
+	vcc_trace('${@LOCATION}')
 	tcc_set_output_type(s, s.output_type)
+	vcc_trace('${@LOCATION}')
 	s.ppfp = ppfp
 	if (s.output_type == 1 || s.output_type == 5) && s.dflag & 16 {
 		if t {
@@ -167,22 +181,32 @@ fn main() {
 			n--$
 		}
 	}
-	first_file = unsafe { nil }
+	vcc_trace('${@LOCATION}')
+	first_file = &char(unsafe { nil })
 	ret = 0
 	for {
+		vcc_trace('${@LOCATION}')
 		f := s.files[n]
+		vcc_trace('${@LOCATION}')
 		s.filetype = f.type_
+		vcc_trace('${@LOCATION}')
 		if f.type_ & 8 {
+			vcc_trace('${@LOCATION}')
 			if tcc_add_library_err(s, f.name) < 0 {
 				ret = 1
 			}
 		} else {
+			vcc_trace('${@LOCATION}')
 			if 1 == s.verbose {
+				vcc_trace('${@LOCATION}')
 				C.printf(c'-> %s\n', f.name)
 			}
 			if !first_file {
-				first_file = f.name
+				vcc_trace('${@LOCATION} ${f.name}')
+				first_file = &char(f.name)
+				vcc_trace('${@LOCATION} ${first_file.vstring()}')
 			}
+			vcc_trace('${@LOCATION}')
 			if tcc_add_file(s, f.name) < 0 {
 				ret = 1
 			}
@@ -192,44 +216,56 @@ fn main() {
 		if !(!done && (s.output_type != 3 || s.option_r)) {
 			break
 		}
+		vcc_trace('${@LOCATION}')
 	}
+	vcc_trace('${@LOCATION}')
 	if s.do_bench {
+		vcc_trace('${@LOCATION}')
 		end_time = getclock_ms()
 	}
 	if s.run_test {
 		t = 0
 	} else if s.output_type == 5 {
-		0
 	} else if 0 == ret {
 		if s.output_type == 1 {
+			vcc_trace('${@LOCATION}')
 			ret = tcc_run(s, argc, argv)
 		} else {
 			if !s.outfile {
+				vcc_trace('${@LOCATION}')
 				s.outfile = default_outputfile(s, first_file)
 			}
+			vcc_trace('${@LOCATION}')
 			if !s.just_deps && tcc_output_file(s, s.outfile) {
 				ret = 1
 			} else if s.gen_deps {
+				vcc_trace('${@LOCATION}')
 				ret = gen_makedeps(s, s.outfile, s.deps_outfile)
 			}
 		}
 	}
 	if done && 0 == t && 0 == ret && s.do_bench {
+		vcc_trace('${@LOCATION}')
 		tcc_print_stats(s, end_time - start_time)
 	}
+	vcc_trace('${@LOCATION}')
 	tcc_delete(s)
 	if !done {
 		unsafe {
+			vcc_trace('${@LOCATION}')
 			goto redo
 		} // id: 0x7ffff0d74558
 	}
 	if t {
 		unsafe {
+			vcc_trace('${@LOCATION}')
 			goto redo
 		} // id: 0x7ffff0d74558
 	}
 	if ppfp && ppfp != C.stdout {
+		vcc_trace('${@LOCATION}')
 		C.fclose(ppfp)
+		vcc_trace('${@LOCATION}')
 	}
 	return
 }

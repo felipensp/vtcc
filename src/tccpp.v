@@ -3,7 +3,19 @@ module main
 
 import strings
 
+#include <time.h>
+
 const STRING_MAX_SIZE = 1024
+const TOK_HASH_SIZE = 16384 // must be a power of two
+
+__global table_ident = &&TokenSym(0)
+__global tok_ident = int(0)
+
+__global tok = int(0)
+__global tok_flags = int(0)
+__global tokc = CValue{}
+__global macro_ptr = &int(0)
+__global parse_flags = int(0)
 
 __global isidnum_table = [256 - CH_EOF]u8{}
 
@@ -30,8 +42,9 @@ fn C.strtod(&char, &&char) f64
 fn C.time(&C.time_t) C.time_t
 fn C.localtime(&C.time_t) C.tm
 
-@[typedef]
-struct C.time_t {}
+//@[typedef]
+// struct C.time_t {}
+type time_t = u64 // C.time_t
 
 struct C.tm {
 	tm_sec   int
@@ -163,14 +176,14 @@ const tok_two_chars = [`<`, `=`, 158, `>`, `=`, 157, `!`, `=`, 149, `&`, `&`, 14
 
 fn skip(c int) {
 	if tok != c {
-		tmp := [40]i8{}
+		tmp := [40]char{}
 		pstrcpy(tmp, sizeof(tmp), get_tok_str(c, &tokc))
 		_tcc_error('\'${tmp}\' expected (got "${get_tok_str(tok, &tokc)}")')
 	}
 	next()
 }
 
-fn expect(msg &i8) {
+fn expect(msg &char) {
 	_tcc_error('${msg} expected')
 }
 
@@ -234,20 +247,25 @@ fn tal_free_impl(al &TinyAlloc, p voidptr) {
 }
 
 fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
+	// vcc_trace('${@LOCATION}')
 	header := &Tal_header_t(0)
-	ret := &voidptr(0)
+	ret := unsafe { nil }
 	is_own := 0
 	adj_size := (size + 3) & -4
 	al := *pal
 	// RRRREG tail_call id=0x7fffd886f110
 	tail_call:
-	is_own = (al.buffer <= &u8(p) && &u8(p) < al.buffer + al.size)
+	vcc_trace('${@LOCATION}')
+	is_own = (al.buffer <= p && p < al.buffer + al.size)
 	if (!p || is_own) && size <= al.limit {
+		vcc_trace('${@LOCATION}')
 		if al.p - al.buffer + adj_size + sizeof(Tal_header_t) < al.size {
+			vcc_trace('${@LOCATION}')
 			header = &Tal_header_t(al.p)
 			header.size = adj_size
 			ret = al.p + sizeof(Tal_header_t)
 			al.p += adj_size + sizeof(Tal_header_t)
+			vcc_trace('${@LOCATION}')
 			if is_own {
 				header = unsafe { ((&Tal_header_t(p)) - 1) }
 				if p {
@@ -259,7 +277,8 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 			return ret
 		} else if is_own {
 			al.nb_allocs--
-			ret = tal_realloc_impl(&*pal, 0, size)
+			vcc_trace('${@LOCATION}')
+			ret = tal_realloc_impl(&&TinyAlloc(pal), 0, size)
 			header = unsafe { ((&Tal_header_t(p)) - 1) }
 			if p {
 				C.memcpy(ret, p, header.size)
@@ -267,10 +286,12 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 			return ret
 		}
 		if al.next {
+			vcc_trace('${@LOCATION}')
 			al = al.next
 		} else {
 			bottom := al
 			next := if al.top { al.top } else { al }
+			vcc_trace('${@LOCATION}')
 
 			al = tal_new(pal, next.limit, next.size * 2)
 			al.next = next
@@ -280,17 +301,21 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 	}
 	if is_own {
 		al.nb_allocs--
+		vcc_trace('${@LOCATION}')
 		ret = tcc_malloc(size)
 		header = unsafe { ((&Tal_header_t(p)) - 1) }
 		if p {
 			C.memcpy(ret, p, header.size)
 		}
 	} else if al.next {
+		vcc_trace('${@LOCATION}')
 		al = al.next
 		goto tail_call // id: 0x7fffd886f110
 	} else { // 3
+		vcc_trace('${@LOCATION}')
 		ret = tcc_realloc(p, size)
 	}
+	// vcc_trace('${@LOCATION}')
 	return ret
 }
 
@@ -307,35 +332,43 @@ fn cstr_realloc(cstr &CString, new_size int) {
 	// cstr.size_allocated = size
 }
 
-fn cstr_ccat(cstr &strings.Builder, ch int) {
+fn cstr_ccat(cstr &strings.Builder, ch u8) {
 	// size := 0
 	// size = cstr.size + 1
 	// if size > cstr.size_allocated {
 	// 	cstr_realloc(cstr, size)
 	// }
-	cstr.write_string(ch.str())
+	cstr.write_byte(ch)
 	//(&u8(cstr.data))[size - 1] = ch
 	// cstr.size = size
 }
 
-fn unicode_to_utf8(b &i8, uc u32) &i8 {
+fn unicode_to_utf8(b &char, uc u32) &char {
 	if uc < 128 {
-		*b++ = uc
+		unsafe {
+			*b++ = uc
+		}
 	} else if uc < 2048 {
-		*b++ = 192 + uc / 64
-		*b++ = 128 + uc % 64
+		unsafe {
+			*b++ = 192 + uc / 64
+			*b++ = 128 + uc % 64
+		}
 	} else if uc - 55296 < 2048 {
 		goto error // id: 0x7fffd88752c8
 	} else if uc < 65536 {
-		*b++ = 224 + uc / 4096
-		*b++ = 128 + uc / 64 % 64
-		*b++ = 128 + uc % 64
+		unsafe {
+			*b++ = 224 + uc / 4096
+			*b++ = 128 + uc / 64 % 64
+			*b++ = 128 + uc % 64
+		}
 	} else if uc < 1114112 {
-		*b++ = 240 + uc / 262144
-		*b++ = 128 + uc / 4096 % 64
-		*b++
-		128 + uc / 64 % 64
-		*b++ = 128 + uc % 64
+		unsafe {
+			*b++ = 240 + uc / 262144
+			*b++ = 128 + uc / 4096 % 64
+			*b++
+			128 + uc / 64 % 64
+			*b++ = 128 + uc % 64
+		}
 	} else { // 3
 		error:
 		_tcc_error('0x${uc} is not a valid universal character')
@@ -344,14 +377,14 @@ fn unicode_to_utf8(b &i8, uc u32) &i8 {
 }
 
 fn cstr_u8cat(cstr &CString, ch int) {
-	buf := [4]i8{}
-	e := &i8(0)
+	buf := [4]char{}
+	e := &char(0)
 
 	e = unicode_to_utf8(buf, u32(ch))
 	cstr_cat(cstr, buf, e - buf)
 }
 
-fn cstr_cat(cstr &strings.Builder, str &char, len int) {
+fn cstr_cat(cstr &strings.Builder, str &u8, len int) {
 	// size := 0
 	// if len <= 0 {
 	// 	len = C.strlen(str) + 1 + len
@@ -360,32 +393,40 @@ fn cstr_cat(cstr &strings.Builder, str &char, len int) {
 	// if size > cstr.size_allocated {
 	// 	cstr_realloc(cstr, size)
 	// }
-	cstr.write_string(str.vstring())
+	if len <= 0 {
+		vcc_trace('${@LOCATION}: ${(&char(str)).vstring()} ${len}')
+		cstr.write_ptr(str, C.strlen(str))
+	} else {
+		cstr.write_ptr(str, len)
+	}
 	// C.memmove((&u8(cstr.data)) + cstr.size, str, len)
 	// cstr.size = size
 }
 
-fn cstr_wccat(cstr &strings.Builder, ch int) {
+fn cstr_wccat(cstr &strings.Builder, ch u8) {
 	// size := 0
 	// size = cstr.size + sizeof(Nwchar_t)
 	// if size > cstr.size_allocated {
 	// 	cstr_realloc(cstr, size)
 	// }
-	cstr.write_string(ch.str())
+	cstr.write_byte(ch)
 	// *&Nwchar_t(((&u8(cstr.data)) + size - sizeof(Nwchar_t))) = ch
 	// cstr.size = size
 }
 
 fn cstr_new(cstr &strings.Builder) {
 	// C.memset(cstr, 0, sizeof(CString))
+	cstr.clear()
 }
 
 fn cstr_free(cstr &CString) {
 	// tcc_free(cstr.data)
+	cstr.clear()
 }
 
 fn cstr_reset(cstr &CString) {
 	// cstr.size = 0
+	cstr.clear()
 }
 
 fn cstr_vprintf(cstr &strings.Builder, msg string) int {
@@ -433,7 +474,8 @@ fn add_char(cstr &CString, c int) {
 	}
 }
 
-fn tok_alloc_new(pts &&TokenSym, str &i8, len int) &TokenSym {
+fn tok_alloc_new(pts &&TokenSym, str &char, len int) &TokenSym {
+	vcc_trace('${@LOCATION} ${pts != unsafe { nil }}')
 	ts := &TokenSym(0)
 	ptable := &&TokenSym(0)
 
@@ -443,25 +485,38 @@ fn tok_alloc_new(pts &&TokenSym, str &i8, len int) &TokenSym {
 	}
 	i = tok_ident - 256
 	if (i % 512) == 0 {
-		ptable = tcc_realloc(table_ident, (i + 512) * sizeof(&TokenSym))
+		vcc_trace_force('${@LOCATION} table_ident reallocd ${table_ident != unsafe { nil }}')
+		ptable = &&TokenSym(tcc_realloc(table_ident, (i + 512) * sizeof(&TokenSym)))
 		table_ident = ptable
+		vcc_trace_force('${@LOCATION} table_ident reallocd ${table_ident[77] != unsafe { nil }}')
 	}
-	ts = tal_realloc_impl(&toksym_alloc, 0, sizeof(TokenSym) + len)
+	// vcc_trace('${@LOCATION}')
+	ts = &TokenSym(tal_realloc_impl(&toksym_alloc, unsafe { nil }, sizeof(TokenSym) + len))
+	// vcc_trace('${@LOCATION}')
 	table_ident[i] = ts
+	if i == 77 {
+		vcc_trace_force('${@LOCATION} table_ident[${i}] alloc ${table_ident[i] != unsafe { nil }}')
+	}
+	// vcc_trace('${@LOCATION}')
 	ts.tok = tok_ident++
-	ts.sym_define = (unsafe { nil })
-	ts.sym_label = (unsafe { nil })
-	ts.sym_struct = (unsafe { nil })
-	ts.sym_identifier = (unsafe { nil })
+	ts.sym_define = unsafe { nil }
+	ts.sym_label = unsafe { nil }
+	ts.sym_struct = unsafe { nil }
+	ts.sym_identifier = unsafe { nil }
 	ts.len = len
-	ts.hash_next = (unsafe { nil })
-	C.memcpy(ts.str, str, len)
-	ts.str[len] = `\x00`
+	ts.hash_next = unsafe { nil }
+	// vcc_trace('${@LOCATION} ${str.vstring()} ${len} ${ts.str}')
+	C.memcpy(&ts.str[0], str, len)
+	// vcc_trace('${@LOCATION}')
+	*(&ts.str[0] + len) = `\x00`
+	// vcc_trace('${@LOCATION}')
 	*pts = ts
+	vcc_trace('${@LOCATION}')
 	return ts
 }
 
-fn tok_alloc(str &i8, len int) &TokenSym {
+fn tok_alloc(str &char, len int) &TokenSym {
+	// vcc_trace('${@LOCATION}')
 	ts := &TokenSym(0)
 	pts := &&TokenSym(0)
 
@@ -469,11 +524,12 @@ fn tok_alloc(str &i8, len int) &TokenSym {
 	h := u32(0)
 	h = 1
 	for i = 0; i < len; i++ {
-		h = (h + (h << 5) + (h >> 27) + ((&u8(str))[i]))
+		h = (h + (h << 5) + (h >> 27) + ((&char(str))[i]))
 	}
+	// vcc_trace('${@LOCATION}')
 	h &= (16384 - 1)
 	pts = &hash_ident[h]
-	for ; true; {
+	for {
 		ts = *pts
 		if !ts {
 			break
@@ -481,12 +537,13 @@ fn tok_alloc(str &i8, len int) &TokenSym {
 		if ts.len == len && !C.memcmp(ts.str, str, len) {
 			return ts
 		}
-		pts = &(ts.hash_next)
+		pts = &ts.hash_next
 	}
+	// vcc_trace('${@LOCATION}')
 	return tok_alloc_new(pts, str, len)
 }
 
-fn tok_alloc_const(str &i8) int {
+fn tok_alloc_const(str &char) int {
 	return tok_alloc(str, C.strlen(str)).tok
 }
 
@@ -591,7 +648,7 @@ fn get_tok_str(v int, cv &CValue) &char {
 					*p = `\x00`
 				}
 			} else if v < tok_ident {
-				return table_ident[v - 256].str
+				return &char(table_ident[v - 256].str)
 			} else if v >= 268435456 {
 				C.sprintf(p, c'L.%u', v - 268435456)
 			} else {
@@ -948,7 +1005,7 @@ fn preprocess_skip() {
 }
 
 fn tok_str_new(s &TokenString) {
-	s.str = (unsafe { nil })
+	s.str = unsafe { nil }
 	s.len = 0
 	s.lastlen = s.len
 	s.allocated_len = 0
@@ -956,14 +1013,13 @@ fn tok_str_new(s &TokenString) {
 }
 
 fn tok_str_alloc() &TokenString {
-	str := &TokenString(tal_realloc_impl(&tokstr_alloc, 0, sizeof(TokenString)))
+	str := &TokenString(tal_realloc_impl(&tokstr_alloc, unsafe { nil }, sizeof(TokenString)))
 	tok_str_new(str)
 	return str
 }
 
 fn tok_str_dup(s &TokenString) &int {
-	str := &int(0)
-	str = tal_realloc_impl(&tokstr_alloc, 0, s.len * sizeof(int))
+	str := &int(tal_realloc_impl(&tokstr_alloc, unsafe { nil }, s.len * sizeof(int)))
 	C.memcpy(str, s.str, s.len * sizeof(int))
 	return str
 }
@@ -978,10 +1034,10 @@ fn tok_str_free(str &TokenString) {
 }
 
 fn tok_str_realloc(s &TokenString, new_size int) &int {
+	vcc_trace('${@LOCATION}')
 	str := &int(0)
-	size := 0
-
-	size = s.allocated_len
+	size := s.allocated_len
+	vcc_trace('${@LOCATION}')
 	if size < 16 {
 		size = 16
 	}
@@ -989,10 +1045,12 @@ fn tok_str_realloc(s &TokenString, new_size int) &int {
 		size = size * 2
 	}
 	if size > s.allocated_len {
+		vcc_trace('${@LOCATION}')
 		str = tal_realloc_impl(&tokstr_alloc, s.str, size * sizeof(int))
 		s.allocated_len = size
 		s.str = str
 	}
+	vcc_trace('${@LOCATION}')
 	return s.str
 }
 
@@ -1170,17 +1228,20 @@ fn macro_is_equal(a &int, b &int) int {
 }
 
 fn define_push(v int, macro_type int, str &int, first_arg &Sym) {
-	s := &Sym(0)
-	o := &Sym(0)
-
-	o = define_find(v)
-	s = sym_push2(&define_stack, v, macro_type, 0)
-	s.d = str
+	vcc_trace('${@LOCATION}')
+	o := define_find(v)
+	vcc_trace('${@LOCATION} ${o != unsafe { nil }}')
+	s := sym_push2(&define_stack, v, macro_type, 0)
+	vcc_trace('${@LOCATION} ${s != unsafe { nil }} ${str} ${s.d}')
+	s.d = &int(str)
+	vcc_trace('${@LOCATION}')
 	s.next = first_arg
 	table_ident[v - 256].sym_define = s
+	vcc_trace('${@LOCATION}')
 	if o != unsafe { nil } && !macro_is_equal(o.d, s.d) {
 		_tcc_warning('${get_tok_str(v, (unsafe { nil }))} redefined')
 	}
+	vcc_trace('${@LOCATION}')
 }
 
 fn define_undef(s &Sym) {
@@ -1195,6 +1256,7 @@ fn define_find(v int) &Sym {
 	if u32(v) >= u32((tok_ident - 256)) {
 		return unsafe { nil }
 	}
+	vcc_trace('${@LOCATION} ${table_ident[v] != unsafe { nil }}')
 	return table_ident[v].sym_define
 }
 
@@ -1209,7 +1271,7 @@ fn free_defines(b &Sym) {
 }
 
 fn maybe_run_test(s &TCCState) {
-	p := &i8(0)
+	p := &char(0)
 	if s.include_stack_ptr != s.include_stack {
 		return
 	}
@@ -1496,9 +1558,9 @@ fn parse_define() {
 	define_push(v, t, tok_str_dup(&tokstr_buf), first)
 }
 
-fn search_cached_include(s1 &TCCState, filename &i8, add int) &CachedInclude {
-	s := &i8(0)
-	basename := &i8(0)
+fn search_cached_include(s1 &TCCState, filename &char, add int) &CachedInclude {
+	s := &char(0)
+	basename := &char(0)
 
 	h := u32(0)
 	e := &CachedInclude(0)
@@ -1512,7 +1574,7 @@ fn search_cached_include(s1 &TCCState, filename &i8, add int) &CachedInclude {
 	c = u8(*s)
 	for c != 0 {
 		h = (h + (h << 5) + (h >> 27) + c)
-		s++
+		unsafe { s++ }
 		c = u8(*s)
 	}
 	h &= (32 - 1)
@@ -1581,7 +1643,7 @@ fn pragma_parse(s1 &TCCState) {
 			}
 		}
 		if s {
-			table_ident[v - 256].sym_define = if s.d { s } else { (unsafe { nil }) }
+			table_ident[v - 256].sym_define = if s.d { s } else { unsafe { nil } }
 		} else { // 3
 			_tcc_warning('unbalanced #pragma pop_macro')
 		}
@@ -1636,7 +1698,7 @@ fn pragma_parse(s1 &TCCState) {
 			goto pragma_err // id: 0x7fffd88c22b8
 		}
 	} else if tok == Tcc_token.tok_comment {
-		p := &i8(0)
+		p := &char(0)
 		t := 0
 		next()
 		skip(`(`)
@@ -1646,7 +1708,7 @@ fn pragma_parse(s1 &TCCState) {
 		if tok != 200 {
 			goto pragma_err // id: 0x7fffd88c22b8
 		}
-		p = tcc_strdup(&i8(tokc.str.data))
+		p = tcc_strdup(&char(tokc.str.data))
 		next()
 		if tok != `)` {
 			goto pragma_err // id: 0x7fffd88c22b8
@@ -1671,21 +1733,23 @@ fn pragma_parse(s1 &TCCState) {
 }
 
 fn preprocess(is_bof int) {
-	eprintln('>> ${@FN}')
+	vcc_trace('${@LOCATION}')
 	s1 := tcc_state
 	c := 0
 	n := 0
 	saved_parse_flags := 0
 
-	buf := [1024]i8{}
-	q := &i8(0)
+	buf := [1024]char{}
+	q := &char(0)
 
 	s := &Sym(0)
 	saved_parse_flags = parse_flags
 	parse_flags = 1 | 2 | 64 | 4 | (parse_flags & 8)
+	vcc_trace('${@LOCATION}')
 	next_nomacro()
 	// RRRREG redo id=0x7fffd88c9688
 	redo:
+	vcc_trace('${@LOCATION} ${tok}')
 	match tok {
 		int(Tcc_token.tok_define) { // case comp body kind=BinaryOperator is_enum=true
 			pp_debug_tok = tok
@@ -1796,7 +1860,7 @@ fn preprocess(is_bof int) {
 			}
 		}
 		205 { // case comp body kind=BinaryOperator is_enum=true
-			n = C.strtoul(&i8(tokc.str.data), &q, 10)
+			n = C.strtoul(&char(tokc.str.data), &q, 10)
 			goto _line_num // id: 0x7fffd88ca278
 		}
 		int(Tcc_token.tok_line) { // case comp body kind=CallExpr is_enum=true
@@ -1815,7 +1879,7 @@ fn preprocess(is_bof int) {
 					if file.truefilename == file.filename {
 						file.truefilename = tcc_strdup(file.filename)
 					}
-					q = &i8(tokc.str.data)
+					q = &char(tokc.str.data)
 					buf[0] = 0
 					if !(q[0] == c'/') {
 						pstrcpy(buf, sizeof(buf), file.truefilename)
@@ -1840,7 +1904,9 @@ fn preprocess(is_bof int) {
 			c = skip_spaces()
 			for c != `\n` && c != (-1) {
 				if (q - buf) < sizeof(buf) - 1 {
-					*q++ = c
+					unsafe {
+						*q++ = c
+					}
 				}
 				c = handle_stray_noerror(0)
 			}
@@ -2067,7 +2133,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 	}
 }
 
-fn parse_string(s &i8, len int) {
+fn parse_string(s &char, len int) {
 	buf := [1000]u8{}
 	p := unsafe { &buf[0] }
 
@@ -2076,9 +2142,14 @@ fn parse_string(s &i8, len int) {
 
 	is_long = *s == c'L'
 	if is_long {
-		s++$, len--$
+		unsafe {
+			s++
+			len--
+		}
 	}
-	sep = *s++
+	unsafe {
+		sep = *s++
+	}
 	len -= 2
 	if len >= sizeof(buf) {
 		p = &char(tcc_malloc(len + 1))
@@ -2116,7 +2187,7 @@ fn parse_string(s &i8, len int) {
 			if is_long {
 				c = (&Nwchar_t(tokcstr.data))[i]
 			} else { // 3
-				c = (c << 8) | (&i8(tokcstr.data))[i]
+				c = (c << 8) | (&char(tokcstr.data))[i]
 			}
 		}
 		tokc.i = c
@@ -2148,7 +2219,7 @@ fn bn_zero(bn &u32) {
 	}
 }
 
-fn parse_number(p &i8) {
+fn parse_number(p &char) {
 	b := 0
 	t := 0
 	shift := 0
@@ -2157,26 +2228,32 @@ fn parse_number(p &i8) {
 	exp_val := 0
 	ch := 0
 
-	q := &i8(0)
+	q := &char(0)
 	bn := [2]u32{}
 	d := 0.0
 	q = token_buf
-	ch = *p++
-	t = ch
-	ch = *p++
-	*q++ = t
-	b = 10
+	unsafe {
+		ch = *p++
+		t = ch
+		ch = *p++
+		*q++ = t
+		b = 10
+	}
 	if t == `.` {
 		goto float_frac_parse // id: 0x7fffd88d6070
 	} else if t == `0` {
 		if ch == `x` || ch == `X` {
-			q--
-			ch = *p++
-			b = 16
+			unsafe {
+				q--
+				ch = *p++
+				b = 16
+			}
 		} else if tcc_state.tcc_ext && (ch == `b` || ch == `B`) {
-			q--
-			ch = *p++
-			b = 2
+			unsafe {
+				q--
+				ch = *p++
+				b = 2
+			}
 		}
 	}
 	for 1 {
@@ -2197,8 +2274,10 @@ fn parse_number(p &i8) {
 			num_too_long:
 			_tcc_error('number too long')
 		}
-		*q++ = ch
-		ch = *p++
+		unsafe {
+			*q++ = ch
+			ch = *p++
+		}
 	}
 	if ch == `.` || ((ch == `e` || ch == `E`) && b == 10)
 		|| ((ch == `p` || ch == `P`) && (b == 16 || b == 2)) {
@@ -2212,7 +2291,9 @@ fn parse_number(p &i8) {
 			bn_zero(bn)
 			q = token_buf
 			for 1 {
-				t = *q++
+				unsafe {
+					t = *q++
+				}
 				if t == `\x00` {
 					break
 				} else if t >= `a` {
@@ -2226,7 +2307,9 @@ fn parse_number(p &i8) {
 			}
 			frac_bits = 0
 			if ch == `.` {
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 				for 1 {
 					t = ch
 					if t >= `a` && t <= `f` {
@@ -2243,38 +2326,52 @@ fn parse_number(p &i8) {
 					}
 					bn_lshift(bn, shift, t)
 					frac_bits += shift
-					ch = *p++
+					unsafe {
+						ch = *p++
+					}
 				}
 			}
 			if ch != `p` && ch != `P` {
 				expect(c'exponent')
 			}
-			ch = *p++
+			unsafe {
+				ch = *p++
+			}
 			s = 1
 			exp_val = 0
 			if ch == `+` {
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 			} else if ch == `-` {
 				s = -1
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 			}
 			if ch < `0` || ch > `9` {
 				expect(c'exponent digits')
 			}
 			for ch >= `0` && ch <= `9` {
 				exp_val = exp_val * 10 + ch - `0`
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 			}
 			exp_val = exp_val * s
 			d = f64(bn[1]) * 4294967296 + f64(bn[0])
 			d = C.ldexp(d, exp_val - frac_bits)
 			t = toup(ch)
 			if t == `F` {
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 				tok = 202
 				tokc.f = f32(d)
 			} else if t == `L` {
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 				tok = 204
 				tokc.ld = f64(d)
 			} else {
@@ -2286,30 +2383,38 @@ fn parse_number(p &i8) {
 				if q >= token_buf + 1024 {
 					goto num_too_long // id: 0x7fffd88d7010
 				}
-				*q++ = ch
-				ch = *p++
+				unsafe {
+					*q++ = ch
+					ch = *p++
+				}
 				// RRRREG float_frac_parse id=0x7fffd88d6070
 
 				float_frac_parse: for ch >= `0` && ch <= `9` {
 					if q >= token_buf + 1024 {
 						goto num_too_long // id: 0x7fffd88d7010
 					}
-					*q++ = ch
-					ch = *p++
+					unsafe {
+						*q++ = ch
+						ch = *p++
+					}
 				}
 			}
 			if ch == `e` || ch == `E` {
 				if q >= token_buf + 1024 {
 					goto num_too_long // id: 0x7fffd88d7010
 				}
-				*q++ = ch
-				ch = *p++
+				unsafe {
+					*q++ = ch
+					ch = *p++
+				}
 				if ch == `-` || ch == `+` {
 					if q >= token_buf + 1024 {
 						goto num_too_long // id: 0x7fffd88d7010
 					}
-					*q++ = ch
-					ch = *p++
+					unsafe {
+						*q++ = ch
+						ch = *p++
+					}
 				}
 				if ch < `0` || ch > `9` {
 					expect(c'exponent digits')
@@ -2318,19 +2423,25 @@ fn parse_number(p &i8) {
 					if q >= token_buf + 1024 {
 						goto num_too_long // id: 0x7fffd88d7010
 					}
-					*q++ = ch
-					ch = *p++
+					unsafe {
+						*q++ = ch
+						ch = *p++
+					}
 				}
 			}
 			*q = `\x00`
 			t = toup(ch)
 			C.errno = 0
 			if t == `F` {
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 				tok = 202
 				tokc.f = C.strtof(token_buf, (unsafe { nil }))
 			} else if t == `L` {
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 				tok = 204
 				tokc.ld = C.strtold(token_buf, (unsafe { nil }))
 			} else {
@@ -2346,16 +2457,18 @@ fn parse_number(p &i8) {
 		ucount := 0
 		ov := 0
 
-		p1 := &i8(0)
+		p1 := &char(0)
 		*q = `\x00`
 		q = token_buf
 		if b == 10 && *q == c'0' {
 			b = 8
-			q++
+			unsafe { q++ }
 		}
 		n = 0
 		for 1 {
-			t = *q++
+			unsafe {
+				t = *q++
+			}
 			if t == `\x00` {
 				break
 			} else if t >= `a` {
@@ -2387,13 +2500,17 @@ fn parse_number(p &i8) {
 					_tcc_error('incorrect integer suffix: ${p1}')
 				}
 				lcount++
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 			} else if t == `U` {
 				if ucount >= 1 {
 					_tcc_error("two 'u's in integer constant")
 				}
 				ucount++
-				ch = *p++
+				unsafe {
+					ch = *p++
+				}
 			} else {
 				break
 			}
@@ -2441,6 +2558,7 @@ fn parse_number(p &i8) {
 }
 
 fn next_nomacro1() {
+	vcc_trace('${@LOCATION}')
 	t := 0
 	c := 0
 	is_long := 0
@@ -2451,10 +2569,11 @@ fn next_nomacro1() {
 	p1 := &u8(0)
 
 	h := u32(0)
-	p = file.buf_ptr
+	p = &file.buf_ptr[0]
 	// RRRREG redo_no_start id=0x7fffd88e0230
 	redo_no_start:
 	c = *p
+	vcc_trace('${@LOCATION} ${rune(c)}')
 	match rune(c) {
 		` `, `\t` {
 			tok = c
@@ -2524,7 +2643,7 @@ fn next_nomacro1() {
 		}
 		`#` {
 			// case comp stmt
-			c = *p++$
+			c = *p++
 			if c == `\\` {
 				c = handle_stray(&p)
 			}
@@ -2558,6 +2677,7 @@ fn next_nomacro1() {
 		`K`, `M`, `N`, `O`, `P`, `Q`, `R`, `S`, `T`, `U`, `V`, `W`, `X`, `Y`, `Z`, `_` {
 			// RRRREG parse_ident_fast id=0x7fffd88e41e0
 			parse_ident_fast:
+			vcc_trace('${@LOCATION}')
 			p1 = p
 			h = 1
 			h = (h + (h << 5) + (h >> 27) + c)
@@ -2566,37 +2686,42 @@ fn next_nomacro1() {
 				h = (h + (h << 5) + (h >> 27) + c)
 				c = *p++
 			}
+			vcc_trace('${@LOCATION}')
 			len = p - p1
 			if c != `\\` {
 				pts := &&TokenSym(0)
 				h &= (16384 - 1)
 				pts = &hash_ident[h]
-				for ; true; {
+				vcc_trace('${@LOCATION}')
+				for {
 					ts = *pts
+					vcc_trace('${@LOCATION}')
 					if !ts {
+						break
 					}
 					if ts.len == len && !C.memcmp(ts.str, p1, len) {
 						goto token_found // id: 0x7fffd88e5370
 					}
 					pts = &(ts.hash_next)
 				}
-				ts = tok_alloc_new(pts, &i8(p1), len)
+				vcc_trace('${@LOCATION}')
+				ts = tok_alloc_new(pts, &char(p1), len)
 				// RRRREG token_found id=0x7fffd88e5370
 				token_found:
-				0
 			} else {
+				vcc_trace('${@LOCATION}')
 				cstr_reset(&tokcstr)
-				cstr_cat(&tokcstr, &i8(p1), len)
+				cstr_cat(&tokcstr, &char(p1), len)
 				p--
 				{
-					c = *p++$
+					c = *p++
 					if c == `\\` {
 						c = handle_stray(&p)
 					}
 				}
-				0
 				// RRRREG parse_ident_slow id=0x7fffd88e6130
 
+				vcc_trace('${@LOCATION}')
 				parse_ident_slow: for isidnum_table[c - (-1)] & (2 | 4) {
 					cstr_ccat(&tokcstr, c)
 					{
@@ -2610,6 +2735,7 @@ fn next_nomacro1() {
 				ts = tok_alloc(tokcstr.data, tokcstr.len)
 			}
 			tok = ts.tok
+			vcc_trace('${@LOCATION}')
 		}
 		`L` { // case comp body kind=BinaryOperator is_enum=false
 			t = p[1]
@@ -2617,7 +2743,7 @@ fn next_nomacro1() {
 				goto parse_ident_fast // id: 0x7fffd88e41e0
 			} else {
 				{
-					c = *p++$
+					c = *p++
 					if c == `\\` {
 						c = handle_stray(&p)
 					}
@@ -2636,30 +2762,30 @@ fn next_nomacro1() {
 		`0`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9` {
 			t = c
 			{
-				c = *p++$
+				c = *p++
 				if c == `\\` {
 					c = handle_stray(&p)
 				}
 			}
-			0
 			// RRRREG parse_num id=0x7fffd88e7498
 			parse_num:
 			cstr_reset(&tokcstr)
-			for ; true; {
+			for {
+				vcc_trace('${@LOCATION}')
 				cstr_ccat(&tokcstr, t)
 				if !(isidnum_table[c - (-1)] & (2 | 4) || c == `.`
 					|| ((c == `+` || c == `-`) && (((t == `e` || t == `E`) && !(parse_flags & 8
-					&& (&i8(tokcstr.data))[0] == c'0' && toup((&i8(tokcstr.data))[1]) == `X`))
+					&& (&char(tokcstr.data))[0] == c'0' && toup((&char(tokcstr.data))[1]) == `X`))
 					|| t == `p` || t == `P`))) {
+					break
 				}
 				t = c
 				{
-					c = *p++$
+					c = *p++
 					if c == `\\` {
 						c = handle_stray(&p)
 					}
 				}
-				0
 			}
 			cstr_ccat(&tokcstr, `\x00`)
 			tokc.str.size = tokcstr.len
@@ -2668,7 +2794,7 @@ fn next_nomacro1() {
 		}
 		`.` {
 			// case comp stmt
-			c = *p++$
+			c = *p++
 			if c == `\\` {
 				c = handle_stray(&p)
 			}
@@ -2691,7 +2817,7 @@ fn next_nomacro1() {
 					p++
 					tok = 161
 				} else {
-					*p--$ = `.`
+					*p-- = `.`
 					tok = `.`
 				}
 			} else {
@@ -2716,7 +2842,7 @@ fn next_nomacro1() {
 		}
 		`<` {
 			// case comp stmt
-			c = *p++$
+			c = *p++
 			if c == `\\` {
 				c = handle_stray(&p)
 			}
@@ -2731,7 +2857,6 @@ fn next_nomacro1() {
 						c = handle_stray(&p)
 					}
 				}
-				0
 				if c == `=` {
 					p++
 					tok = 184
@@ -2744,7 +2869,7 @@ fn next_nomacro1() {
 		}
 		`>` {
 			// case comp stmt
-			c = *p++$
+			c = *p++
 			if c == `\\` {
 				c = handle_stray(&p)
 			}
@@ -2954,6 +3079,7 @@ fn next_nomacro1() {
 	// RRRREG keep_tok_flags id=0x7fffd88e04d8
 	keep_tok_flags:
 	file.buf_ptr = p
+	vcc_trace('${@LOCATION}')
 }
 
 fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
@@ -3330,9 +3456,9 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 	spc := 0
 
 	str := TokenString{}
-	cstrval := &i8(0)
+	cstrval := &char(0)
 	cval := CValue{}
-	buf := [32]i8{}
+	buf := [32]char{}
 	if tok == Tcc_token.tok___line__ || tok == Tcc_token.tok___counter__ {
 		t = if tok == Tcc_token.tok___line__ { file.line_num } else { pp_counter++ }
 		C.snprintf(buf, sizeof(buf), c'%d', t)
@@ -3343,7 +3469,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 		cstrval = file.filename
 		goto add_cstr // id: 0x7fffd88fced0
 	} else if tok == Tcc_token.tok___date__ || tok == Tcc_token.tok___time__ {
-		ti := C.time_t{}
+		ti := u64(0)
 		tm := &C.tm(0)
 		C.time(&ti)
 		tm = C.localtime(&ti)
@@ -3563,11 +3689,14 @@ fn macro_subst(tok_str &TokenString, nested_list &&Sym, macro_str &int) {
 }
 
 fn next_nomacro() {
+	vcc_trace('${@LOCATION}')
 	t := 0
 	if macro_ptr {
 		// RRRREG redo id=0x7fffd8905950
 		redo:
+		vcc_trace('${@LOCATION}')
 		t = *macro_ptr
+		vcc_trace('${@LOCATION}')
 		if (t >= 192 && t <= 207) {
 			tok_get(&tok, &macro_ptr, &tokc)
 			if t == 207 {
@@ -3584,8 +3713,10 @@ fn next_nomacro() {
 			tok = t
 		}
 	} else {
+		vcc_trace('${@LOCATION}')
 		next_nomacro1()
 	}
+	vcc_trace('${@LOCATION}')
 }
 
 fn next() {
@@ -3622,11 +3753,11 @@ fn next() {
 	}
 	if t == 205 {
 		if parse_flags & 2 {
-			parse_number(&i8(tokc.str.data))
+			parse_number(&char(tokc.str.data))
 		}
 	} else if t == 206 {
 		if parse_flags & 64 {
-			parse_string(&i8(tokc.str.data), tokc.str.size - 1)
+			parse_string(&char(tokc.str.data), tokc.str.size - 1)
 		}
 	}
 }
@@ -3699,18 +3830,23 @@ fn tcc_predefs(s1 &TCCState, cs &CString, is_asm int) {
 
 fn preprocess_start(s1 &TCCState, filetype int) {
 	is_asm := !!(filetype & (2 | 4))
+	vcc_trace('${@LOCATION}')
 	tccpp_new(s1)
-	s1.include_stack_ptr = s1.include_stack
-	s1.ifdef_stack_ptr = s1.ifdef_stack
-	file.ifdef_stack_ptr = s1.ifdef_stack_ptr
+	vcc_trace('${@LOCATION}')
+	s1.include_stack_ptr = &s1.include_stack[0]
+	s1.ifdef_stack_ptr = &s1.ifdef_stack[0]
+	file.ifdef_stack_ptr = &s1.ifdef_stack_ptr[0]
+	vcc_trace('${@LOCATION}')
 	pp_expr = 0
 	pp_counter = 0
 	pp_debug_tok = 0
 	pp_debug_symv = pp_debug_tok
 	s1.pack_stack[0] = 0
-	s1.pack_stack_ptr = s1.pack_stack
+	s1.pack_stack_ptr = &s1.pack_stack[0]
+	vcc_trace('${@LOCATION}')
 	set_idnum(`$`, if !is_asm && s1.dollars_in_identifiers { 2 } else { 0 })
 	set_idnum(`.`, if is_asm { 2 } else { 0 })
+	vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 	if !(filetype & 2) {
 		cstr := strings.new_builder(100)
 		cstr_new(&cstr)
@@ -3753,9 +3889,6 @@ fn tccpp_new(s &TCCState) {
 	i := 0
 	c := 0
 
-	p := &i8(0)
-	r := &i8(0)
-
 	for i = (-1); i < 128; i++ {
 		set_idnum(i, if is_space(i) {
 			1
@@ -3767,36 +3900,44 @@ fn tccpp_new(s &TCCState) {
 			}
 		})
 	}
+	vcc_trace('${@LOCATION}')
 	for i = 128; i < 256; i++ {
 		set_idnum(i, 2)
 	}
+	vcc_trace('${@LOCATION}')
 	tal_new(&toksym_alloc, 256, (768 * 1024))
 	tal_new(&tokstr_alloc, 128, (768 * 1024))
-	C.memset(hash_ident, 0, 16384 * sizeof(&TokenSym))
+	vcc_trace('${@LOCATION}')
+	C.memset(hash_ident, 0, TOK_HASH_SIZE * sizeof(&TokenSym))
 	C.memset(s.cached_includes_hash, 0, sizeof(s.cached_includes_hash))
+	vcc_trace('${@LOCATION}')
 	cstr_new(&tokcstr)
 	cstr_new(&cstr_buf)
+	vcc_trace('${@LOCATION}')
 	cstr_realloc(&cstr_buf, 1024)
+	vcc_trace('${@LOCATION}')
 	tok_str_new(&tokstr_buf)
+	vcc_trace('${@LOCATION}')
 	tok_str_realloc(&tokstr_buf, 256)
+	vcc_trace('${@LOCATION}')
 	tok_ident = 256
-	p = tcc_keywords
-	for *p {
-		r = p
-		for ; true; {
-			c = *r++
-			if c == `\x00` {
-				break
-			}
-		}
-		tok_alloc(p, r - p - 1)
-		p = r
+
+	vcc_trace('${@LOCATION} ${table_ident != unsafe { nil }}')
+	vcc_disable_trace()
+	for keyword in tcc_keywords {
+		// vcc_trace('${@LOCATION} ${keyword}')
+		tok_alloc(keyword.str, keyword.len)
 	}
-	define_push(Tcc_token.tok___line__, 0, (unsafe { nil }), (unsafe { nil }))
-	define_push(Tcc_token.tok___file__, 0, (unsafe { nil }), (unsafe { nil }))
-	define_push(Tcc_token.tok___date__, 0, (unsafe { nil }), (unsafe { nil }))
-	define_push(Tcc_token.tok___time__, 0, (unsafe { nil }), (unsafe { nil }))
-	define_push(Tcc_token.tok___counter__, 0, (unsafe { nil }), (unsafe { nil }))
+	vcc_enable_trace()
+	vcc_trace('${@LOCATION} ${table_ident[77] != unsafe { nil }}')
+	unsafe {
+		define_push(Tcc_token.tok___line__, 0, nil, nil)
+		define_push(Tcc_token.tok___file__, 0, nil, nil)
+		define_push(Tcc_token.tok___date__, 0, nil, nil)
+		define_push(Tcc_token.tok___time__, 0, nil, nil)
+		define_push(Tcc_token.tok___counter__, 0, nil, nil)
+	}
+	vcc_trace('${@LOCATION}')
 }
 
 fn tccpp_delete(s &TCCState) {
@@ -3812,17 +3953,17 @@ fn tccpp_delete(s &TCCState) {
 		tal_free_impl(toksym_alloc, table_ident[i])
 	}
 	tcc_free(table_ident)
-	table_ident = (unsafe { nil })
+	table_ident = unsafe { nil }
 	cstr_free(&tokcstr)
 	cstr_free(&cstr_buf)
 	tok_str_free_str(tokstr_buf.str)
 	tal_delete(toksym_alloc)
-	toksym_alloc = (unsafe { nil })
+	toksym_alloc = unsafe { nil }
 	tal_delete(tokstr_alloc)
-	tokstr_alloc = (unsafe { nil })
+	tokstr_alloc = unsafe { nil }
 }
 
-fn tok_print(msg &i8, str &int) {
+fn tok_print(msg &char, str &int) {
 	fp := &C.FILE(0)
 	t := 0
 	s := 0
@@ -3908,7 +4049,7 @@ fn pp_debug_defines(s1 &TCCState) {
 	v := 0
 	t := 0
 
-	vs := &i8(0)
+	vs := &char(0)
 	fp := &C.FILE(0)
 	t = pp_debug_tok
 	if t == 0 {
@@ -3963,8 +4104,7 @@ fn pp_need_space(a int, b int) bool {
 	}
 }
 
-@[c: 'pp_check_he0xE']
-fn pp_check_he0xe(t int, p &i8) int {
+fn pp_check_he0xe(t int, p &char) int {
 	if t == 205 && toup(C.strchr(p, 0)[-1]) == `E` {
 		return int(c'E')
 	}
@@ -3977,8 +4117,8 @@ fn tcc_preprocess(s1 &TCCState) int {
 	spcs := 0
 	level := 0
 
-	p := &i8(0)
-	white := [400]i8{}
+	p := &char(0)
+	white := [400]char{}
 	parse_flags = 1 | (parse_flags & 8) | 4 | 16 | 32
 	if s1.pflag == Line_macro_output_format.line_macro_output_format_p10 {
 		parse_flags |= 2
@@ -4011,7 +4151,7 @@ fn tcc_preprocess(s1 &TCCState) int {
 		if tok == (-1) {
 			break
 		}
-		level = unsafe { s1.include_stack_ptr - voidptr(iptr) }
+		level = unsafe { &char(s1.include_stack_ptr) - &char(iptr) }
 		if level {
 			if level > 0 {
 				pp_line(s1, *iptr, 0)

@@ -156,7 +156,7 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				diff := i64(0)
 				diff = i64(val) - addr
 				if diff < -2147483648 || diff > 2147483647 {
-					_tcc_error_noabort('internal error: relocation failed')
+					_tcc_error_noabort(s1, 'internal error: relocation failed')
 				}
 				add32le(ptr, diff)
 			}
@@ -221,7 +221,7 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				x = sym.st_value - sec.sh_addr - sec.data_offset
 				add32le(ptr + 8, x)
 			} else { // 3
-				_tcc_error_noabort('unexpected R_X86_64_TLSGD pattern')
+				_tcc_error_noabort(s1, 'unexpected R_X86_64_TLSGD pattern')
 			}
 		}
 		20 {
@@ -234,7 +234,7 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 				C.memcpy(ptr - 3, replace, sizeof(replace))
 				rel[1].r_info = (((Elf64_Xword((0))) << 32) + (0))
 			} else { // 3
-				_tcc_error_noabort('unexpected R_X86_64_TLSLD pattern')
+				_tcc_error_noabort(s1, 'unexpected R_X86_64_TLSLD pattern')
 			}
 		}
 		21, 23 {

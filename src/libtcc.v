@@ -25,8 +25,8 @@ fn C.strtoul(&char, &&char, int) u32
 fn C.strtoull(&char, &&char, int) i64
 
 pub struct Sym_version {
-	lib           &i8
-	version       &i8
+	lib           &char
+	version       &char
 	out_index     int
 	prev_same_lib int
 }
@@ -77,25 +77,11 @@ pub enum Stab_debug_code {
 	last_unused_stab_code
 }
 
-@[weak]
-__global (
-	tcc_state &TCCState
-)
+//__global tcc_state = &TCCState{}
+__global stk_data = &voidptr(0)
+__global nb_stk_data int
 
-@[weak]
-__global (
-	stk_data &voidptr
-)
-
-@[weak]
-__global (
-	nb_stk_data int
-)
-
-@[weak]
-__global (
-	file &BufferedFile
-)
+__global file = &BufferedFile{}
 
 @[weak]
 __global (
@@ -138,42 +124,54 @@ fn tcc_run_free(s1 &TCCState) {
 }
 
 pub fn tcc_enter_state(s1 &TCCState) {
+	vcc_trace('${@LOCATION}')
 	if s1.error_set_jmp_enabled {
+		vcc_trace('${@LOCATION}')
 		return
 	}
+	vcc_trace('${@LOCATION}')
 	wait_sem(&tcc_compile_sem)
 	tcc_state = s1
+	vcc_trace('${@LOCATION} symtab: ${s1.symtab != unsafe { nil }}')
 }
 
 pub fn tcc_exit_state(s1 &TCCState) {
+	vcc_trace('${@LOCATION} ${s1 != unsafe { nil }}')
 	if s1.error_set_jmp_enabled {
 		return
 	}
-	tcc_state = (unsafe { nil })
+	tcc_state = unsafe { nil }
+	vcc_trace('${@LOCATION}')
 	post_sem(&tcc_compile_sem)
+	vcc_trace('${@LOCATION}')
 }
 
-fn pstrcpy(buf &i8, buf_size usize, s &i8) &i8 {
-	q := &i8(0)
-	q_end := &i8(0)
+fn pstrcpy(buf &char, buf_size usize, s &char) &char {
+	q := &char(0)
+	q_end := &char(0)
 
 	c := 0
 	if buf_size > 0 {
-		q = buf
-		q_end = buf + buf_size - 1
-		for q < q_end {
-			c = *s++
-			if c == `\x00` {
-				break
+		vcc_trace('${@LOCATION}')
+		q = &char(buf)
+		q_end = &char(buf) + buf_size - 1
+		vcc_trace('${@LOCATION}')
+		unsafe {
+			for q < q_end {
+				c = s++
+				if c == `\x00` {
+					break
+				}
+				*q++ = c
 			}
-			*q++ = c
+			*q = `\x00`
 		}
-		*q = `\x00`
 	}
+	vcc_trace('${@LOCATION}')
 	return buf
 }
 
-fn pstrcat(buf &i8, buf_size usize, s &i8) &i8 {
+fn pstrcat(buf &char, buf_size usize, s &char) &char {
 	len := usize(0)
 	len = C.strlen(buf)
 	if len < buf_size {
@@ -182,7 +180,7 @@ fn pstrcat(buf &i8, buf_size usize, s &i8) &i8 {
 	return buf
 }
 
-fn pstrncpy(out &i8, in_ &i8, num usize) &i8 {
+fn pstrncpy(out &char, in_ &char, num usize) &char {
 	C.memcpy(out, in_, num)
 	out[num] = `\x00`
 	return out
@@ -202,7 +200,7 @@ pub fn tcc_fileextension(name &char) &char {
 	return if e { e } else { C.strchr(b, 0) }
 }
 
-pub fn tcc_load_text(fd int) &i8 {
+pub fn tcc_load_text(fd int) &char {
 	len := C.lseek(fd, 0, 2)
 	buf := load_data(fd, 0, len + 1)
 	// buf[len] = 0
@@ -214,12 +212,13 @@ fn default_reallocator(ptr voidptr, size usize) voidptr {
 	if size == 0 {
 		C.free(ptr)
 		ptr1 = unsafe { nil }
-	} else if ptr != unsafe { nil } {
+	} else if ptr == unsafe { nil } {
 		ptr1 = C.malloc(size)
+		vcc_trace('${@FN} malloc ${ptr} ${size}')
 	} else {
-		eprintln('>> ${ptr1} ${size}')
+		vcc_trace('${@FN} realloc ${ptr} ${size}')
 		ptr1 = C.realloc(ptr, size)
-		eprintln('>> ${ptr1} ${size}')
+		vcc_trace('${@FN} ${ptr1} ${size}')
 		if ptr1 == unsafe { nil } {
 			C.fprintf(C.stderr, c'memory full\n')
 			C.exit(1)
@@ -249,7 +248,7 @@ pub fn tcc_free(ptr voidptr) {
 }
 
 pub fn tcc_malloc(size u32) voidptr {
-	return reallocator(0, size)
+	return reallocator(unsafe { nil }, size)
 }
 
 pub fn tcc_realloc(ptr voidptr, size u32) voidptr {
@@ -271,9 +270,9 @@ pub fn tcc_strdup(str &char) &char {
 }
 
 @[c: 'normalized_PATHCMP']
-fn normalized_pathcmp(f1 &i8, f2 &i8) int {
-	p1 := &i8(0)
-	p2 := &i8(0)
+fn normalized_pathcmp(f1 &char, f2 &char) int {
+	p1 := &char(0)
+	p2 := &char(0)
 
 	ret := 1
 	p1 = C.realpath(f1, (unsafe { nil }))
@@ -292,9 +291,10 @@ fn dynarray_add(ptab voidptr, nb_ptr &int, data voidptr) {
 	nb := 0
 	nb_alloc := 0
 
-	pp := &voidptr(0)
 	nb = *nb_ptr
-	pp = *&&&voidptr(ptab)
+	pp := &voidptr(0)
+
+	pp = *&&voidptr(ptab)
 	if (nb & (nb - 1)) == 0 {
 		if !nb {
 			nb_alloc = 1
@@ -302,7 +302,7 @@ fn dynarray_add(ptab voidptr, nb_ptr &int, data voidptr) {
 			nb_alloc = nb * 2
 		}
 		pp = tcc_realloc(pp, nb_alloc * sizeof(voidptr))
-		*&&&voidptr(ptab) = pp
+		*&&voidptr(ptab) = pp
 	}
 	pp[nb++] = data
 	*nb_ptr = nb
@@ -315,54 +315,67 @@ fn dynarray_reset(pp voidptr, n &int) {
 		if *p {
 			tcc_free(*p)
 		}
-		p = p[idx++]
+		p = p + idx++ + 1
 		unsafe { *n-- }
 	}
 	tcc_free(*&voidptr(pp))
-	*&voidptr(pp) = (unsafe { nil })
+	*&voidptr(pp) = unsafe { nil }
 }
 
-pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &i8) {
-	p := &rune(0)
+pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &char) {
+	p := &char(0)
 	for {
-		c := 0
-		str := strings.new_builder(0)
+		vcc_trace('${@LOCATION}: ${in_.vstring()}')
+		str := strings.new_builder(40)
 		cstr_new(&str)
-		for p = in_; c != `\x00` && c != c':'[0]; p++ {
-			if c == `{` && p[1] && p[2] == `}` {
-				c = p[1]
-				p += 2
-				if c == `B` {
-					cstr_cat(&str, s.tcc_lib_path, -1)
-				}
-				if c == `R` {
-					cstr_cat(&str, c'', -1)
-				}
-				if c == `f` && file {
-					f := file.truefilename
-					b := tcc_basename(f)
-					if b > f {
-						cstr_cat(&str, f, b - f - 1)
-					} else { // 3
-						cstr_cat(&str, c'.', 1)
+		unsafe {
+			p = in_
+			c := *p
+			for ; c != `\x00` && c != `:`; p++ {
+				if c == `{` && p[1] && p[2] == `}` {
+					c = p[1]
+					p += 2
+					if c == `B` {
+						vcc_trace('${@LOCATION} ${s.tcc_lib_path.vstring()}')
+						cstr_cat(&str, s.tcc_lib_path, -1)
 					}
+					if c == `R` {
+						cstr_cat(&str, c'', -1)
+					}
+					if c == `f` && file != nil {
+						f := file.truefilename
+						b := tcc_basename(f)
+						if b > f {
+							// vcc_trace('${@LOCATION}')
+							cstr_cat(&str, f, b - f - 1)
+						} else { // 3
+							cstr_cat(&str, c'.', 1)
+						}
+					}
+				} else {
+					// vcc_trace('${@LOCATION} - ${c:c}')
+					cstr_ccat(&str, c)
 				}
-			} else {
-				cstr_ccat(&str, c)
+				c = p[1]
 			}
-			c = *p
 		}
 		if str.len {
 			cstr_ccat(&str, `\x00`)
-			dynarray_add(p_ary, p_nb_ary, tcc_strdup(str.data))
+			a := tcc_strdup(&char(str.data))
+			vcc_trace('${@LOCATION} ${s.tcc_lib_path.vstring()} - ${str.len} ${str.data} - ${a}')
+			dynarray_add(p_ary, p_nb_ary, a)
 		}
+		vcc_trace('${@LOCATION} - ${str.len}')
 		cstr_free(&str)
+		vcc_trace('${@LOCATION}  ${str.str()}')
 		in_ = p + 1
+		vcc_trace('${@LOCATION}')
 		// while()
 		if !(*p) {
 			break
 		}
 	}
+	vcc_trace('${@LOCATION}')
 }
 
 // empty enum
@@ -371,16 +384,19 @@ const error_noabort = 1
 const error_error = 2
 
 fn error1(mode int, message string) {
+	vcc_trace('${@LOCATION} ${message} ${tcc_state != unsafe { nil }}')
 	f := &BufferedFile(0)
-
-	s1 := tcc_state
+	s1 := &TCCState(tcc_state)
 	cs := strings.new_builder(100)
+	vcc_trace('${@LOCATION} ${tcc_state != unsafe { nil }}')
 	tcc_exit_state(s1)
+	vcc_trace('${@LOCATION}')
 	if mode == error_warn {
 		if s1.warn_error {
 			mode = error_error
 		}
 		if s1.warn_num {
+			vcc_trace('${@LOCATION}')
 			wopt := *(&s1.warn_none + s1.warn_num)
 			s1.warn_num = 0
 			if 0 == (wopt & 1) {
@@ -397,8 +413,10 @@ fn error1(mode int, message string) {
 			return
 		}
 	}
+	vcc_trace('${@LOCATION}')
 	cstr_new(&cs)
-	f = (unsafe { nil })
+	vcc_trace('${@LOCATION}')
+	f = unsafe { nil }
 	if s1.error_set_jmp_enabled {
 		f = file
 		for f && f.filename[0] == c':' {
@@ -406,9 +424,11 @@ fn error1(mode int, message string) {
 		}
 	}
 	if f {
-		// for pf = s1.include_stack; pf < s1.include_stack_ptr; pf++ {
-		// 	cstr_printf(&cs, c'In file included from %s:%d:\n', (*pf).filename, (*pf).line_num - 1)
-		// }
+		unsafe {
+			for pf := &s1.include_stack[0]; pf < s1.include_stack_ptr; pf++ {
+				cstr_printf(&cs, 'In file included from ${pf.filename}:${pf.line_num - 1}:\n')
+			}
+		}
 		cstr_printf(&cs, '${f.filename}:${f.line_num - !!(tok_flags & 1)}: ')
 	} else if s1.current_filename {
 		cstr_printf(&cs, '${s1.current_filename}: ')
@@ -421,13 +441,14 @@ fn error1(mode int, message string) {
 		cstr_printf(&cs, 'error: ')
 	}
 
-	// cstr_vprintf(&cs, fmt, ap)
+	cstr_printf(&cs, message)
 	if !s1 || !s1.error_func {
 		if s1 && s1.output_type == 5 && s1.ppfp == C.stdout {
 			C.printf(c'\n')
 		}
 		C.fflush(C.stdout)
-		C.fprintf(C.stderr, c'%s\n', &i8(cs.data))
+		vcc_trace('${@LOCATION}')
+		C.fprintf(C.stderr, c'%s\n', &char(cs.str().str))
 		C.fflush(C.stderr)
 	} else {
 		s1.error_func(s1.error_opaque, &char(cs.data))
@@ -457,36 +478,48 @@ pub fn tcc_get_error_opaque(s &TCCState) voidptr {
 	return s.error_opaque
 }
 
-fn _tcc_error_noabort(message string) int {
+fn _tcc_error_noabort(s &TCCState, message string) int {
+	vcc_trace('${@LOCATION} ${tcc_state != unsafe { nil }}')
+	tcc_enter_state(s)
 	error1(error_noabort, message)
 	return -1
 }
 
 @[noreturn]
 fn _tcc_error(message string) {
+	// tcc_enter_state(s)
 	error1(error_error, message)
 	C.exit(1)
 }
 
 fn _tcc_warning(message string) {
+	// tcc_enter_state(s)
 	error1(error_warn, message)
 }
 
-pub fn tcc_open_bf(s1 &TCCState, filename &i8, initlen int) {
+pub fn tcc_open_bf(s1 &TCCState, filename &char, initlen int) {
 	bf := &BufferedFile(0)
 	buflen := if initlen { initlen } else { 8192 }
+	vcc_trace('${@LOCATION}')
 	bf = tcc_mallocz(sizeof(BufferedFile) + buflen)
-	bf.buf_ptr = bf.buffer
-	bf.buf_end = bf.buffer + initlen
+	vcc_trace('${@LOCATION}')
+	bf.buf_ptr = &bf.buffer[0]
+	vcc_trace('${@LOCATION}')
+	bf.buf_end = &bf.buffer[0] + initlen
+	vcc_trace('${@LOCATION}')
 	bf.buf_end[0] = `\\`
+	vcc_trace('${@LOCATION}')
 	pstrcpy(bf.filename, sizeof(bf.filename), filename)
-	bf.truefilename = bf.filename
+	bf.truefilename = &char(bf.filename)
 	bf.line_num = 1
-	bf.ifdef_stack_ptr = s1.ifdef_stack_ptr
+	vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
+	bf.ifdef_stack_ptr = &s1.ifdef_stack_ptr[0]
+	vcc_trace('${@LOCATION}')
 	bf.fd = -1
 	bf.prev = file
 	file = bf
 	tok_flags = 1 | 2
+	vcc_trace('${@LOCATION}')
 }
 
 pub fn tcc_close() {
@@ -503,7 +536,7 @@ pub fn tcc_close() {
 	tcc_free(bf)
 }
 
-fn _tcc_open(s1 &TCCState, filename &i8) int {
+fn _tcc_open(s1 &TCCState, filename &char) int {
 	fd := 0
 	if C.strcmp(filename, c'-') == 0 {
 		fd = 0
@@ -522,7 +555,7 @@ fn _tcc_open(s1 &TCCState, filename &i8) int {
 	return fd
 }
 
-pub fn tcc_open(s1 &TCCState, filename &i8) int {
+pub fn tcc_open(s1 &TCCState, filename &char) int {
 	fd := _tcc_open(s1, filename)
 	if fd < 0 {
 		return -1
@@ -532,47 +565,63 @@ pub fn tcc_open(s1 &TCCState, filename &i8) int {
 	return 0
 }
 
-pub fn tcc_compile(s1 &TCCState, filetype int, str &i8, fd int) int {
-	eprintln('>> ${@FN}')
+pub fn tcc_compile(s1 &TCCState, filetype int, str &char, fd int) int {
+	vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
 	tcc_enter_state(s1)
 	s1.error_set_jmp_enabled = 1
 	if C._setjmp(s1.error_jmp_buf) == 0 {
+		vcc_trace('${@LOCATION}')
 		s1.nb_errors = 0
 		if fd == -1 {
 			len := C.strlen(str)
+			vcc_trace('${@LOCATION} ${str}')
 			tcc_open_bf(s1, c'<string>', len)
 			C.memcpy(file.buffer, str, len)
+			vcc_trace('${@LOCATION}')
 		} else {
+			vcc_trace('${@LOCATION}')
 			tcc_open_bf(s1, str, 0)
 			file.fd = fd
 		}
+		vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
 		preprocess_start(s1, filetype)
+		vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
 		tccgen_init(s1)
+		vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
 		if s1.output_type == 5 {
+			vcc_trace('${@LOCATION}')
 			tcc_preprocess(s1)
 		} else {
+			vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
 			tccelf_begin_file(s1)
+			vcc_trace('${@LOCATION}')
 			if filetype & (2 | 4) {
+				vcc_trace('${@LOCATION}')
 				tcc_assemble(s1, !!(filetype & 4))
 			} else {
+				vcc_trace('${@LOCATION}')
 				tccgen_compile(s1)
 			}
+			vcc_trace('${@LOCATION}')
 			tccelf_end_file(s1)
 		}
 	}
+	vcc_trace('${@LOCATION}')
 	tccgen_finish(s1)
+	vcc_trace('${@LOCATION}')
 	preprocess_end(s1)
+	vcc_trace('${@LOCATION}')
 	s1.error_set_jmp_enabled = 0
 	tcc_exit_state(s1)
 	return if s1.nb_errors != 0 { -1 } else { 0 }
 }
 
-pub fn tcc_compile_string(s &TCCState, str &i8) int {
+pub fn tcc_compile_string(s &TCCState, str &char) int {
 	return tcc_compile(s, s.filetype, str, -1)
 }
 
-pub fn tcc_define_symbol(s1 &TCCState, sym &i8, value &i8) {
-	eq := &i8(0)
+pub fn tcc_define_symbol(s1 &TCCState, sym &char, value &char) {
+	eq := &char(0)
 	eq = C.strchr(sym, `=`)
 	if unsafe { nil } == eq {
 		eq = C.strchr(sym, 0)
@@ -583,19 +632,14 @@ pub fn tcc_define_symbol(s1 &TCCState, sym &i8, value &i8) {
 	cstr_printf(&s1.cmdline_defs, '#define ${int((eq - sym))} ${value}\n')
 }
 
-pub fn tcc_undefine_symbol(s1 &TCCState, sym &i8) {
+pub fn tcc_undefine_symbol(s1 &TCCState, sym &char) {
 	cstr_printf(&s1.cmdline_defs, '#undef ${sym}\n')
 }
 
-pub fn vcc_trace(msg string) {
-	$if tracecall ? {
-		eprintln(msg)
-	}
-}
-
 pub fn tcc_new() &TCCState {
-	vcc_trace('>> ${@FN}')
+	vcc_trace('${@FN}')
 	s := &TCCState(tcc_mallocz(sizeof(TCCState)))
+	vcc_trace('${@FN}')
 	if !s {
 		return unsafe { nil }
 	}
@@ -615,11 +659,14 @@ pub fn tcc_new() &TCCState {
 }
 
 pub fn tcc_delete(s1 &TCCState) {
+	vcc_trace('${@LOCATION}')
 	tccelf_delete(s1)
+	vcc_trace('${@LOCATION}')
 	dynarray_reset(&s1.library_paths, &s1.nb_library_paths)
 	dynarray_reset(&s1.crt_paths, &s1.nb_crt_paths)
 	dynarray_reset(&s1.include_paths, &s1.nb_include_paths)
 	dynarray_reset(&s1.sysinclude_paths, &s1.nb_sysinclude_paths)
+	vcc_trace('${@LOCATION}')
 	tcc_free(s1.tcc_lib_path)
 	tcc_free(s1.soname)
 	tcc_free(s1.rpath)
@@ -629,51 +676,64 @@ pub fn tcc_delete(s1 &TCCState) {
 	tcc_free(s1.mapfile)
 	tcc_free(s1.outfile)
 	tcc_free(s1.deps_outfile)
+	vcc_trace('${@LOCATION}')
 	dynarray_reset(&s1.files, &s1.nb_files)
 	dynarray_reset(&s1.target_deps, &s1.nb_target_deps)
 	dynarray_reset(&s1.pragma_libs, &s1.nb_pragma_libs)
 	dynarray_reset(&s1.argv, &s1.argc)
+	vcc_trace('${@LOCATION}')
 	cstr_free(&s1.cmdline_defs)
 	cstr_free(&s1.cmdline_incl)
 	cstr_free(&s1.linker_arg)
+	vcc_trace('${@LOCATION}')
 	tcc_run_free(s1)
 	tcc_free(s1.dState)
 	tcc_free(s1)
+	vcc_trace('${@LOCATION}')
 }
 
 pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	s.output_type = output_type
 	if !s.nostdinc {
-		tcc_add_sysinclude_path(s, c'{B}/include:/usr/local/include:/usr/include')
+		vcc_trace('${@LOCATION}')
+		tcc_add_sysinclude_path(s, c'{B}/include:/usr/local/include:/usr/include:/usr/lib/x86_64-linux-gnu:/home/felipe/github/tcc/include')
 	}
 	if output_type == 5 {
 		s.do_debug = 0
 		return 0
 	}
+	vcc_trace('${@LOCATION} ${s.symtab != unsafe { nil }}')
 	tccelf_new(s)
+	vcc_trace('${@LOCATION} ${s.nb_sections} ${s.symtab != unsafe { nil }}')
 	if output_type == 3 {
 		s.output_format = 0
 		return 0
 	}
-	tcc_add_library_path(s, c'{B}:/usr/lib:/lib:/usr/local/lib')
-	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'/usr/lib')
+	vcc_trace('${@LOCATION}')
+	tcc_add_library_path(s, c'{B}:/usr/lib:/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:/home/felipe/github/tcc/')
+	vcc_trace('${@LOCATION}')
+	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:/usr/local/lib')
+	vcc_trace('${@LOCATION}')
 	if output_type != 1 && !s.nostdlib {
+		vcc_trace('${@LOCATION}')
 		tccelf_add_crtbegin(s)
 	}
+	vcc_trace('${@LOCATION}')
 	return 0
 }
 
-pub fn tcc_add_include_path(s &TCCState, pathname &i8) int {
+pub fn tcc_add_include_path(s &TCCState, pathname &char) int {
 	tcc_split_path(s, &s.include_paths, &s.nb_include_paths, pathname)
 	return 0
 }
 
-pub fn tcc_add_sysinclude_path(s &TCCState, pathname &i8) int {
+pub fn tcc_add_sysinclude_path(s &TCCState, pathname &char) int {
+	vcc_trace('${@LOCATION} - ${pathname.vstring()}')
 	tcc_split_path(s, &s.sysinclude_paths, &s.nb_sysinclude_paths, pathname)
 	return 0
 }
 
-pub fn tcc_add_dllref(s1 &TCCState, dllname &i8, level int) &DLLReference {
+pub fn tcc_add_dllref(s1 &TCCState, dllname &char, level int) &DLLReference {
 	ref := &DLLReference(0)
 	i := 0
 	for i = 0; i < s1.nb_loaded_dlls; i++ {
@@ -700,7 +760,7 @@ pub fn tcc_add_dllref(s1 &TCCState, dllname &i8, level int) &DLLReference {
 	return ref
 }
 
-pub fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
+pub fn tcc_add_file_internal(s1 &TCCState, filename &char, flags int) int {
 	fd := 0
 	ret := -1
 
@@ -710,7 +770,7 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
 	fd = _tcc_open(s1, filename)
 	if fd < 0 {
 		if flags & 16 {
-			_tcc_error_noabort("file '${filename}' not found")
+			_tcc_error_noabort(s1, "file '${filename.vstring()}' not found")
 		}
 		return -2
 	}
@@ -744,7 +804,7 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
 				// RRRREG check_success id=0x7fffbf587aa8
 				check_success:
 				if ret < 0 {
-					_tcc_error_noabort('${filename}: unrecognized file type')
+					_tcc_error_noabort(s1, '${filename}: unrecognized file type')
 				}
 			}
 			else {
@@ -760,7 +820,8 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &i8, flags int) int {
 	return ret
 }
 
-pub fn tcc_add_file(s &TCCState, filename &i8) int {
+pub fn tcc_add_file(s &TCCState, filename &char) int {
+	vcc_trace('${@LOCATION}')
 	filetype := s.filetype
 	if 0 == (filetype & (15 | 64)) {
 		ext := tcc_fileextension(filename)
@@ -779,20 +840,22 @@ pub fn tcc_add_file(s &TCCState, filename &i8) int {
 			filetype = 1
 		}
 	}
+	vcc_trace('${@LOCATION}')
 	return tcc_add_file_internal(s, filename, filetype | 16)
 }
 
-pub fn tcc_add_library_path(s &TCCState, pathname &i8) int {
+pub fn tcc_add_library_path(s &TCCState, pathname &char) int {
 	tcc_split_path(s, &s.library_paths, &s.nb_library_paths, pathname)
 	return 0
 }
 
-pub fn tcc_add_library_internal(s1 &TCCState, fmt &i8, filename &i8, flags int, paths &&u8, nb_paths int) int {
-	buf := [1024]i8{}
+pub fn tcc_add_library_internal(s1 &TCCState, fmt &char, filename &char, flags int, paths &&char, nb_paths int) int {
+	buf := [1024]char{}
 	i := 0
 	ret := 0
-
+	vcc_trace('${@LOCATION} ${nb_paths} ${paths} ${fmt.vstring()} ${filename.vstring()}')
 	for i = 0; i < nb_paths; i++ {
+		vcc_trace('${@LOCATION} - ${paths[i].vstring()}')
 		C.snprintf(buf, sizeof(buf), fmt, paths[i], filename)
 		ret = tcc_add_file_internal(s1, buf, (flags & ~16) | 64)
 		if ret != -2 {
@@ -800,32 +863,31 @@ pub fn tcc_add_library_internal(s1 &TCCState, fmt &i8, filename &i8, flags int, 
 		}
 	}
 	if flags & 16 {
-		_tcc_error_noabort("file '${filename}' not found")
+		vcc_trace('${@LOCATION} ${s1 != unsafe { nil }}')
+		_tcc_error_noabort(s1, "file '${filename.vstring()}' not found")
 	}
+	vcc_trace('${@LOCATION}')
 	return -2
 }
 
-pub fn tcc_add_dll(s &TCCState, filename &i8, flags int) int {
+pub fn tcc_add_dll(s &TCCState, filename &char, flags int) int {
 	return tcc_add_library_internal(s, c'%s/%s', filename, flags, s.library_paths, s.nb_library_paths)
 }
 
-pub fn tcc_add_support(s1 &TCCState, filename &i8) {
-	buf := [100]i8{}
+pub fn tcc_add_support(s1 &TCCState, filename &char) {
+	buf := [100]char{}
 	if c''[0] {
 		filename = C.strcat(C.strcpy(buf, c''), filename)
 	}
 	tcc_add_dll(s1, filename, 16)
 }
 
-pub fn tcc_add_crt(s1 &TCCState, filename &i8) int {
+pub fn tcc_add_crt(s1 &TCCState, filename &char) int {
 	return tcc_add_library_internal(s1, c'%s/%s', filename, 16, s1.crt_paths, s1.nb_crt_paths)
 }
 
-pub fn tcc_add_library(s &TCCState, libraryname &i8) int {
-	// libs :=
-	// static_libs :=
+pub fn tcc_add_library(s &TCCState, libraryname &char) int {
 	pp := [3]&u8{}
-	(unsafe { nil })
 	if s.static_link {
 		pp = [c'%s/lib%s.a', unsafe { nil }, unsafe { nil }]!
 	} else {
@@ -833,8 +895,8 @@ pub fn tcc_add_library(s &TCCState, libraryname &i8) int {
 	}
 	flags := s.filetype & 128
 	idx := 0
-	for *pp[idx] {
-		ret := tcc_add_library_internal(s, *pp[idx], libraryname, flags, s.library_paths,
+	for pp[idx] {
+		ret := tcc_add_library_internal(s, pp[idx], libraryname, flags, s.library_paths,
 			s.nb_library_paths)
 		if ret != -2 {
 			return ret
@@ -844,10 +906,10 @@ pub fn tcc_add_library(s &TCCState, libraryname &i8) int {
 	return -2
 }
 
-pub fn tcc_add_library_err(s1 &TCCState, libname &i8) int {
+pub fn tcc_add_library_err(s1 &TCCState, libname &char) int {
 	ret := tcc_add_library(s1, libname)
 	if ret == -2 {
-		_tcc_error_noabort("library '${libname}' not found")
+		_tcc_error_noabort(s1, "library '${libname.vstring()}' not found")
 	}
 	return ret
 }
@@ -859,8 +921,8 @@ pub fn tcc_add_pragma_libs(s1 &TCCState) {
 	}
 }
 
-pub fn tcc_add_symbol(s1 &TCCState, name &i8, val voidptr) int {
-	buf := [256]i8{}
+pub fn tcc_add_symbol(s1 &TCCState, name &char, val voidptr) int {
+	buf := [256]char{}
 	if s1.leading_underscore {
 		buf[0] = `_`
 		pstrcpy(buf + 1, sizeof(buf) - 1, name)
@@ -870,7 +932,7 @@ pub fn tcc_add_symbol(s1 &TCCState, name &i8, val voidptr) int {
 	return 0
 }
 
-pub fn tcc_set_lib_path(s &TCCState, path &i8) {
+pub fn tcc_set_lib_path(s &TCCState, path &char) {
 	tcc_free(s.tcc_lib_path)
 	s.tcc_lib_path = tcc_strdup(path)
 }
@@ -896,7 +958,7 @@ fn strstart(val &char, str &&char) int {
 	return 1
 }
 
-fn link_option(str &rune, val &i8, ptr &&u8) int {
+fn link_option(str &rune, val &char, ptr &&u8) int {
 	p := &rune(0)
 	q := &rune(0)
 
@@ -950,7 +1012,7 @@ fn skip_linker_arg(str &&char) &char {
 	return s2
 }
 
-fn copy_linker_arg(pp &&u8, s &i8, sep int) {
+fn copy_linker_arg(pp &&u8, s &char, sep int) {
 	q := s
 	p := *pp
 	l := 0
@@ -964,14 +1026,18 @@ fn copy_linker_arg(pp &&u8, s &i8, sep int) {
 	pstrncpy(l + pp, s, q - s)
 }
 
-fn args_parser_add_file(s &TCCState, filename &i8, filetype int) {
+fn args_parser_add_file(s &TCCState, filename &char, filetype int) {
+	vcc_trace('${@LOCATION} ${C.strlen(filename)}')
 	f := &Filespec(tcc_malloc(sizeof(Filespec) + C.strlen(filename)))
 	f.type_ = filetype
+	vcc_trace('${@LOCATION} ${filename.vstring()}')
 	C.strcpy(f.name, filename)
 	dynarray_add(&s.files, &s.nb_files, f)
+	vcc_trace('${@LOCATION}')
 }
 
-pub fn tcc_set_linker(s &TCCState, option &i8) int {
+pub fn tcc_set_linker(s &TCCState, option &char) int {
+	s1 := s
 	for *option {
 		p := (unsafe { nil })
 		end := (unsafe { nil })
@@ -1036,7 +1102,7 @@ pub fn tcc_set_linker(s &TCCState, option &i8) int {
 		} else {
 			// RRRREG err id=0x7fffbf5942e8
 			err:
-			return _tcc_error_noabort("unsupported linker option '${option}'")
+			return _tcc_error_noabort(s1, "unsupported linker option '${option}'")
 		}
 		if ignoring {
 			tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
@@ -1048,7 +1114,7 @@ pub fn tcc_set_linker(s &TCCState, option &i8) int {
 }
 
 struct TCCOption {
-	name  &i8
+	name  &char
 	index u16
 	flags u16
 }
@@ -1356,7 +1422,7 @@ __global tcc_options = [TCCOption{
 struct FlagDef {
 	offset u32
 	flags  u16
-	name   &i8
+	name   &char
 }
 
 const options_W = [
@@ -1458,13 +1524,13 @@ const options_m = [
 	},
 ]!
 
-fn set_flag(s &TCCState, flags &FlagDef, name &i8) int {
+fn set_flag(s &TCCState, flags &FlagDef, name &char) int {
 	value := 0
 	mask := 0
 	ret := 0
 
 	p := &FlagDef(0)
-	r := &i8(0)
+	r := &char(0)
 	f := &u8(0)
 	r = name
 	value = !strstart(c'no-', &r)
@@ -1501,7 +1567,7 @@ fn set_flag(s &TCCState, flags &FlagDef, name &i8) int {
 
 const dumpmachine_str = 'x86_64-pc-linux-gnu'
 
-fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
+fn args_parser_make_argv(r &rune, argc &int, argv &&&char) int {
 	ret := 0
 	q := 0
 	c := 0
@@ -1536,7 +1602,7 @@ fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
 			}
 			cstr_ccat(&str, c)
 		}
-		cstr_ccat(&str, 0)
+		cstr_ccat(&str, `\x00`)
 		dynarray_add(argv, argc, tcc_strdup(str.data))
 		cstr_free(&str)
 		ret++
@@ -1544,16 +1610,17 @@ fn args_parser_make_argv(r &rune, argc &int, argv &&&i8) int {
 	return ret
 }
 
-fn args_parser_listfile(s &TCCState, filename &i8, optind int, pargc &int, pargv &&&i8) int {
+fn args_parser_listfile(s &TCCState, filename &char, optind int, pargc &int, pargv &&&char) int {
+	s1 := s
 	fd := 0
 	i := 0
 
-	p := &i8(0)
+	p := &char(0)
 	argc := 0
 	argv := (unsafe { nil })
 	fd = C.open(filename, 0 | 0)
 	if fd < 0 {
-		return _tcc_error_noabort("listfile '${filename}' not found")
+		return _tcc_error_noabort(s1, "listfile '${filename.vstring()}' not found")
 	}
 	p = tcc_load_text(fd)
 	for i = 0; i < *pargc; i++ {
@@ -1573,12 +1640,13 @@ fn args_parser_listfile(s &TCCState, filename &i8, optind int, pargc &int, pargv
 }
 
 pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
-	vcc_trace('>> ${@FN}')
+	vcc_trace('>> ${@LOCATION}')
+	s1 := s
 	popt := &TCCOption(0)
-	optarg := &u8(0)
-	r := &u8(0)
+	optarg := &char(0)
+	r := &char(0)
 
-	run := (unsafe { nil })
+	run := unsafe { nil }
 	x := 0
 	tool := 0
 	arg_start := 0
@@ -1590,7 +1658,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 	cstr_reset(&s.linker_arg)
 	for optind < argc {
 		r = argv[optind].str
-		vcc_trace('>> ${@LOCATION} ${optind} ${argv}')
+		vcc_trace('>> ${@LOCATION} ${optind} ${argv} ${r.vstring()}')
 		if r[0] == `@` && r[1] != `\x00` {
 			if args_parser_listfile(s, r + 1, optind, &argc, &argv) {
 				return -1
@@ -1598,9 +1666,8 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 			vcc_trace('>> ${@LOCATION} ${optind}')
 			continue
 		}
-		vcc_trace('>> ${@LOCATION} ${optind}')
 		optind++
-		vcc_trace('>> ${@LOCATION} ${optind} ${r}')
+		vcc_trace('>> ${@LOCATION} ${optind} ${r.vstring()}')
 		if tool {
 			if r[0] == `-` && r[1] == `v` && r[2] == 0 {
 				s.verbose++
@@ -1623,20 +1690,21 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 			}
 			continue
 		}
-		vcc_trace('>> ${@LOCATION} ${optind}')
+		vcc_trace('>> ${@LOCATION} ${optind} ${r.vstring()} ${run}')
 		if r[1] == `-` && r[2] == `\x00` && run {
 			unsafe {
 				goto dorun
 			} // id: 0x7fffbf5aa788
 		}
-		popt = tcc_options
+		vcc_trace('>> ${@LOCATION} ${optind} ${r.vstring()} ${run}')
+		popt = &tcc_options
 		for {
-			p1 := popt.name
+			p1 := &char(popt.name)
 			r1 := r + 1
-			if p1 == (unsafe { nil }) {
-				return _tcc_error_noabort("invalid option -- '${r}'")
+			if p1 == unsafe { nil } {
+				return _tcc_error_noabort(s1, "invalid option -- '${r.vstring()}'")
 			}
-			vcc_trace('>> ${@LOCATION} ${optind} ${p1} ${r1}')
+			vcc_trace('>> ${@LOCATION} ${optind} ${p1.vstring()} ${r1.vstring()}')
 			if !strstart(p1, &r1) {
 				unsafe { popt++ }
 				vcc_trace('>> ${@LOCATION} ${optind} ${optarg}')
@@ -1649,7 +1717,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 					if optind >= argc {
 						// RRRREG arg_err id=0x7fffbf5ab8d0
 						arg_err:
-						return _tcc_error_noabort("argument to '${r}' is missing")
+						return _tcc_error_noabort(s1, "argument to '${r.vstring()}' is missing")
 					}
 					optarg = argv[optind++].str
 				}
@@ -1804,10 +1872,12 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 			tcc_option_v { // case comp body kind=DoStmt is_enum=true
 				vcc_trace('>> ${@LOCATION} ${optind}')
 				for {
-					s.verbose
+					s.verbose++
 					// while()
-					if !(*optarg++ == `v`) {
-						break
+					unsafe {
+						if !(*optarg++ == `v`) {
+							break
+						}
 					}
 				}
 				noaction++
@@ -1849,7 +1919,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 			}
 			tcc_option_wl { // case comp body kind=IfStmt is_enum=true
 				if s.linker_arg.len {
-					(&i8(s.linker_arg.data))[s.linker_arg.len - 1] = `,`
+					(&char(s.linker_arg.data))[s.linker_arg.len - 1] = `,`
 				}
 				cstr_cat(&s.linker_arg, optarg, 0)
 				x = tcc_set_linker(s, s.linker_arg.data)
@@ -1941,7 +2011,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 				extra_action:
 				arg_start = optind - 1
 				if arg_start != noaction {
-					return _tcc_error_noabort('cannot parse ${r} here')
+					return _tcc_error_noabort(s1, 'cannot parse ${r} here')
 				}
 				tool = x
 			}
@@ -1980,7 +2050,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 	return 1
 }
 
-pub fn tcc_set_options(s &TCCState, r &i8) int {
+pub fn tcc_set_options(s &TCCState, r &char) int {
 	argv := []string{}
 	argc := 0
 	ret := 0

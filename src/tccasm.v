@@ -7,14 +7,6 @@ __global last_text_section = &Section{}
 // to handle .previous asm directive
 __global asmgoto_n int
 
-__global (
-	tok int
-)
-
-__global (
-	tok_flags int
-)
-
 fn asm_get_prefix_name(s1 &TCCState, prefix &i8, n u32) int {
 	buf := [64]i8{}
 	unsafe { C.snprintf(buf, sizeof(buf), c'%s%u', prefix, n) }
