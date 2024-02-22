@@ -793,7 +793,7 @@ fn gfunc_call(nb_args int) {
 		mode = classify_x86_64_arg(&vtop[-i].type_, (unsafe { nil }), &size, &align, &reg_count)
 		if size {
 			if !onstack[i + k] {
-				i++$
+				i++
 				continue
 			}
 			if stack_adjust {
@@ -1020,7 +1020,7 @@ fn gfunc_prolog(func_sym &Sym) {
 					for i = 0; i < reg_count; i++ {
 						o(14028646)
 						gen_modrm(sse_param_index, 50, (unsafe { nil }), param_addr + i * 8)
-						sse_param_index++$
+						sse_param_index++
 					}
 				} else {
 					addr = (addr + align - 1) & -align
@@ -1041,7 +1041,7 @@ fn gfunc_prolog(func_sym &Sym) {
 					for i = 0; i < reg_count; i++ {
 						gen_modrm64(137, arg_regs[reg_param_index], 50, (unsafe { nil }),
 							param_addr + i * 8)
-						reg_param_index++$
+						reg_param_index++
 					}
 				} else {
 					addr = (addr + align - 1) & -align

@@ -74,6 +74,7 @@ fn getclock_ms() u64 {
 }
 
 fn main() {
+	//vcc_disable_trace()
 	s := &TCCState(0)
 	s1 := &TCCState(0)
 
@@ -87,7 +88,7 @@ fn main() {
 	end_time := 0
 
 	first_file := &char(0)
-	ppfp := C.stdout
+	ppfp := &C.FILE(C.stdout)
 	// RRRREG redo id=0x7ffff0d74558
 	redo:
 	argc := os.args.len
@@ -176,9 +177,10 @@ fn main() {
 		if t {
 			s.dflag |= 32
 		}
-		s.run_test = t++$
+		t++
+		s.run_test = t
 		if n {
-			n--$
+			n--
 		}
 	}
 	vcc_trace('${@LOCATION}')
@@ -211,7 +213,7 @@ fn main() {
 				ret = 1
 			}
 		}
-		done = ret || n++$ >= s.nb_files
+		done = ret || (n++ + 1) >= s.nb_files
 		// while()
 		if !(!done && (s.output_type != 3 || s.option_r)) {
 			break
@@ -250,6 +252,7 @@ fn main() {
 	}
 	vcc_trace('${@LOCATION}')
 	tcc_delete(s)
+	vcc_trace('${@LOCATION}')
 	if !done {
 		unsafe {
 			vcc_trace('${@LOCATION}')
@@ -263,9 +266,10 @@ fn main() {
 		} // id: 0x7ffff0d74558
 	}
 	if ppfp && ppfp != C.stdout {
-		vcc_trace('${@LOCATION}')
+		vcc_trace('${@LOCATION} ${ppfp}')
 		C.fclose(ppfp)
 		vcc_trace('${@LOCATION}')
 	}
+	vcc_trace('${@LOCATION}')
 	return
 }

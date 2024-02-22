@@ -244,7 +244,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 					anames = &u8(tcc_realloc(anames, strpos + istrlen))
 					C.strcpy(anames + strpos, strtab + sym.st_name)
 					strpos += istrlen
-					if funccnt++$ >= funcmax {
+					if (funccnt++ + 1) >= funcmax {
 						funcmax += 250
 						afpos = tcc_realloc(afpos, funcmax * sizeof(*afpos))
 					}

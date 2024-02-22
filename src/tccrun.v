@@ -285,7 +285,7 @@ fn tcc_relocate_ex(s1 &TCCState, ptr voidptr, ptr_diff Elf64_Addr) int {
 				continue
 			}
 			align = s.sh_addralign - 1
-			if n++$ == 1 && align < (C.sysconf(C._SC_PAGESIZE) - 1) {
+			if (n++ + 1) == 1 && align < (C.sysconf(C._SC_PAGESIZE) - 1) {
 				align = (C.sysconf(C._SC_PAGESIZE) - 1)
 			}
 			if max_align < align {
@@ -744,7 +744,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 			} else {
 				0
 			}) {
-				if filename_size++$ < (512) {
+				if (filename_size++ + 1) < (512) {
 					filename_table[filename_size - 1].name = &i8(ln) - 1
 					for (if ln < end {
 						*ln++
@@ -814,7 +814,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 								opindex = 0
 							}
 							dw_lne_define_file { // case comp body kind=IfStmt is_enum=true
-								if filename_size++$ < (512) {
+								if (filename_size++ + 1) < (512) {
 									filename_table[filename_size - 1].name = &i8(ln) - 1
 									for (if ln < end {
 										*ln++
@@ -990,7 +990,7 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 		if ret == -1 || (pc == Elf64_Addr(rc.top_func) && pc) {
 			break
 		}
-		level++$
+		level++
 	}
 	rc.ip = 0
 	rc.fp = rc.ip

@@ -244,7 +244,7 @@ fn check_vstack() {
 }
 
 fn tccgen_init(s1 &TCCState) {
-	vtop = (_vstack + 1) - 1
+	vtop = unsafe {  (&_vstack[0] + 1) - 1 }
 	unsafe { C.memset(vtop, 0, sizeof(*vtop)) }
 	int_type.t = 3
 	char_type.t = 1
@@ -291,17 +291,24 @@ fn tccgen_compile(s1 &TCCState) int {
 }
 
 fn tccgen_finish(s1 &TCCState) {
+	vcc_trace('${@LOCATION}')
 	tcc_debug_end(s1)
+	vcc_trace('${@LOCATION}')
 	free_inline_functions(s1)
-	sym_pop(&global_stack, (unsafe { nil }), 0)
-	sym_pop(&local_stack, (unsafe { nil }), 0)
-	free_defines((unsafe { nil }))
+	vcc_trace('${@LOCATION}')
+	sym_pop(&global_stack, unsafe { nil }, 0)
+	sym_pop(&local_stack, unsafe { nil }, 0)
+	vcc_trace('${@LOCATION}')
+	free_defines(unsafe { nil })
+	vcc_trace('${@LOCATION}')
 	dynarray_reset(&sym_pools, &nb_sym_pools)
-	sym_free_first = (unsafe { nil })
-	global_label_stack = (unsafe { nil })
+	vcc_trace('${@LOCATION}')
+	sym_free_first = unsafe { nil }
+	global_label_stack = unsafe { nil }
 	local_label_stack = global_label_stack
 	cstr_free(&initstr)
 	dynarray_reset(&stk_data, &nb_stk_data)
+	vcc_trace('${@LOCATION}')
 }
 
 pub fn elfsym(s &Sym) &Elf64_Sym {
@@ -539,6 +546,7 @@ fn global_identifier_push(v int, t int, c int) &Sym {
 }
 
 fn sym_pop(ptop &&Sym, b &Sym, keep int) {
+	vcc_trace('${@LOCATION}')
 	s := &Sym(0)
 	ss := &Sym(0)
 	ps := &&Sym(0)
@@ -546,26 +554,36 @@ fn sym_pop(ptop &&Sym, b &Sym, keep int) {
 	ts := &TokenSym(0)
 	v := 0
 	s = *ptop
-	for s != b {
+	vcc_trace('${@LOCATION}')
+	for s != unsafe {nil} && b != unsafe { nil } && s != b {
+		vcc_trace('${@LOCATION}')
 		ss = s.prev
 		v = s.v
+		vcc_trace('${@LOCATION}')
 		if !(v & 536870912) && (v & ~1073741824) < 268435456 {
-			ts = table_ident[(v & ~1073741824) - 256]
+			vcc_trace('${@LOCATION}')
+			ts = &table_ident[(v & ~1073741824) - 256]
+			vcc_trace('${@LOCATION}')
 			if v & 1073741824 {
 				ps = &ts.sym_struct
 			} else { // 3
 				ps = &ts.sym_identifier
 			}
+			vcc_trace('${@LOCATION}')
 			*ps = s.prev_tok
+			vcc_trace('${@LOCATION}')
 		}
 		if !keep {
 			sym_free(s)
 		}
 		s = ss
+		vcc_trace('${@LOCATION}')
 	}
 	if !keep {
+		vcc_trace('${@LOCATION}')
 		*ptop = b
 	}
+	vcc_trace('${@LOCATION}')
 }
 
 fn label_find(v int) &Sym {
@@ -3761,6 +3779,7 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 	type_.ref = (unsafe { nil })
 	for {
 		vcc_trace('${@LOCATION} ${tok}')
+		break
 		match Tcc_token(tok) {
 			.tok_extension { // case comp body kind=CallExpr is_enum=true
 				next()
@@ -3810,6 +3829,7 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 				next()
 				skip(`(`)
 				C.memset(&ad1, 0, sizeof(AttributeDef))
+				vcc_trace('${@LOCATION}')
 				if parse_btype(&type1, &ad1, 0) {
 					type_decl(&type1, &ad1, &n, 1)
 					if ad1.a.aligned {
@@ -4055,6 +4075,7 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 		if 2 == (td & (2 | 1)) {
 			return 0
 		}
+		vcc_trace('${@LOCATION}')
 		if tok == `)` {
 			l = 0
 		} else if parse_btype(&pt, &ad1, 0) {
@@ -4068,7 +4089,7 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 		first = (unsafe { nil })
 		plast = &first
 		arg_size = 0
-		local_scope++$
+		local_scope++
 		if l {
 			for ; true; {
 				if l != 2 {
@@ -4105,6 +4126,7 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 					next()
 					break
 				}
+				vcc_trace('${@LOCATION}')
 				if l == 1 && !parse_btype(&pt, &ad1, 0) {
 					_tcc_error('invalid type')
 				}
@@ -4349,6 +4371,7 @@ fn expr_type(type_ &CType, expr_fn fn ()) {
 }
 
 fn parse_expr_type(type_ &CType) {
+	vcc_trace('${@LOCATION}')
 	n := 0
 	ad := AttributeDef{}
 	skip(`(`)
@@ -4361,6 +4384,7 @@ fn parse_expr_type(type_ &CType) {
 }
 
 fn parse_type(type_ &CType) {
+	vcc_trace('${@LOCATION}')
 	ad := AttributeDef{}
 	n := 0
 	if !parse_btype(type_, &ad, 0) {
@@ -4498,7 +4522,7 @@ fn parse_atomic(atok int) {
 			}
 			else {}
 		}
-		if `.` == template[arg++$] {
+		if `.` == template[arg++ + 1] {
 			break
 		}
 		skip(`,`)
@@ -5712,7 +5736,7 @@ fn new_scope(o &Scope) {
 	cur_scope.vla.num = 0
 	o.lstk = local_stack
 	o.llstk = local_label_stack
-	local_scope++$
+	local_scope++
 }
 
 fn prev_scope(o &Scope, is_expr int) {
@@ -5736,7 +5760,7 @@ fn leave_scope(o &Scope) {
 
 fn new_scope_s(o &Scope) {
 	o.lstk = local_stack
-	local_scope++$
+	local_scope++
 }
 
 fn prev_scope_s(o &Scope) {
@@ -6503,7 +6527,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 		|| (type_.t & 15) == 7) {
 		ncw_prev := nocode_wanted
 		if flags & 2 && !p.sec {
-			nocode_wanted++$
+			nocode_wanted++
 		}
 		parse_init_elem(if !p.sec { 2 } else { 1 })
 		nocode_wanted = ncw_prev
@@ -6602,7 +6626,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				len = decl_designator(p, type_, c, &f, flags, len)
 				flags &= ~4
 				if type_.t & 64 {
-					indexsym.c++$
+					indexsym.c++
 					if no_oblock && len >= n * size1 {
 						break
 					}
@@ -6749,7 +6773,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 			}
 			sym = sym_push(v, type_, r, addr)
 			if ad.cleanup_func {
-				cls := sym_push2(&all_cleanups, 536870912 | cur_scope.cl.n++$, 0, 0)
+				cls := sym_push2(&all_cleanups, 536870912 | (cur_scope.cl.n++ +1), 0, 0)
 				cls.prev_tok = sym
 				cls.next = ad.cleanup_func
 				cls.ncl = cur_scope.cl.s

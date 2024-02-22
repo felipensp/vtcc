@@ -3,7 +3,7 @@ module main
 
 import strings
 
-__global last_text_section = &Section{}
+__global last_text_section = &Section(0)
 // to handle .previous asm directive
 __global asmgoto_n int
 

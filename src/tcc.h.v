@@ -18,9 +18,11 @@ __global char_type = CType{}
 __global vtop = &SValue{}
 __global rsym = int(0)
 __global anon_sym = int(0)
-//__global ind = int(0)
-//__global loc = int(0)
+__global ind = int(0)
+__global loc = int(0)
 __global debug_modes = c''
+
+__global tcc_compile_sem = TCCSem{}
 
 __global nocode_wanted = int(0)
 __global global_expr = int(0)
@@ -32,7 +34,7 @@ __global funcname = &char(0)
 
 __global tcc_state = &TCCState(0)
 
-pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { '' }
+pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { ' ' }
 
 pub const CH_EOF = (-1) // end of file
 pub const VSTACK_SIZE = 512

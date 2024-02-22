@@ -12,6 +12,10 @@ pub fn vcc_trace(msg string) {
 	}
 }
 
+pub fn vcc_trace_print(msg string) {
+	eprintln(msg)
+}
+
 pub fn vcc_trace_force(msg string) {
 	$if tracecall ? {
 		eprintln(msg)
