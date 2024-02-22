@@ -87,15 +87,15 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 	label := 0
 
 	n := u64(0)
-	p := &i8(0)
+	p := &char(0)
 	match rune(tok) {
 		205 { // case comp body kind=BinaryOperator is_enum=false
-			p = unsafe { tokc.str.data }
+			p = &char(unsafe { tokc.str.data })
 			n = C.strtoull(p, &&i8(&p), 0)
-			if *p == c'b' || *p == c'f' {
+			if *p == `b` || *p == `f` {
 				label = asm_get_local_label_name(s1, n)
 				sym = asm_label_find(label)
-				if *p == c'b' {
+				if *p == `b` {
 					if sym != unsafe { nil } && (!sym.c || elfsym(sym).st_shndx == 0) {
 						sym = sym.prev_tok
 					}
@@ -110,9 +110,9 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 				pe.v = 0
 				pe.sym = sym
 				pe.pcrel = 0
-			} else if *p == c'\x00' {
+			} else if *p == `\x00` {
 				pe.v = n
-				pe.sym = (unsafe { nil })
+				pe.sym = unsafe { nil }
 				pe.pcrel = 0
 			} else {
 				_tcc_error('invalid number syntax')

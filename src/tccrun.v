@@ -104,9 +104,9 @@ pub fn tcc_relocate(s1 &TCCState, ptr voidptr) int {
 	return 0
 }
 
-type run_cdtors_fn = fn (int, &&i8, &&i8)
+type run_cdtors_fn = fn (int, &&char, &&char)
 
-pub fn run_cdtors(s1 &TCCState, start &i8, end &i8, argc int, argv &&u8, envp &&u8) {
+pub fn run_cdtors(s1 &TCCState, start &char, end &char, argc int, argv &&u8, envp &&u8) {
 	a := &voidptr(get_sym_addr(s1, start, 0, 0))
 	b := &voidptr(get_sym_addr(s1, end, 0, 0))
 	for i := 0; a[i] != b; i++ {
@@ -141,7 +141,7 @@ pub fn rt_atexit(function voidptr) int {
 	return rt_on_exit(function, (unsafe { nil }))
 }
 
-type prog_main_fn = fn (int, &&i8, &&i8) int
+type prog_main_fn = fn (int, &&char, &&char) int
 
 type bound_start_fn = fn (voidptr, int)
 
@@ -178,12 +178,12 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&u8) int {
 		} else {
 			rc.stab_sym = &Stab_Sym(s1.stab_section.data)
 			rc.stab_sym_end = &Stab_Sym((s1.stab_section.data + s1.stab_section.data_offset))
-			rc.stab_str = &i8(s1.stab_section.link.data)
+			rc.stab_str = &char(s1.stab_section.link.data)
 		}
 		rc.dwarf = s1.dwarf
 		rc.esym_start = &Elf64_Sym((s1.symtab_section.data))
 		rc.esym_end = &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
-		rc.elf_str = &i8(s1.symtab_section.link.data)
+		rc.elf_str = &char(s1.symtab_section.link.data)
 		rc.prog_base = s1.text_section.sh_addr & 18446744069414584320
 		rc.top_func = tcc_get_symbol(s1, c'main')
 		rc.num_callers = s1.rt_num_callers
@@ -367,13 +367,13 @@ fn rt_elfsym(rc &Rt_context, wanted_pc Elf64_Addr, func_addr &Elf64_Addr) &i8 {
 	return unsafe { nil }
 }
 
-fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) Elf64_Addr {
-	func_name := [128]i8{}
+fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf64_Addr {
+	func_name := [128]char{}
 	func_addr := Elf64_Addr(0)
 	last_pc := Elf64_Addr(0)
 	pc := Elf64_Addr(0)
 
-	incl_files := [32]&i8{}
+	incl_files := [32]&char{}
 	incl_index := 0
 	last_incl_index := 0
 	len := 0
@@ -546,7 +546,7 @@ struct enry_format_struct {
 	form  u32
 }
 
-fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) Elf64_Addr {
+fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf64_Addr {
 	ln := &u8(0)
 	cp := &u8(0)
 	end := &u8(0)
@@ -573,8 +573,8 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 	pc := Elf64_Addr(0)
 	func_addr := Elf64_Addr(0)
 	line := 0
-	filename := &i8(0)
-	function := &i8(0)
+	filename := &char(0)
+	function := &char(0)
 	// RRRREG next id=0x7fffd8cedcc0
 	next:
 	ln = rc.dwarf_line
@@ -688,7 +688,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 							}
 						}
 						if i < (512) {
-							filename_table[i].name = &i8(rc.dwarf_line_str) + value
+							filename_table[i].name = &char(rc.dwarf_line_str) + value
 						}
 					} else if entry_format[j].type_ == dw_lnct_directory_index {
 						match entry_format[j].form {
@@ -745,7 +745,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 				0
 			}) {
 				if (filename_size++ + 1) < (512) {
-					filename_table[filename_size - 1].name = &i8(ln) - 1
+					filename_table[filename_size - 1].name = &char(ln) - 1
 					for (if ln < end {
 						*ln++
 					} else {
@@ -815,7 +815,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 							}
 							dw_lne_define_file { // case comp body kind=IfStmt is_enum=true
 								if (filename_size++ + 1) < (512) {
-									filename_table[filename_size - 1].name = &i8(ln) - 1
+									filename_table[filename_size - 1].name = &char(ln) - 1
 									for (if ln < end {
 										*ln++
 									} else {
@@ -930,7 +930,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &i8, skip &i8) E
 fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 	rc := &g_rtctxt
 	pc := 0
-	skip := [100]i8{}
+	skip := [100]char{}
 	i := 0
 	level := 0
 	ret := 0

@@ -74,7 +74,7 @@ fn getclock_ms() u64 {
 }
 
 fn main() {
-	//vcc_disable_trace()
+	// vcc_disable_trace()
 	s := &TCCState(0)
 	s1 := &TCCState(0)
 

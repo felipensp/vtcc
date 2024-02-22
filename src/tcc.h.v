@@ -1561,23 +1561,23 @@ enum Line_macro_output_format {
 }
 
 fn is_space(ch int) bool {
-	return ch == c' ' || ch == c'\x09' || ch == c'\x0b' || ch == c'\x0c' || ch == c'\x0a'
+	return ch == ` ` || ch == `\x09` || ch == `\x0b` || ch == `\x0c` || ch == `\x0a`
 }
 
 fn isid(c int) bool {
-	return (c >= c'a' && c <= c'z') || (c >= c'A' && c <= c'Z') || c == c'_'
+	return (c >= `a` && c <= `z`) || (c >= `A` && c <= `Z`) || c == `_`
 }
 
 fn isnum(c int) bool {
-	return c >= c'0' && c <= c'9'
+	return c >= `0` && c <= `9`
 }
 
 fn isoct(c int) bool {
-	return c >= c'0' && c <= c'7'
+	return c >= `0` && c <= `7`
 }
 
 fn toup(c u8) u8 {
-	return if (c >= c'a' && c <= c'z') { u8(c) - u8(c'a') + u8(c'A') } else { u8(c) }
+	return if (c >= `a` && c <= `z`) { u8(c) - u8(c'a') + u8(c'A') } else { u8(c) }
 }
 
 pub struct Stab_Sym {

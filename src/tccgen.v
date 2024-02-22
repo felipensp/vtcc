@@ -244,7 +244,7 @@ fn check_vstack() {
 }
 
 fn tccgen_init(s1 &TCCState) {
-	vtop = unsafe {  (&_vstack[0] + 1) - 1 }
+	vtop = unsafe { (&_vstack[0] + 1) - 1 }
 	unsafe { C.memset(vtop, 0, sizeof(*vtop)) }
 	int_type.t = 3
 	char_type.t = 1
@@ -555,7 +555,7 @@ fn sym_pop(ptop &&Sym, b &Sym, keep int) {
 	v := 0
 	s = *ptop
 	vcc_trace('${@LOCATION}')
-	for s != unsafe {nil} && b != unsafe { nil } && s != b {
+	for s != unsafe { nil } && b != unsafe { nil } && s != b {
 		vcc_trace('${@LOCATION}')
 		ss = s.prev
 		v = s.v
@@ -6773,7 +6773,8 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 			}
 			sym = sym_push(v, type_, r, addr)
 			if ad.cleanup_func {
-				cls := sym_push2(&all_cleanups, 536870912 | (cur_scope.cl.n++ +1), 0, 0)
+				cls := sym_push2(&all_cleanups, 536870912 | (cur_scope.cl.n++ + 1), 0,
+					0)
 				cls.prev_tok = sym
 				cls.next = ad.cleanup_func
 				cls.ncl = cur_scope.cl.s

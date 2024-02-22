@@ -772,8 +772,8 @@ fn skip_spaces() int {
 
 fn parse_line_comment(p &u8) &u8 {
 	c := 0
-	for  {
-		for  {
+	for {
+		for {
 			p++
 			c = *p
 			// RRRREG redo id=0x7fffd8899480
@@ -1189,7 +1189,7 @@ fn tok_get(t &int, pp &&int, cv &CValue) {
 				*p++
 				// while()
 				n--
-				if !(n) {
+				if !n {
 					break
 				}
 			}
@@ -1220,7 +1220,7 @@ fn macro_is_equal(a &int, b &int) int {
 		cstr_reset(&tokcstr)
 		tok_get_macro(&t, &a, &cv)
 		cstr_cat(&tokcstr, get_tok_str(t, &cv), 0)
-		tok_get_macro(&t, &a, &cv)		
+		tok_get_macro(&t, &a, &cv)
 		if C.strcmp(tokcstr.data, get_tok_str(t, &cv)) {
 			return 0
 		}
@@ -1262,7 +1262,7 @@ fn define_find(v int) &Sym {
 }
 
 fn free_defines(b &Sym) {
-	for define_stack != unsafe {nil} && b != unsafe{nil} && define_stack != b {
+	for define_stack != unsafe { nil } && b != unsafe { nil } && define_stack != b {
 		top := define_stack
 		define_stack = top.prev
 		tok_str_free_str(top.d)
@@ -1293,8 +1293,8 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 	c := 0
 	i := 0
 
-	name := [1024]u8{}
-	buf := [1024]u8{}
+	name := [1024]char{}
+	buf := [1024]char{}
 	p := &char(0)
 
 	e := &CachedInclude(0)
@@ -1349,7 +1349,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 			} else if test {
 				return 0
 			} else { // 3
-				_tcc_error("include file '${name}' not found")
+				_tcc_error("include file '${(&char(name)).vstring()}' not found")
 			}
 			pstrcpy(buf, sizeof(buf), p)
 			pstrcat(buf, sizeof(buf), c'/')
@@ -2012,7 +2012,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 						p++
 						// while()
 						i--
-						if !(i) {
+						if !i {
 							break
 						}
 					}
@@ -2576,9 +2576,8 @@ fn next_nomacro1() {
 	nested := 0
 	// RRRREG redo_no_start id=0x7fffd88e0230
 	redo_no_start:
-	
 	c = u8(*p)
-	if c== `\\` {
+	if c == `\\` {
 		nested++
 	}
 	vcc_trace('${@LOCATION} ${rune(c)}')
@@ -2663,7 +2662,7 @@ fn next_nomacro1() {
 		}
 		`#` {
 			// case comp stmt
-			p++ 
+			p++
 			c = *p
 			if c == `\\` {
 				c = handle_stray(&p)
@@ -3623,7 +3622,7 @@ fn macro_subst(tok_str &TokenString, nested_list &&Sym, macro_str &int) {
 			}
 			if nosubst {
 				if nosubst > 1 {
-					if (spc) {
+					if spc {
 						continue
 					}
 					nosubst++
@@ -3831,7 +3830,7 @@ fn preprocess_end(s1 &TCCState) {
 	vcc_trace('${@LOCATION}')
 	macro_ptr = unsafe { nil }
 	for file != unsafe { nil } {
-		vcc_trace('${@LOCATION}')	
+		vcc_trace('${@LOCATION}')
 		tcc_close()
 	}
 	vcc_trace('${@LOCATION}')

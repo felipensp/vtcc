@@ -18,7 +18,7 @@ fn tccelf_new(s &TCCState) {
 	vcc_trace('${@LOCATION}')
 	s1 := s
 	dynarray_add(&s.sections, &s.nb_sections, unsafe { nil })
-	//vcc_disable_trace()
+	// vcc_disable_trace()
 	vcc_trace('${@LOCATION} ${s.nb_sections} ${s1.nb_sections}')
 	s1.text_section = new_section(s, c'.text', 1, (1 << 1) | (1 << 2))
 	s1.data_section = new_section(s, c'.data', 1, (1 << 1) | (1 << 0))
@@ -31,7 +31,7 @@ fn tccelf_new(s &TCCState) {
 	s.symtab = &s1.symtab_section[0]
 	vcc_trace('${@LOCATION} - ${s.symtab != unsafe { nil }}')
 	vcc_trace('${@LOCATION} - ${s.symtab.link != unsafe { nil }}')
-	//vcc_disable_trace()
+	// vcc_disable_trace()
 	s.dynsymtab_section = new_symtab(s, c'.dynsymtab', 2, 2147483648 | 1073741824, c'.dynstrtab',
 		c'.dynhashtab', 2147483648)
 	get_sym_attr(s, 0, 1)
@@ -116,9 +116,9 @@ fn tccelf_end_file(s1 &TCCState) {
 	nb_syms = s.data_offset / sizeof(Elf64_Sym) - first_sym
 	vcc_trace('${@LOCATION}')
 	s.data_offset = s.sh_offset
-	vcc_trace('${@LOCATION} ${s.link == unsafe {nil}} ${(&char(s.name)).vstring()}')
+	vcc_trace('${@LOCATION} ${s.link == unsafe { nil }} ${(&char(s.name)).vstring()}')
 	if s.link != unsafe { nil } {
-	s.link.data_offset = s.link.sh_offset
+		s.link.data_offset = s.link.sh_offset
 	}
 	vcc_trace('${@LOCATION}')
 	s.hash = s.reloc
@@ -213,7 +213,7 @@ fn new_symtab(s1 &TCCState, symtab_name &char, sh_type int, sh_flags int, strtab
 	symtab.sh_entsize = sizeof(Elf64_Sym)
 	strtab = new_section(s1, strtab_name, 3, sh_flags)
 	put_elf_str(strtab, c'')
-	vcc_trace('${@LOCATION} strtab=${strtab != unsafe {nil}}')
+	vcc_trace('${@LOCATION} strtab=${strtab != unsafe { nil }}')
 	symtab.link = strtab
 	put_elf_sym(symtab, 0, 0, 0, 0, 0, unsafe { nil })
 	nb_buckets = 1
@@ -791,7 +791,7 @@ fn sort_syms(s1 &TCCState, s &Section) {
 	for i = 0; i < nb_syms; i++ {
 		if ((u8((p.st_info))) >> 4) == 0 {
 			unsafe {
-				old_to_new_syms[i] = (&char(q) - &char(new_syms))/sizeof(Elf64_Sym)
+				old_to_new_syms[i] = (&char(q) - &char(new_syms)) / sizeof(Elf64_Sym)
 			}
 			unsafe {
 				*q++ = *p
@@ -805,7 +805,7 @@ fn sort_syms(s1 &TCCState, s &Section) {
 	p = &Elf64_Sym(s.data)
 	for i = 0; i < nb_syms; i++ {
 		if ((u8((p.st_info))) >> 4) != 0 {
-			old_to_new_syms[i] = unsafe { (&char(q) - &char(new_syms))/sizeof(Elf64_Sym) }
+			old_to_new_syms[i] = unsafe { (&char(q) - &char(new_syms)) / sizeof(Elf64_Sym) }
 			unsafe {
 				*q++ = *p
 			}
@@ -908,7 +908,7 @@ fn update_gnu_hash(s1 &TCCState, gnu_hash &Section) {
 	for i = 0; i < nb_syms; i++, unsafe { p++ } {
 		if p.st_shndx == 0 {
 			unsafe {
-				old_to_new_syms[i] = (&char(q) - &char(new_syms))/sizeof(Elf64_Sym)
+				old_to_new_syms[i] = (&char(q) - &char(new_syms)) / sizeof(Elf64_Sym)
 			}
 			unsafe {
 				*q++ = *p
@@ -929,7 +929,7 @@ fn update_gnu_hash(s1 &TCCState, gnu_hash &Section) {
 	buck := &buck(tcc_malloc(nbuckets * sizeof(buck)))
 	unsafe {
 		if gnu_hash.data_offset != 4 * 4 + 8 * bloom_size + nbuckets * 4 +
-			(nb_syms - ((&char(q) - &char(new_syms))/sizeof(Elf64_Sym))) * 4 {
+			(nb_syms - ((&char(q) - &char(new_syms)) / sizeof(Elf64_Sym))) * 4 {
 			_tcc_error_noabort(s1, 'gnu_hash size incorrect')
 		}
 	}
@@ -954,11 +954,11 @@ fn update_gnu_hash(s1 &TCCState, gnu_hash &Section) {
 		cur := buck[i].first
 		if cur != -1 {
 			unsafe {
-				buckets[i] = (&char(q) - &char(new_syms))/sizeof(Elf64_Sym)
+				buckets[i] = (&char(q) - &char(new_syms)) / sizeof(Elf64_Sym)
 			}
 			for ; true; {
 				unsafe {
-					old_to_new_syms[cur] = (&char(q) - &char(new_syms))/sizeof(Elf64_Sym)
+					old_to_new_syms[cur] = (&char(q) - &char(new_syms)) / sizeof(Elf64_Sym)
 				}
 				unsafe {
 					*q++ = p[cur]
@@ -1480,10 +1480,10 @@ fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
 
 fn tccelf_add_crtbegin(s1 &TCCState) {
 	if s1.output_type != 4 {
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 		tcc_add_crt(s1, c'crt1.o')
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	tcc_add_crt(s1, c'crti.o')
 	vcc_trace('${@LOCATION}')
 }
@@ -1518,8 +1518,8 @@ fn tcc_add_runtime(s1 &TCCState) {
 			tcc_add_library_err(s1, c'pthread')
 		}
 		tcc_add_library_err(s1, c'c')
-		//if c'libtcc1.a'[0] {
-			tcc_add_support(s1, c'libtcc1.a')
+		// if c'libtcc1.a'[0] {
+		tcc_add_support(s1, c'libtcc1.a')
 		//}
 		if s1.output_type != 1 {
 			tccelf_add_crtend(s1)
@@ -1683,7 +1683,7 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 					if type_ == 2 || type_ == 10 {
 						dynindex := put_elf_sym(s1.dynsym, 0, esym.st_size, (((1) << 4) + ((2) & 15)),
 							0, 0, name)
-						index = (&char(sym) - &char(s1.symtab_section.data))/sizeof(Elf64_Sym)
+						index = (&char(sym) - &char(s1.symtab_section.data)) / sizeof(Elf64_Sym)
 						get_sym_attr(s1, index, 1).dyn_index = dynindex
 					} else if type_ == 1 {
 						offset := u32(0)
@@ -1763,7 +1763,7 @@ fn export_global_syms(s1 &TCCState) {
 				name = s1.symtab_section.link.data + sym.st_name
 				dynindex = set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info,
 					0, sym.st_shndx, name)
-				index = (&char(sym) - &char(s1.symtab_section.data))/sizeof(Elf64_Sym)
+				index = (&char(sym) - &char(s1.symtab_section.data)) / sizeof(Elf64_Sym)
 				get_sym_attr(s1, index, 1).dyn_index = dynindex
 			}
 		}

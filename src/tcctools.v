@@ -16,12 +16,14 @@ fn le2belong(ul u32) u32 {
 		((ul & 65280) << 8)
 }
 
-fn contains_any(s &i8, list &i8) int {
-	l := &i8(0)
-	for ; *s; s++ {
-		for l = list; *l; l++ {
-			if *s == *l {
-				return 1
+fn contains_any(s &char, list &char) int {
+	l := &char(0)
+	unsafe {
+		for ; *s; s++ {
+			for l = list; *l; l++ {
+				if *s == *l {
+					return 1
+				}
 			}
 		}
 	}
@@ -59,8 +61,8 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	i_lib := 0
 	i_obj := 0
 
-	buf := &i8(0)
-	shstr := &i8(0)
+	buf := &char(0)
+	shstr := &char(0)
 	symtab := &u8(unsafe { nil })
 	strtab := &u8(unsafe { nil })
 
@@ -74,11 +76,11 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	funcmax := 0
 	hofs := 0
 
-	tfile := [260]i8{}
-	stmp := [20]i8{}
+	tfile := [260]char{}
+	stmp := [20]char{}
 
-	file := &i8(0)
-	name := &i8(0)
+	file := &char(0)
+	name := &char(0)
 
 	ret := 2
 	ops_conflict := c'habdiopN'
@@ -198,7 +200,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 			continue
 		}
 		fi = C.fopen(argv[i_obj], c'rb')
-		if fi == (unsafe { nil }) {
+		if fi == unsafe { nil } {
 			C.fprintf(C.stderr, c"tcc: ar: can't open file %s \n", argv[i_obj])
 			goto the_end // id: 0x7ffff3218a30
 		}
@@ -253,8 +255,9 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 			}
 		}
 		file = argv[i_obj]
-		for name = C.strchr(file, 0); name > file && name[-1] != c'/' && name[-1] != c'\\'; name-- {
-			0
+		unsafe {
+			for name = C.strchr(file, 0); name > file && name[-1] != `/` && name[-1] != `\\`; name-- {
+			}
 		}
 		istrlen = C.strlen(name)
 		if istrlen >= sizeof(arhdro.ar_name) {

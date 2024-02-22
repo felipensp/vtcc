@@ -82,7 +82,6 @@ __global stk_data = &voidptr(0)
 __global nb_stk_data int
 __global file = &BufferedFile(0)
 
-
 fn wait_sem(p &TCCSem) {
 	if !p.init {
 		C.sem_init(&p.sem, 0, 1), 1
@@ -307,7 +306,7 @@ fn dynarray_reset(pp voidptr, n &int) {
 		}
 		unsafe {
 			p = &p[0] + 1
-		 	(*n)-- 
+			(*n)--
 		}
 	}
 	vcc_trace('${@LOCATION}')
@@ -414,17 +413,17 @@ fn error1(mode int, message string) {
 	f = &char(unsafe { nil })
 	if s1.error_set_jmp_enabled {
 		f = &char(file)
-		for f && f.filename[0] == c':' {
+		for f && f.filename[0] == `:` {
 			f = &char(f.prev)
 		}
 	}
 	if f != unsafe { nil } {
 		unsafe {
 			for pf := &s1.include_stack[0]; pf < &s1.include_stack_ptr[0]; pf++ {
-				cstr_printf(&cs, 'In file included from ${(&char((*pf).filename)).vstring()}:${(*pf).line_num - 1}:\n')
+				cstr_printf(&cs, 'In file included from ${(&char(&(*pf).filename[0])).vstring()}:${pf.line_num - 1}:\n')
 			}
 		}
-		cstr_printf(&cs, '${(&char(f.filename)).vstring()}:${f.line_num - !!(tok_flags & 1)}: ')
+		cstr_printf(&cs, '${(&char(&f.filename[0])).vstring()}:${f.line_num - !!(tok_flags & 1)}: ')
 	} else if s1.current_filename {
 		cstr_printf(&cs, '${(&char(s1.current_filename)).vstring()}: ')
 	} else {
@@ -446,7 +445,7 @@ fn error1(mode int, message string) {
 		C.fprintf(C.stderr, c'%s\n', cs.str().str)
 		C.fflush(C.stderr)
 	} else {
-		s1.error_func(s1.error_opaque, &char(cs.data))
+		s1.error_func(s1.error_opaque, cs.str().str)
 	}
 	cstr_free(&cs)
 	if mode != error_warn {
@@ -718,7 +717,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	vcc_trace('${@LOCATION}')
 	tcc_add_library_path(s, c'{B}:/:/usr/lib:/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu')
 	vcc_trace('${@LOCATION}')
-	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'/usr/lib/x86_64-linux-gnu')
+	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'{B}:/:/usr/lib/x86_64-linux-gnu')
 	vcc_trace('${@LOCATION}')
 	if output_type != 1 && !s.nostdlib {
 		vcc_trace('${@LOCATION}')
