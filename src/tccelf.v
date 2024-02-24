@@ -10,8 +10,21 @@ fn C.dlsym(voidptr, &char) voidptr
 fn C.dlclose(int)
 fn C.unlink(&char)
 fn C.strtol(&char, &&char, int) u64
+fn C.fwrite(voidptr, usize, usize, &C.FILE) usize
 
-const shf_RELRO = (1 << 1) | (1 << 0)
+const shf_relro = (1 << 1) | (1 << 0)
+const shf_private = int(0x8000_0000)
+// section is dynsymtab_section
+const shf_dynsym = int(0x4000_0000)
+const shf_alloc = (1 << 1)
+const shf_execisntr = (1 << 2)
+const shf_write = (1 << 0)
+
+const shn_common = 65522
+
+const sht_progbits = 1
+const sht_symtab = 2
+const sht_nobits = 8
 
 fn tccelf_new(s &TCCState) {
 	vcc_enable_trace()
@@ -20,27 +33,31 @@ fn tccelf_new(s &TCCState) {
 	dynarray_add(&s.sections, &s.nb_sections, unsafe { nil })
 	// vcc_disable_trace()
 	vcc_trace('${@LOCATION} ${s.nb_sections} ${s1.nb_sections}')
-	s1.text_section = new_section(s, c'.text', 1, (1 << 1) | (1 << 2))
-	s1.data_section = new_section(s, c'.data', 1, (1 << 1) | (1 << 0))
-	s1.rodata_section = new_section(s, c'.data.ro', 1, shf_RELRO)
-	s1.bss_section = new_section(s, c'.bss', 8, (1 << 1) | (1 << 0))
-	s1.common_section = new_section(s, c'.common', 8, 2147483648)
-	s1.common_section.sh_num = 65522
+	s1.text_section = new_section(s, c'.text', sht_progbits, (shf_alloc | shf_execisntr))
+	s1.data_section = new_section(s, c'.data', sht_progbits, (shf_alloc | shf_write))
+	s1.rodata_section = new_section(s, c'.data.ro', sht_progbits, shf_relro)
+	s1.bss_section = new_section(s, c'.bss', sht_nobits, (shf_alloc | shf_write))
+	s1.common_section = new_section(s, c'.common', sht_nobits, shf_private)
+	s1.common_section.sh_num = shn_common
 	vcc_enable_trace()
-	s1.symtab_section = new_symtab(s, c'.symtab', 2, 0, c'.strtab', c'.hashtab', 2147483648)
+	s1.symtab_section = new_symtab(s, c'.symtab', sht_symtab, 0, c'.strtab', c'.hashtab',
+		shf_private)
 	s.symtab = &s1.symtab_section[0]
+
 	vcc_trace('${@LOCATION} - ${s.symtab != unsafe { nil }}')
 	vcc_trace('${@LOCATION} - ${s.symtab.link != unsafe { nil }}')
-	// vcc_disable_trace()
-	s.dynsymtab_section = new_symtab(s, c'.dynsymtab', 2, 2147483648 | 1073741824, c'.dynstrtab',
-		c'.dynhashtab', 2147483648)
+
+	s.dynsymtab_section = new_symtab(s, c'.dynsymtab', sht_symtab, (shf_private | shf_dynsym),
+		c'.dynstrtab', c'.dynhashtab', shf_private)
+
+	a := int(0x80000000)
 	get_sym_attr(s, 0, 1)
 	if s.do_debug {
 		tcc_debug_new(s)
 	}
 	if s.do_bounds_check {
-		s1.bounds_section = new_section(s, c'.bounds', 1, shf_RELRO)
-		s1.lbounds_section = new_section(s, c'.lbounds', 1, shf_RELRO)
+		s1.bounds_section = new_section(s, c'.bounds', 1, shf_relro)
+		s1.lbounds_section = new_section(s, c'.lbounds', 1, shf_relro)
 	}
 	vcc_trace('${@LOCATION} ${s1.nb_sections} ${s.text_section != unsafe { nil }} ${s1.text_section != unsafe { nil }}')
 }
@@ -117,13 +134,11 @@ fn tccelf_end_file(s1 &TCCState) {
 	vcc_trace('${@LOCATION}')
 	s.data_offset = s.sh_offset
 	vcc_trace('${@LOCATION} ${s.link == unsafe { nil }} ${(&char(s.name)).vstring()}')
-	if s.link != unsafe { nil } {
-		s.link.data_offset = s.link.sh_offset
-	}
+	s.link.data_offset = s.link.sh_offset
 	vcc_trace('${@LOCATION}')
 	s.hash = s.reloc
 	s.reloc = unsafe { nil }
-	tr = tcc_mallocz(nb_syms * sizeof(*tr))
+	tr = &int(tcc_mallocz(nb_syms * sizeof(*tr)))
 	vcc_trace('${@LOCATION}')
 	for i = 0; i < nb_syms; i++ {
 		sym := unsafe { &Elf64_Sym(s.data) + first_sym + i }
@@ -190,7 +205,7 @@ fn new_section(s1 &TCCState, name &char, sh_type int, sh_flags int) &Section {
 			sec.sh_addralign = 8
 		}
 	}
-	if sh_flags & 2147483648 {
+	if sh_flags & shf_private {
 		dynarray_add(&s1.priv_sections, &s1.nb_priv_sections, sec)
 	} else {
 		sec.sh_num = s1.nb_sections
@@ -365,7 +380,6 @@ fn rebuild_hash(s &Section, nb_buckets u32) {
 }
 
 fn put_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shndx int, name &char) int {
-	vcc_trace('${@LOCATION}')
 	name_offset := 0
 	sym_index := 0
 
@@ -390,6 +404,7 @@ fn put_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shnd
 	sym.st_other = other
 	sym.st_shndx = shndx
 	sym_index = unsafe { (&char(sym) - &char(s.data)) / sizeof(Elf64_Sym) }
+	vcc_trace('${@LOCATION} sym_index=${sym_index}')
 	hs = s.hash
 	if hs {
 		ptr := &int(0)
@@ -397,6 +412,7 @@ fn put_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shnd
 		vcc_trace('${@LOCATION}')
 		ptr = section_ptr_add(hs, sizeof(int))
 		base = unsafe { &int(hs.data) }
+		vcc_trace('${@LOCATION} info=${info}')
 		if ((u8(info)) >> 4) != 0 {
 			nbuckets = base[0]
 			h = unsafe { elf_hash(&u8(s.link.data) + name_offset) % nbuckets }
@@ -432,15 +448,14 @@ fn find_elf_sym(s &Section, name &char) int {
 	vcc_trace('${@LOCATION}')
 	nbuckets = unsafe { &int(hs.data)[0] }
 	vcc_trace('${@LOCATION} ${name.vstring()} ${nbuckets}')
-	h = elf_hash(&char(name)) % nbuckets
+	h = elf_hash(name) % nbuckets
 	sym_index = unsafe { &int(hs.data)[2 + h] }
-	vcc_trace('${@LOCATION} ${name.vstring()} ${nbuckets} ${sym_index}')
+	vcc_trace('${@LOCATION} ${name.vstring()} ${nbuckets} sym_index=${sym_index}')
 	for sym_index != 0 {
-		vcc_trace('${@LOCATION}')
-		sym = unsafe { &Elf64_Sym(s.data) + sym_index }
+		sym = unsafe { &(&Elf64_Sym(s.data))[sym_index] }
 		vcc_trace('${@LOCATION} ${sym.st_name} ${s.link.data != unsafe { nil }}')
 		name1 = unsafe { &char(s.link.data) + sym.st_name }
-		vcc_trace('${@LOCATION} ${sym.st_name} ${name1.vstring()} ${s.link.data != unsafe { nil }}')
+		vcc_trace('${@LOCATION} ${name.vstring()} | ${name1.vstring()}')
 		if unsafe { !C.strcmp(name, name1) } {
 			vcc_trace('${@LOCATION} - found')
 			return sym_index
@@ -448,7 +463,7 @@ fn find_elf_sym(s &Section, name &char) int {
 		sym_index = unsafe { &int(hs.data)[2 + nbuckets + sym_index] }
 		vcc_trace('${@LOCATION} ${sym_index}')
 	}
-	vcc_trace('${@LOCATION} - not found')
+	vcc_trace('${@LOCATION} - sym ${name.vstring()} not found - ${(&char(s.name)).vstring()}')
 	return 0
 }
 
@@ -467,7 +482,7 @@ fn get_sym_addr(s1 &TCCState, name &char, err int, forc int) Elf64_Addr {
 		if err {
 			_tcc_error_noabort(s1, '${name.vstring()} not defined')
 		}
-		return Elf64_Addr(-1)
+		return -1
 	}
 	return sym.st_value
 }
@@ -704,7 +719,7 @@ fn set_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shnd
 
 fn put_elf_reloca(symtab &Section, s &Section, offset u32, type_ int, symbol int, addend Elf64_Addr) {
 	s1 := s.s1
-	buf := [256]i8{}
+	buf := [256]char{}
 	sr := &Section(0)
 	rel := &Elf64_Rela(0)
 	sr = s.reloc
@@ -1129,6 +1144,7 @@ fn prepare_dynamic_rel(s1 &TCCState, sr &Section) int {
 					sym := &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
 					if sym.st_shndx != 0 && ((sym.st_other) & 3) == 2 {
 						rel.r_info = (((Elf64_Xword(sym_index)) << 32) + (4))
+						break
 					}
 
 					if s1.output_type != 4 {
@@ -1158,7 +1174,7 @@ fn put_got_entry(s1 &TCCState, dyn_reloc_type int, sym_index int) &Sym_attr {
 	sym := &Elf64_Sym(0)
 	attr := &Sym_attr(0)
 	got_offset := u32(0)
-	plt_name := [200]i8{}
+	plt_name := [200]char{}
 	len := 0
 	s_rel := &Section(0)
 	need_plt_entry = (dyn_reloc_type == 7)
@@ -1344,7 +1360,7 @@ fn set_global_sym(s1 &TCCState, name &char, sec &Section, offs Elf64_Addr) int {
 fn add_init_array_defines(s1 &TCCState, section_name &char) {
 	s := &Section(0)
 	end_offset := Elf64_Addr(0)
-	buf := [1024]i8{}
+	buf := [1024]char{}
 	s = have_section(s1, section_name)
 	if unsafe { s == 0 } || !(s.sh_flags & (1 << 1)) {
 		end_offset = 0
@@ -1363,8 +1379,8 @@ fn add_init_array_defines(s1 &TCCState, section_name &char) {
 fn add_array(s1 &TCCState, sec &char, c int) {
 	s := &Section(0)
 	s = find_section(s1, sec)
-	s.sh_flags = shf_RELRO
-	s.sh_type = if sec[1] == c'i' { 14 } else { 15 }
+	s.sh_flags = shf_relro
+	s.sh_type = if sec[1] == `i` { 14 } else { 15 }
 	put_elf_reloc(s1.symtab, s, s.data_offset, 1, c)
 	section_ptr_add(s, 8)
 }
@@ -1452,14 +1468,14 @@ fn tcc_add_btstub(s1 &TCCState) {
 fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
 	cstr := strings.new_builder(100)
 	ptr := &voidptr(0)
-	wd := [1024]i8{}
+	wd := [1024]char{}
 	if s1.tcov_section == (unsafe { nil }) {
 		return
 	}
 	section_ptr_add(s1.tcov_section, 1)
 	write32le(s1.tcov_section.data, s1.tcov_section.data_offset)
 	cstr_new(&cstr)
-	if filename[0] == c'/' {
+	if filename[0] == `/` {
 		cstr_printf(&cstr, '${filename}.tcov')
 	} else {
 		C.getcwd(wd, sizeof(wd))
@@ -1480,10 +1496,10 @@ fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
 
 fn tccelf_add_crtbegin(s1 &TCCState) {
 	if s1.output_type != 4 {
-		vcc_trace_print('${@LOCATION}')
+		vcc_trace('${@LOCATION}')
 		tcc_add_crt(s1, c'crt1.o')
 	}
-	vcc_trace_print('${@LOCATION}')
+	vcc_trace('${@LOCATION}')
 	tcc_add_crt(s1, c'crti.o')
 	vcc_trace('${@LOCATION}')
 }
@@ -1672,9 +1688,9 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
 			if sym.st_shndx == 0 {
 				name = &char(s1.symtab_section.link.data) + sym.st_name
-				vcc_trace('${@LOCATION} ${name.vstring()}')
 				sym_index = find_elf_sym(s1.dynsymtab_section, name)
 				if sym_index {
+					vcc_trace('${@LOCATION} ${name.vstring()} - ${sym_index} - ${s1.dynsymtab_section != nil}')
 					if is_pie {
 						continue
 					}
@@ -1694,6 +1710,7 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 							s1.bss_section.sh_num, name)
 						index = put_elf_sym(s1.dynsym, offset, esym.st_size, esym.st_info,
 							0, s1.bss_section.sh_num, name)
+						vcc_trace('${@LOCATION} ${name.vstring()}')
 						if ((u8((esym.st_info))) >> 4) == 2 {
 							for dynsym = &Elf64_Sym(s1.dynsymtab_section.data) + 1; voidptr(dynsym) < &Elf64_Sym((
 								s1.dynsymtab_section.data + s1.dynsymtab_section.data_offset)); dynsym++ {
@@ -1701,6 +1718,7 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 									&& ((u8((dynsym.st_info))) >> 4) == 1 {
 									dynname := &char(s1.dynsymtab_section.link.data) +
 										dynsym.st_name
+									vcc_trace('${@LOCATION} ${dynname.vstring()}')
 									put_elf_sym(s1.dynsym, offset, dynsym.st_size, dynsym.st_info,
 										0, s1.bss_section.sh_num, dynname)
 									break
@@ -1713,8 +1731,9 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 					}
 				} else {
 					if ((u8((sym.st_info))) >> 4) == 2 || !C.strcmp(name, c'_fp_hw') {
+						vcc_trace('${@LOCATION} ${name.vstring()}')
 					} else {
-						_tcc_error_noabort(s1, "undefined symbol '${name.vstring()}'")
+						_tcc_error_noabort(s1, "undefined symbol '${name.vstring()}' [${sym.st_name} ${s1.dynsymtab_section != nil} ${sym_index} ${u8(sym.st_info) >> 4}]")
 					}
 				}
 			}
@@ -1734,16 +1753,26 @@ fn bind_libs_dynsyms(s1 &TCCState) {
 			name = &char(s1.symtab_section.link.data) + sym.st_name
 			dynsym_index = find_elf_sym(s1.dynsymtab_section, name)
 			if sym.st_shndx != 0 {
+				if name.vstring() == 'main' {
+					vcc_trace('${@LOCATION}')
+				}
 				if ((u8((sym.st_info))) >> 4) != 0 && (dynsym_index || s1.rdynamic) {
 					set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info, 0,
 						sym.st_shndx, name)
 				}
 			} else if dynsym_index {
+				if name.vstring() == 'main' {
+					vcc_trace('${@LOCATION}')
+				}
 				esym = &Elf64_Sym(s1.dynsymtab_section.data) + dynsym_index
 				if esym.st_shndx == 0 {
 					if ((u8((esym.st_info))) >> 4) != 2 {
-						_tcc_warning("undefined dynamic symbol '${name}'")
+						_tcc_warning("undefined dynamic symbol '${name.vstring()}'")
 					}
+				}
+			} else {
+				if name.vstring() == 'main' {
+					vcc_trace('${@LOCATION}')
 				}
 			}
 		}
@@ -1760,7 +1789,7 @@ fn export_global_syms(s1 &TCCState) {
 		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; sym < voidptr(&Elf64_Sym((
 			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
 			if ((u8((sym.st_info))) >> 4) != 0 {
-				name = s1.symtab_section.link.data + sym.st_name
+				name = &char(s1.symtab_section.link.data) + sym.st_name
 				dynindex = set_elf_sym(s1.dynsym, sym.st_value, sym.st_size, sym.st_info,
 					0, sym.st_shndx, name)
 				index = (&char(sym) - &char(s1.symtab_section.data)) / sizeof(Elf64_Sym)
@@ -2054,13 +2083,13 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 		ph.p_memsz = addr - ph.p_vaddr
 	}
 	if d.note {
-		fill_phdr(unsafe { ph++ }, 4, d.note)
+		fill_phdr(unsafe { ph++ + 1 }, 4, d.note)
 	}
 	if d.dynamic {
-		fill_phdr(unsafe { ph++ }, 2, d.dynamic).p_flags |= (1 << 1)
+		fill_phdr(unsafe { ph++ + 1 }, 2, d.dynamic).p_flags |= (1 << 1)
 	}
 	if d.roinf {
-		fill_phdr(unsafe { ph++ }, 1685382482, d.roinf).p_flags |= (1 << 1)
+		fill_phdr(unsafe { ph++ + 1 }, 1685382482, d.roinf).p_flags |= (1 << 1)
 	}
 	if d.interp {
 		fill_phdr(&d.phdr[1], 3, d.interp)
@@ -2165,6 +2194,8 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 	size := 0
 	file_type := 0
 
+	vcc_trace('${@LOCATION}')
+
 	s := &Section(0)
 	ehdr := Elf64_Ehdr{}
 	shdr := Elf64_Shdr{}
@@ -2179,6 +2210,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 		ehdr.e_phoff = sizeof(Elf64_Ehdr)
 		shnum = tidy_section_headers(s1, sec_order)
 	}
+	vcc_trace('${@LOCATION}')
 	file_offset = (file_offset + 3) & -4
 	ehdr.e_ident[0] = 127
 	ehdr.e_ident[1] = `E`
@@ -2207,6 +2239,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 			return -1
 		}
 	}
+	vcc_trace('${@LOCATION}')
 	ehdr.e_machine = 62
 	ehdr.e_version = 1
 	ehdr.e_shoff = file_offset
@@ -2214,12 +2247,17 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 	ehdr.e_shentsize = sizeof(Elf64_Shdr)
 	ehdr.e_shnum = shnum
 	ehdr.e_shstrndx = shnum - 1
+	vcc_trace('${@LOCATION}')
 	C.fwrite(&ehdr, 1, sizeof(Elf64_Ehdr), f)
 	if phdr {
+		vcc_trace('${@LOCATION}')
 		C.fwrite(phdr, 1, phnum * sizeof(Elf64_Phdr), f)
 	}
+	vcc_trace('${@LOCATION}')
 	offset = sizeof(Elf64_Ehdr) + phnum * sizeof(Elf64_Phdr)
+	vcc_trace('${@LOCATION}')
 	sort_syms(s1, s1.symtab_section)
+	vcc_trace('${@LOCATION}')
 	for i = 1; i < shnum; i++ {
 		s = s1.sections[if sec_order { sec_order[i] } else { i }]
 		if s.sh_type != 8 {
@@ -2258,6 +2296,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 		}
 		C.fwrite(sh, 1, sizeof(Elf64_Shdr), f)
 	}
+	vcc_trace('${@LOCATION}')
 	return 0
 }
 
@@ -2299,6 +2338,8 @@ fn tcc_write_elf_file(s1 &TCCState, filename &char, phnum int, phdr &Elf64_Phdr,
 	C.unlink(filename)
 	fd = C.open(filename, 1 | 64 | 512 | 0, mode)
 	if fd < 0 {
+		return _tcc_error_noabort(s1, "could not write '${filename}: ${C.strerror(C.errno)}'")
+	} else {
 		f = C.fdopen(fd, c'wb')
 		if f == unsafe { nil } {
 			return _tcc_error_noabort(s1, "could not write '${filename}: ${C.strerror(C.errno)}'")
@@ -2308,11 +2349,14 @@ fn tcc_write_elf_file(s1 &TCCState, filename &char, phnum int, phdr &Elf64_Phdr,
 		C.printf(c'<- %s\n', filename)
 	}
 	if s1.output_format == 0 {
+		vcc_trace('${@LOCATION} ${f != unsafe { nil }} ${filename.vstring()} ${fd}')
 		ret = tcc_output_elf(s1, f, phnum, phdr, file_offset, sec_order)
 	} else { // 3
+		vcc_trace('${@LOCATION}')
 		ret = tcc_output_binary(s1, f, sec_order)
 	}
 	C.fclose(f)
+	vcc_trace('${@LOCATION}')
 	return ret
 }
 
@@ -2338,7 +2382,7 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 			nnew++
 		} else {
 			backmap[sec_order[i]] = 0
-			snew[l-- + 1] = s
+			snew[l-- - 1] = s
 		}
 	}
 	for i = 0; i < nnew; i++ {
@@ -2563,7 +2607,9 @@ fn elf_output_obj(s1 &TCCState, filename &char) int {
 			file_offset += s.sh_size
 		}
 	}
-	ret = tcc_write_elf_file(s1, filename, 0, (unsafe { nil }), file_offset, (unsafe { nil }))
+	vcc_trace('${@LOCATION}')
+	ret = tcc_write_elf_file(s1, filename, 0, unsafe { nil }, file_offset, unsafe { nil })
+	vcc_trace('${@LOCATION}')
 	return ret
 }
 
@@ -2889,13 +2935,13 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 }
 
 struct ArchiveHeader {
-	ar_name [16]i8
-	ar_date [12]i8
-	ar_uid  [6]i8
-	ar_gid  [6]i8
-	ar_mode [8]i8
-	ar_size [10]i8
-	ar_fmag [2]i8
+	ar_name [16]char
+	ar_date [12]char
+	ar_uid  [6]char
+	ar_gid  [6]char
+	ar_mode [8]char
+	ar_size [10]char
+	ar_fmag [2]char
 }
 
 fn get_be(b &u8, n int) i64 {
@@ -2923,7 +2969,7 @@ fn read_ar_header(fd int, offset int, hdr &ArchiveHeader) int {
 	vcc_trace('${@LOCATION}')
 	p = &hdr.ar_name[0]
 	vcc_trace('${@LOCATION}')
-	for e = p + sizeof(hdr.ar_name); e > p && e[-1] == c' '; {
+	for e = p + sizeof(hdr.ar_name); e > p && e[-1] == ` `; {
 		unsafe { e-- }
 	}
 	*e = `\x00`
@@ -3249,6 +3295,10 @@ fn tcc_load_dll(s1 &TCCState, fd int, filename &char, level int) int {
 			continue
 		}
 		name = dynstr + sym.st_name
+		if name.vstring() == 'main' {
+			vcc_trace('${@LOCATION}')
+		}
+		vcc_trace('${@LOCATION} ${name.vstring()}')
 		sym_index = set_elf_sym(s1.dynsymtab_section, sym.st_value, sym.st_size, sym.st_info,
 			sym.st_other, sym.st_shndx, name)
 		if v.versym {
@@ -3359,7 +3409,8 @@ fn ld_next(s1 &TCCState, name &char, name_size int) int {
 
 fn ld_add_file(s1 &TCCState, filename &char) int {
 	if filename[0] == `/` {
-		if CONFIG_SYSROOT[0] == ` ` && tcc_add_file_internal(s1, filename, 64) == 0 {
+		sysroot := CONFIG_SYSROOT
+		if sysroot.len == 0 && tcc_add_file_internal(s1, filename, 64) == 0 {
 			return 0
 		}
 		filename = tcc_basename(filename)
@@ -3397,7 +3448,7 @@ fn ld_add_file_list(s1 &TCCState, cmd &char, as_needed int) int {
 			break
 		} else if t == `-` {
 			t = ld_next(s1, filename, sizeof(filename))
-			if t != 256 || filename[0] != c'l' {
+			if t != 256 || filename[0] != `l` {
 				ret = _tcc_error_noabort(s1, 'library name expected')
 				goto lib_parse_error // id: 0x7fffe9078940
 			}

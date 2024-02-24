@@ -46,7 +46,7 @@ struct Rt_context {
 	dwarf          Elf64_Addr
 	esym_start     &Elf64_Sym
 	esym_end       &Elf64_Sym
-	elf_str        &i8
+	elf_str        &char
 	prog_base      Elf64_Addr
 	bounds_start   voidptr
 	next           &Rt_context
@@ -72,6 +72,7 @@ const FILE_TABLE_SIZE = 512
 
 struct C.va_list {}
 
+fn C._setjmp(&C.jmp_buf) int
 fn C.mprotect(voidptr, usize, int)
 fn C.vprintf(&char, C.va_list) int
 fn C.vfprintf(&C.FILE, &char) int
@@ -106,12 +107,17 @@ pub fn tcc_relocate(s1 &TCCState, ptr voidptr) int {
 
 type run_cdtors_fn = fn (int, &&char, &&char)
 
-pub fn run_cdtors(s1 &TCCState, start &char, end &char, argc int, argv &&u8, envp &&u8) {
+pub fn run_cdtors(s1 &TCCState, start &char, end &char, argc int, argv &&char, envp &&char) {
 	a := &voidptr(get_sym_addr(s1, start, 0, 0))
 	b := &voidptr(get_sym_addr(s1, end, 0, 0))
-	for i := 0; a[i] != b; i++ {
+	vcc_trace('${@LOCATION} ${a} ${b}')
+	for i := 0; a != b; i++ {
+		vcc_trace('${@LOCATION} >')
 		fnc := run_cdtors_fn(a[i])
+
 		fnc(argc, argv, envp)
+		vcc_trace('${@LOCATION} <')
+		a = a[1]
 	}
 }
 
@@ -146,13 +152,15 @@ type prog_main_fn = fn (int, &&char, &&char) int
 type bound_start_fn = fn (voidptr, int)
 
 pub fn tcc_run(s1 &TCCState, argc int, argv &&u8) int {
-	prog_main := prog_main_fn(0)
+	prog_main := &prog_main_fn(0)
 	ret := 0
 
 	rc := &g_rtctxt
 	envp := C.environ
 	s1.runtime_main = if s1.nostdlib { c'_start' } else { c'main' }
-	if s1.dflag & 16 && Elf64_Addr(-1) == get_sym_addr(s1, s1.runtime_main, 0, 1) {
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
+	if s1.dflag & 16 && -1 == get_sym_addr(s1, s1.runtime_main, 0, 1) {
+		vcc_trace('${@LOCATION}')
 		return 0
 	}
 	tcc_add_symbol(s1, c'exit', rt_exit)
@@ -161,11 +169,13 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&u8) int {
 	if tcc_relocate(s1, voidptr(1)) < 0 {
 		return -1
 	}
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	prog_main = voidptr(get_sym_addr(s1, s1.runtime_main, 1, 1))
-	if prog_main == unsafe { nil } {
+	if prog_main == -1 {
 		return -1
 	}
 	C.memset(rc, 0, sizeof(*rc))
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	rc.do_jmp = 1
 	if s1.do_debug {
 		p := &voidptr(0)
@@ -202,21 +212,28 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&u8) int {
 		set_exception_handler()
 	}
 	C.errno = 0
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	C.fflush(C.stdout)
 	C.fflush(C.stderr)
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	run_cdtors(s1, c'__init_array_start', c'__init_array_end', argc, argv, envp)
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	ret = C._setjmp(rc.jb)
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	if 0 == ret {
+		vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()} ${prog_main != unsafe { nil }}')
 		ret = prog_main(argc, argv, envp)
 	} else if 256 == ret {
 		ret = 0
 	}
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	run_cdtors(s1, c'__fini_array_start', c'__fini_array_end', 0, (unsafe { nil }), (unsafe { nil }))
 	run_on_exit(ret)
 	if s1.dflag & 16 && ret {
 		C.fprintf(s1.ppfp, c'[returns %d]\n', ret)
 		C.fflush(s1.ppfp)
 	}
+	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	return ret
 }
 
@@ -352,7 +369,7 @@ fn rt_printf(msg string) int {
 	return r
 }
 
-fn rt_elfsym(rc &Rt_context, wanted_pc Elf64_Addr, func_addr &Elf64_Addr) &i8 {
+fn rt_elfsym(rc &Rt_context, wanted_pc Elf64_Addr, func_addr &Elf64_Addr) &char {
 	esym := &Elf64_Sym(0)
 	unsafe {
 		for esym = rc.esym_start + 1; esym < voidptr(rc.esym_end); esym++ {
@@ -380,8 +397,8 @@ fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf
 	last_line_num := 0
 	i := 0
 
-	str := &i8(0)
-	p := &i8(0)
+	str := &char(0)
+	p := &char(0)
 
 	sym := &Stab_Sym(0)
 	// RRRREG next id=0x7fffd8ce44c8
@@ -456,7 +473,7 @@ fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf
 					incl_index = 0
 					if sym.n_strx {
 						len = C.strlen(str)
-						if len > 0 && str[len - 1] != c'/' {
+						if len > 0 && str[len - 1] != `/` {
 							incl_files[incl_index++] = str
 						}
 					}
@@ -837,7 +854,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 								dwarf_read_uleb128(&ln, end)
 							}
 							dw_lne_hi_user - 1 { // case comp body kind=BinaryOperator is_enum=true
-								function = &i8(cp)
+								function = &char(cp)
 								func_addr = pc
 							}
 							else {}
@@ -915,14 +932,14 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 		if skip[0] && C.strstr(filename, skip) {
 			return Elf64_Addr(-1)
 		}
-		rt_printf('${filename}:${line}: ')
+		rt_printf('${filename.vstring()}:${line}: ')
 	} else { // 3
 		rt_printf('0x${i64(wanted_pc)} : ')
 	}
 	if function {
-		rt_printf('${msg} ${function}')
+		rt_printf('${msg.vstring()} ${function.vstring()}')
 	} else {
-		rt_printf('${msg} ???')
+		rt_printf('${msg.vstring()} ???')
 	}
 	return Elf64_Addr(func_addr)
 }
@@ -937,9 +954,9 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 	n := 0
 	one := 0
 
-	a := &i8(0)
-	b := &i8(0)
-	msg := &i8(0)
+	a := &char(0)
+	b := &char(0)
+	msg := &char(0)
 
 	if fp {
 		rc.fp = Elf64_Addr(fp)

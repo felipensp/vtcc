@@ -49,8 +49,8 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	arhdr := arhdr_init
 	arhdro := arhdr_init
 	fi := &C.FILE(0)
-	fh := (unsafe { nil })
-	fo := (unsafe { nil })
+	fh := unsafe { nil }
+	fo := unsafe { nil }
 
 	created_file := (unsafe { nil })
 	ehdr := &Elf64_Ehdr(0)
@@ -136,15 +136,17 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 			goto finish // id: 0x7ffff3215730
 		}
 		for C.fread(&arhdr, 1, sizeof(arhdr), fh) == sizeof(arhdr) {
-			p := &i8(0)
-			e := &i8(0)
+			p := &char(0)
+			e := &char(0)
 
 			if C.memcmp(arhdr.ar_fmag, c'`\n', 2) {
 				goto no_ar // id: 0x7ffff3215da0
 			}
 			p = arhdr.ar_name
-			for e = p + sizeof(arhdr.ar_name); e > p && e[-1] == c' '; {
-				e--
+			unsafe {
+				for e = p + sizeof(arhdr.ar_name); e > p && e[-1] == ` `; {
+					e--
+				}
 			}
 			*e = `\x00`
 			arhdr.ar_size[sizeof(arhdr.ar_size) - 1] = 0
@@ -152,7 +154,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 			buf = tcc_malloc(fsize + 1)
 			C.fread(buf, fsize, 1, fh)
 			if C.strcmp(arhdr.ar_name, c'/') && C.strcmp(arhdr.ar_name, c'/SYM64/') {
-				if e > p && e[-1] == c'/' {
+				if e > p && e[-1] == `/` {
 					e[-1] = `\x00`
 				}
 				if table || verbose {
@@ -219,19 +221,19 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 			goto the_end // id: 0x7ffff3218a30
 		}
 		shdr = &Elf64_Shdr((buf + ehdr.e_shoff + ehdr.e_shstrndx * ehdr.e_shentsize))
-		shstr = &i8((buf + shdr.sh_offset))
+		shstr = &char((buf + shdr.sh_offset))
 		for i = 0; i < ehdr.e_shnum; i++ {
 			shdr = &Elf64_Shdr((buf + ehdr.e_shoff + i * ehdr.e_shentsize))
 			if !shdr.sh_offset {
 				continue
 			}
 			if shdr.sh_type == 2 {
-				symtab = &i8((buf + shdr.sh_offset))
+				symtab = &char((buf + shdr.sh_offset))
 				symtabsize = shdr.sh_size
 			}
 			if shdr.sh_type == 3 {
 				if !C.strcmp(shstr + shdr.sh_name, c'.strtab') {
-					strtab = &i8((buf + shdr.sh_offset))
+					strtab = &char((buf + shdr.sh_offset))
 				}
 			}
 		}
@@ -326,7 +328,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 }
 
 fn tcc_tool_cross(s1 &TCCState, argv &&char, target int) int {
-	program := [4096]i8{}
+	program := [4096]char{}
 	a0 := argv[0]
 	prefix := tcc_basename(a0) - a0
 	if target == 64 {
@@ -342,16 +344,18 @@ fn tcc_tool_cross(s1 &TCCState, argv &&char, target int) int {
 	return 1
 }
 
-fn escape_target_dep(s &i8) &i8 {
+fn escape_target_dep(s &char) &char {
 	res := &u8(tcc_malloc(C.strlen(s) * 2 + 1))
 	j := 0
-	for j = 0; *s; s++, j++ {
-		if is_space(*s) {
-			res[j++] = `\\`
+	unsafe {
+		for j = 0; *s; s++, j++ {
+			if is_space(*s) {
+				res[j++] = `\\`
+			}
+			res[j] = *s
 		}
-		res[j] = *s
+		res[j] = `\x00`
 	}
-	res[j] = `\x00`
 	return res
 }
 

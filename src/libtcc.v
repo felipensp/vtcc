@@ -140,7 +140,7 @@ fn pstrcpy(buf &char, buf_size usize, s &char) &char {
 		q_end = &char(buf) + buf_size - 1
 		unsafe {
 			for q < q_end {
-				c = s++
+				c = *s++
 				if c == `\x00` {
 					break
 				}
@@ -334,7 +334,9 @@ pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &char) {
 						cstr_cat(&str, s.tcc_lib_path, -1)
 					}
 					if c == `R` {
-						cstr_cat(&str, c'', -1)
+						sysroot := CONFIG_SYSROOT
+						vcc_trace('${@LOCATION} ${sysroot}')
+						cstr_cat(&str, sysroot.str, -1)
 					}
 					if c == `f` && file != nil {
 						f := file.truefilename
@@ -418,9 +420,10 @@ fn error1(mode int, message string) {
 		}
 	}
 	if f != unsafe { nil } {
+		vcc_trace('${f.buf_ptr.vstring()}')
 		unsafe {
-			for pf := &s1.include_stack[0]; pf < &s1.include_stack_ptr[0]; pf++ {
-				cstr_printf(&cs, 'In file included from ${(&char(&(*pf).filename[0])).vstring()}:${pf.line_num - 1}:\n')
+			for pf := &s1.include_stack[0]; &char(pf) < &char(s1.include_stack_ptr); pf++ {
+				cstr_printf(&cs, 'In file included from ${(&char(&(*pf).filename[0])).vstring()}:${(*pf).line_num - 1}:\n')
 			}
 		}
 		cstr_printf(&cs, '${(&char(&f.filename[0])).vstring()}:${f.line_num - !!(tok_flags & 1)}: ')
@@ -494,36 +497,40 @@ fn _tcc_warning(message string) {
 pub fn tcc_open_bf(s1 &TCCState, filename &char, initlen int) {
 	buflen := if initlen { initlen } else { 8192 }
 	bf := &BufferedFile(tcc_mallocz(sizeof(BufferedFile) + buflen))
+	vcc_trace('${@LOCATION} ${filename.vstring()}')
 	bf.buf_ptr = &bf.buffer[0]
 	bf.buf_end = &bf.buffer[0] + initlen
+	vcc_trace('${@LOCATION} ${bf.buf_ptr} ${bf.buf_end}')
 	bf.buf_end[0] = `\\`
 	pstrcpy(bf.filename, sizeof(bf.filename), filename)
 	bf.truefilename = &char(bf.filename)
 	bf.line_num = 1
-	bf.ifdef_stack_ptr = &s1.ifdef_stack_ptr[0]
+	bf.ifdef_stack_ptr = s1.ifdef_stack_ptr
 	bf.fd = -1
 	bf.prev = file
 	file = bf
 	tok_flags = 1 | 2
+	vcc_trace('${@LOCATION} ${bf.buf_ptr} ${bf.buf_end}')
 }
 
 pub fn tcc_close() {
-	vcc_trace('${@LOCATION}')
+	// vcc_trace('${@LOCATION}')
 	s1 := tcc_state
 	bf := file
+	vcc_trace('${@LOCATION} ${bf.fd} ${bf.truefilename.vstring()} ${bf.line_num}')
 	if bf.fd > 0 {
-		vcc_trace('${@LOCATION}')
+		// vcc_trace('${@LOCATION} ${bf.truefilename.vstring()}')
 		C.close(bf.fd)
-		vcc_trace('${@LOCATION}')
+		// vcc_trace('${@LOCATION}')
 		s1.total_lines += bf.line_num - 1
 	}
-	vcc_trace('${@LOCATION}')
+	// vcc_trace('${@LOCATION}')
 	if bf.truefilename != bf.filename {
 		tcc_free(bf.truefilename)
 	}
-	vcc_trace('${@LOCATION}')
+	// vcc_trace('${@LOCATION}')
 	file = bf.prev
-	vcc_trace('${@LOCATION} ${bf == unsafe { nil }}')
+	// vcc_trace('${@LOCATION} ${bf == unsafe { nil }}')
 	tcc_free(bf)
 	vcc_trace('${@LOCATION}')
 }
@@ -537,7 +544,7 @@ fn _tcc_open(s1 &TCCState, filename &char) int {
 		fd = C.open(filename, 0 | 0)
 	}
 	if (s1.verbose == 2 && fd >= 0) || s1.verbose == 3 {
-		val := int(*(s1.include_stack_ptr) - s1.include_stack)
+		val := (&char(s1.include_stack_ptr) - &char(&s1.include_stack[0])) / sizeof(&BufferedFile)
 		if fd < 0 {
 			C.printf(c'%s %*s%s\n', c'nf', val, c'', filename)
 		} else {
@@ -558,7 +565,7 @@ pub fn tcc_open(s1 &TCCState, filename &char) int {
 }
 
 pub fn tcc_compile(s1 &TCCState, filetype int, str &char, fd int) int {
-	vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }}')
+	vcc_trace('${@LOCATION} ${s1.symtab != unsafe { nil }} ${str.vstring()}')
 	tcc_enter_state(s1)
 	s1.error_set_jmp_enabled = 1
 	if C._setjmp(s1.error_jmp_buf) == 0 {
@@ -571,7 +578,7 @@ pub fn tcc_compile(s1 &TCCState, filetype int, str &char, fd int) int {
 			C.memcpy(file.buffer, str, len)
 			vcc_trace('${@LOCATION}')
 		} else {
-			vcc_trace('${@LOCATION}')
+			vcc_trace('${@LOCATION} ${str.vstring()}')
 			tcc_open_bf(s1, str, 0)
 			file.fd = fd
 		}
@@ -701,7 +708,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	s.output_type = output_type
 	if !s.nostdinc {
 		vcc_trace('${@LOCATION}')
-		tcc_add_sysinclude_path(s, c'{B}:/:/include:/usr/local/include:/usr/include:/usr/lib/x86_64-linux-gnu:/usr/include/x86_64-linux-gnu')
+		tcc_add_sysinclude_path(s, c'{B}/include:/usr/include/x86_64-linux-gnu:/usr/include')
 	}
 	if output_type == 5 {
 		s.do_debug = 0
@@ -715,9 +722,9 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 		return 0
 	}
 	vcc_trace('${@LOCATION}')
-	tcc_add_library_path(s, c'{B}:/:/usr/lib:/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu')
+	tcc_add_library_path(s, c'{B}:{R}:/usr/lib:/lib/x86_64-linux-gnu:/usr/local/lib')
 	vcc_trace('${@LOCATION}')
-	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'{B}:/:/usr/lib/x86_64-linux-gnu')
+	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'{R}')
 	vcc_trace('${@LOCATION}')
 	if output_type != 1 && !s.nostdlib {
 		vcc_trace('${@LOCATION}')

@@ -1153,7 +1153,7 @@ fn gen_opi(op int) {
 	uu = (vtop[-1].type_.t & 16) != 0
 	cc = (vtop.r & (63 | 256 | 512)) == 48
 	match op {
-		int(c'+'), 135 {
+		int(`+`), 135 {
 			opc = 0
 			// RRRREG gen_op8 id=0x7fffc8c27fb0
 			gen_op8:
@@ -1182,7 +1182,7 @@ fn gen_opi(op int) {
 				vset_vt_cmp(op)
 			}
 		}
-		int(c'-'), 137 {
+		int(`-`), 137 {
 			opc = 5
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
@@ -1194,19 +1194,19 @@ fn gen_opi(op int) {
 			opc = 3
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		int(c'&') { // case comp body kind=BinaryOperator is_enum=false
+		int(`&`) { // case comp body kind=BinaryOperator is_enum=false
 			opc = 4
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		int(c'^') { // case comp body kind=BinaryOperator is_enum=false
+		int(`^`) { // case comp body kind=BinaryOperator is_enum=false
 			opc = 6
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		int(c'|') { // case comp body kind=BinaryOperator is_enum=false
+		int(`|`) { // case comp body kind=BinaryOperator is_enum=false
 			opc = 1
 			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
-		int(c'*') { // case comp body kind=CallExpr is_enum=false
+		int(`*`) { // case comp body kind=CallExpr is_enum=false
 			gv2(1, 1)
 			r = vtop[-1].r
 			fr = vtop[0].r
@@ -1214,7 +1214,7 @@ fn gen_opi(op int) {
 			o(192 + (fr & 7) + (r & 7) * 8)
 			unsafe { vtop-- }
 		}
-		int(c'<') { // case comp body kind=BinaryOperator is_enum=false
+		int(`<`) { // case comp body kind=BinaryOperator is_enum=false
 			opc = 4
 			goto gen_shift // id: 0x7fffc8c28f80
 		}
@@ -1222,7 +1222,7 @@ fn gen_opi(op int) {
 			opc = 5
 			goto gen_shift // id: 0x7fffc8c28f80
 		}
-		int(c'>') { // case comp body kind=BinaryOperator is_enum=false
+		int(`>`) { // case comp body kind=BinaryOperator is_enum=false
 			opc = 7
 			// RRRREG gen_shift id=0x7fffc8c28f80
 			gen_shift:
@@ -1248,7 +1248,7 @@ fn gen_opi(op int) {
 			uu = 1
 			goto divmod // id: 0x7fffc8c2a020
 		}
-		int(c'/'), int(c'%'), 133 {
+		int(`/`), int(`%`), 133 {
 			uu = 0
 			// RRRREG divmod id=0x7fffc8c2a020
 			divmod:

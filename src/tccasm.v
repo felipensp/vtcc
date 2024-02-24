@@ -7,8 +7,8 @@ __global last_text_section = &Section(0)
 // to handle .previous asm directive
 __global asmgoto_n int
 
-fn asm_get_prefix_name(s1 &TCCState, prefix &i8, n u32) int {
-	buf := [64]i8{}
+fn asm_get_prefix_name(s1 &TCCState, prefix &char, n u32) int {
+	buf := [64]char{}
 	unsafe { C.snprintf(buf, sizeof(buf), c'%s%u', prefix, n) }
 	return tok_alloc_const(buf)
 }
@@ -18,7 +18,7 @@ fn asm_get_local_label_name(s1 &TCCState, n u32) int {
 }
 
 fn asm2cname(v int, addeddot &int) int {
-	name := &i8(0)
+	name := &char(0)
 	*addeddot = 0
 	if !tcc_state.leading_underscore {
 		return v
@@ -27,10 +27,10 @@ fn asm2cname(v int, addeddot &int) int {
 	if !name {
 		return v
 	}
-	if name[0] == c'_' {
+	if name[0] == `_` {
 		v = tok_alloc_const(unsafe { name + 1 })
-	} else if unsafe { !C.strchr(name, c'.') } {
-		newname := [256]i8{}
+	} else if unsafe { !C.strchr(name, `.`) } {
+		newname := [256]char{}
 		unsafe { C.snprintf(newname, sizeof(newname), c'.%s', name) }
 		v = tok_alloc_const(newname)
 		*addeddot = 1
@@ -72,7 +72,7 @@ fn get_asm_sym(name int, csym &Sym) &Sym {
 }
 
 fn asm_section_sym(s1 &TCCState, sec &Section) &Sym {
-	buf := [100]i8{}
+	buf := [100]char{}
 	label := 0
 	sym := &Sym(0)
 	unsafe { C.snprintf(buf, sizeof(buf), c'L.%s', sec.name) }
@@ -91,7 +91,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 	match rune(tok) {
 		205 { // case comp body kind=BinaryOperator is_enum=false
 			p = &char(unsafe { tokc.str.data })
-			n = C.strtoull(p, &&i8(&p), 0)
+			n = C.strtoull(p, &&char(&p), 0)
 			if *p == `b` || *p == `f` {
 				label = asm_get_local_label_name(s1, n)
 				sym = asm_label_find(label)
@@ -411,13 +411,13 @@ fn use_section1(s1 &TCCState, sec &Section) {
 	ind = tcc_state.cur_text_section.data_offset
 }
 
-fn use_section(s1 &TCCState, name &i8) {
+fn use_section(s1 &TCCState, name &char) {
 	sec := &Section(0)
 	sec = find_section(s1, name)
 	use_section1(s1, sec)
 }
 
-fn push_section(s1 &TCCState, name &i8) {
+fn push_section(s1 &TCCState, name &char) {
 	sec := find_section(s1, name)
 	sec.prev = tcc_state.cur_text_section
 	use_section1(s1, sec)
@@ -687,7 +687,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 		}
 		.tok_asmdir_text, .tok_asmdir_data, .tok_asmdir_bss {
 			{
-				sname := [64]i8{}
+				sname := [64]char{}
 				tok1 = tok
 				n = 0
 				next()
@@ -705,7 +705,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 		}
 		.tok_asmdir_file {
 			// case comp stmt
-			filename := [512]i8{}
+			filename := [512]char{}
 			filename[0] = `\x00`
 			next()
 			if tok == 200 {
@@ -719,7 +719,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 		}
 		.tok_asmdir_ident {
 			// case comp stmt
-			ident := [256]i8{}
+			ident := [256]char{}
 			ident[0] = `\x00`
 			next()
 			if tok == 200 {
@@ -750,7 +750,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 		.tok_asmdir_type {
 			// case comp stmt
 			sym := &Sym(0)
-			newtype := &i8(0)
+			newtype := &char(0)
 			next()
 			sym = get_asm_sym(tok, (unsafe { nil }))
 			next()
@@ -776,7 +776,7 @@ fn asm_parse_directive(s1 &TCCState, global int) {
 			next()
 		}
 		.tok_asmdir_pushsection, .tok_asmdir_section {
-			sname := [256]i8{}
+			sname := [256]char{}
 			old_nb_section := s1.nb_sections
 			tok1 = tok
 			next()
@@ -859,11 +859,11 @@ fn tcc_assemble_internal(s1 &TCCState, do_preprocess int, global int) int {
 		} else if tok >= Tcc_token.tok_asmdir_byte && tok <= Tcc_token.tok_asmdir_section {
 			asm_parse_directive(s1, global)
 		} else if tok == 205 {
-			p := &i8(0)
+			p := &char(0)
 			n := 0
 			p = unsafe { tokc.str.data }
-			n = C.strtoul(p, &&i8(&p), 10)
-			if *p != c'\x00' {
+			n = C.strtoul(p, &char(&p), 10)
+			if *p != `\x00` {
 				expect(c"':'")
 			}
 			asm_new_label(s1, asm_get_local_label_name(s1, n), 1)
@@ -911,7 +911,7 @@ fn tcc_assemble(s1 &TCCState, do_preprocess int) int {
 	return ret
 }
 
-fn tcc_assemble_inline(s1 &TCCState, str &i8, len int, global int) {
+fn tcc_assemble_inline(s1 &TCCState, str &char, len int, global int) {
 	saved_macro_ptr := macro_ptr
 	dotid := set_idnum(`.`, 2)
 	dolid := set_idnum(`$`, 0)
@@ -925,10 +925,10 @@ fn tcc_assemble_inline(s1 &TCCState, str &i8, len int, global int) {
 	macro_ptr = saved_macro_ptr
 }
 
-fn find_constraint(operands &ASMOperand, nb_operands int, name &i8, pp &&u8) int {
+fn find_constraint(operands &ASMOperand, nb_operands int, name &char, pp &&u8) int {
 	index := 0
 	ts := &TokenSym(0)
-	p := &i8(0)
+	p := &char(0)
 	if isnum(*name) {
 		index = 0
 		for isnum(*name) {
@@ -938,7 +938,7 @@ fn find_constraint(operands &ASMOperand, nb_operands int, name &i8, pp &&u8) int
 		if u32(index) >= nb_operands {
 			index = -1
 		}
-	} else if *name == c'[' {
+	} else if *name == `[` {
 		unsafe { name++ }
 		p = unsafe { C.strchr(name, `]`) }
 		if p {
@@ -975,8 +975,8 @@ fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, s
 	sv := SValue{}
 	for ; true; {
 		c = unsafe { *str++ }
-		if c == c'%' {
-			if *str == c'%' {
+		if c == `%` {
+			if *str == `%` {
 				unsafe { str++ }
 				unsafe {
 					goto add_char
@@ -1018,7 +1018,7 @@ fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, s
 fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int) {
 	op := &ASMOperand(0)
 	nb_operands := 0
-	astr := &i8(0)
+	astr := &char(0)
 	if tok != `:` {
 		nb_operands = *nb_operands_ptr
 		for ; true; {

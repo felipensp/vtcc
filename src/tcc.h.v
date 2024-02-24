@@ -34,7 +34,7 @@ __global funcname = &char(0)
 
 __global tcc_state = &TCCState(0)
 
-pub const CONFIG_SYSROOT = $if CONFIG_SYSROOT ? { CONFIG_SYSROOT } $else { ' ' }
+pub const CONFIG_SYSROOT = '/usr/lib/x86_64-linux-gnu'
 
 pub const CH_EOF = (-1) // end of file
 pub const VSTACK_SIZE = 512
@@ -269,7 +269,7 @@ struct TCCState {
 	target_deps    &&char
 	nb_target_deps int
 	// compilation
-	include_stack     [INCLUDE_STACK_SIZE]BufferedFile
+	include_stack     [INCLUDE_STACK_SIZE]&BufferedFile
 	include_stack_ptr &&BufferedFile
 
 	ifdef_stack     [IFDEF_STACK_SIZE]int
@@ -1577,7 +1577,7 @@ fn isoct(c int) bool {
 }
 
 fn toup(c u8) u8 {
-	return if (c >= `a` && c <= `z`) { u8(c) - u8(c'a') + u8(c'A') } else { u8(c) }
+	return if (c >= `a` && c <= `z`) { u8(c) - u8(`a`) + u8(`A`) } else { u8(c) }
 }
 
 pub struct Stab_Sym {

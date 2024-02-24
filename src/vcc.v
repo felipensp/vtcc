@@ -16,12 +16,6 @@ pub fn vcc_trace_print(msg string) {
 	eprintln(msg)
 }
 
-pub fn vcc_trace_force(msg string) {
-	$if tracecall ? {
-		eprintln(msg)
-	}
-}
-
 pub fn vcc_disable_trace() {
 	disable_trace = true
 }

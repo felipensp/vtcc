@@ -444,8 +444,8 @@ fn tcc_debug_start(s1 &TCCState) {
 		s1.dState.new_file = 0
 		s1.dState.last_line_num = s1.dState.new_file
 		s1.dState.debug_next_type = (sizeof(default_debug) / sizeof(default_debug[0]))
-		s1.dState.debug_hash = (unsafe { nil })
-		s1.dState.debug_anon_hash = (unsafe { nil })
+		s1.dState.debug_hash = unsafe { nil }
+		s1.dState.debug_anon_hash = unsafe { nil }
 		s1.dState.n_debug_hash = 0
 		s1.dState.n_debug_anon_hash = 0
 		vcc_trace('${@LOCATION}')
@@ -621,7 +621,7 @@ fn tcc_debug_start(s1 &TCCState) {
 		} else {
 			pstrcat(buf, sizeof(buf), c'/')
 			s1.dState.section_sym = put_elf_sym(s1.symtab_section, 0, 0, (((0) << 4) + ((3) & 15)),
-				0, s1.text_section.sh_num, (unsafe { nil }))
+				0, s1.text_section.sh_num, unsafe { nil })
 			put_stabs_r(s1, buf, Stab_debug_code.n_so, 0, 0, s1.text_section.data_offset,
 				s1.text_section, s1.dState.section_sym)
 			put_stabs_r(s1, filename, Stab_debug_code.n_so, 0, 0, s1.text_section.data_offset,
@@ -801,7 +801,7 @@ fn tcc_debug_end(s1 &TCCState) {
 
 fn put_new_file(s1 &TCCState) &BufferedFile {
 	f := file
-	if f.filename[0] == c':' {
+	if f.filename[0] == `:` {
 		f = f.prev
 	}
 	if unsafe { f != 0 } && s1.dState.new_file {
@@ -1387,7 +1387,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 		}
 		debug_type = s1.dState.dwarf_info.base_type_used[i - 1]
 		if debug_type == 0 {
-			name := [100]i8{}
+			name := [100]char{}
 			debug_type = s1.dwarf_info_section.data_offset
 			{
 				p := &char(section_ptr_add((s1.dwarf_info_section), 1))
@@ -1903,7 +1903,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 	}
 	if s1.dState.tcov_data.last_file_name == 0
 		|| unsafe { C.strcmp(&char((s1.tcov_section.data + s1.dState.tcov_data.last_file_name)), file.truefilename) != 0 } {
-		wd := [1024]i8{}
+		wd := [1024]char{}
 		cstr := strings.new_builder(100)
 		if s1.dState.tcov_data.last_func_name {
 			section_ptr_add(s1.tcov_section, 1)
@@ -1913,7 +1913,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 		}
 		s1.dState.tcov_data.last_func_name = 0
 		cstr_new(&cstr)
-		if file.truefilename[0] == c'/' {
+		if file.truefilename[0] == `/` {
 			s1.dState.tcov_data.last_file_name = s1.tcov_section.data_offset
 			cstr_printf(&cstr, '${file.truefilename}')
 		} else {

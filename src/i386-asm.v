@@ -4804,18 +4804,18 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 	}
 }
 
-fn constraint_priority(str &i8) int {
+fn constraint_priority(str &char) int {
 	priority := 0
 	c := 0
 	pr := 0
 
 	priority = 0
-	for ; true; {
+	for {
 		c = *str
 		if c == `\x00` {
 			break
 		}
-		str++
+		unsafe { str++ }
 		match rune(c) {
 			`A` { // case comp body kind=BinaryOperator is_enum=false
 				pr = 0
@@ -5104,7 +5104,7 @@ fn subst_asm_operand(add_str &CString, sv &SValue, modifier int) {
 	size := 0
 	val := 0
 
-	buf := [64]i8{}
+	buf := [64]char{}
 	r = sv.r
 	if (r & 63) == 48 {
 		if !(r & 256) && modifier != `c` && modifier != `n` && modifier != `P` {
@@ -5288,7 +5288,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 	}
 }
 
-fn asm_clobber(clobber_regs &u8, str &i8) {
+fn asm_clobber(clobber_regs &u8, str &char) {
 	reg := 0
 	type_ := u32(0)
 	if !C.strcmp(str, c'memory') || !C.strcmp(str, c'cc') || !C.strcmp(str, c'flags') {
@@ -5304,7 +5304,7 @@ fn asm_clobber(clobber_regs &u8, str &i8) {
 	} else if (asm_parse_numeric_reg(reg, &type_)) >= 0 {
 		reg = asm_parse_numeric_reg(reg, &type_)
 	} else {
-		_tcc_error("invalid clobber register '${str}'")
+		_tcc_error("invalid clobber register '${str.vstring()}'")
 	}
 	clobber_regs[reg] = 1
 }

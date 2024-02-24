@@ -3,6 +3,43 @@ module main
 
 import strings
 
+const vt_const = 0x30
+const vt_nonconst = 0x1000
+const vt_byte = 1 // signed byte type
+const vt_int = 3
+
+const vt_btype = 0x000f // mask for basic type
+const vt_void = 0 // void type
+const vt_short = 2 //  short type
+const vt_llong = 4 //  64 bit integer
+const vt_ptr = 5 //  pointer
+const vt_func = 6 //  function type
+const vt_struct = 7 //  struct/union definition
+const vt_float = 8 //  IEEE float
+const vt_double = 9 //  IEEE double
+const vt_ldouble = 10 //  IEEE long double
+const vt_bool = 11 //  ISOC99 boolean type
+const vt_qlong = 13 //  128-bit integer. Only used for x86-64 ABI
+const vt_qfloat = 14 //  128-bit float. Only used for x86-64 ABI
+
+const vt_struct_shift = 20
+const vt_union = (1 << vt_struct_shift | vt_struct)
+const vt_enum = (2 << vt_struct_shift)
+
+const vt_atomic = vt_volatile
+const vt_storage = (vt_extern | vt_static | vt_typedef | vt_inline)
+
+const vt_unsigned = 0x0010 // unsigned type
+const vt_defsign = 0x0020 // explicitly signed or unsigned
+const vt_long = 0x0800 // long type (also has VT_INT rsp. VT_LLONG)
+const vt_constant = 0x0100 // const modifier
+const vt_volatile = 0x0200 // volatile modifier
+
+const vt_extern = 0x00001000 // extern definition
+const vt_static = 0x00002000 // static variable
+const vt_typedef = 0x00004000 // typedef definition
+const vt_inline = 0x00008000 // inline definition
+
 fn C.qsort(voidptr, usize, usize, fn (voidptr, voidptr) int)
 
 __global _vstack = [1 + VSTACK_SIZE]SValue{}
@@ -276,10 +313,12 @@ fn tccgen_compile(s1 &TCCState) int {
 	tcc_tcov_start(s1)
 	vcc_trace('${@LOCATION}')
 	parse_flags = 1 | 2 | 64
-	vcc_trace('${@LOCATION}')
+	vcc_trace('${@LOCATION} - ${file.truefilename.vstring()}')
 	next()
 	vcc_trace('${@LOCATION}')
-	decl(48)
+	// vcc_disable_trace()
+	decl(vt_const)
+	// vcc_enable_trace()
 	vcc_trace('${@LOCATION}')
 	gen_inline_functions(s1)
 	check_vstack()
@@ -351,8 +390,8 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 	t := 0
 
 	esym := &Elf64_Sym(0)
-	name := &i8(0)
-	buf1 := [256]i8{}
+	name := &char(0)
+	buf1 := [256]char{}
 	if !sym.c {
 		name = get_tok_str(sym.v, (unsafe { nil }))
 		t = sym.type_.t
@@ -384,6 +423,7 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 		info = ((sym_bind << 4) + (sym_type & 15))
 		sym.c = put_elf_sym(tcc_state.symtab_section, value, size, info, other, sh_num,
 			name)
+		// vcc_trace('${@LOCATION} ${name.vstring()}')
 		if debug_modes {
 			tcc_debug_extern_sym(tcc_state, sym, sh_num, sym_bind, sym_type)
 		}
@@ -1023,26 +1063,33 @@ fn sym_copy_ref(s &Sym, ps &&Sym) {
 }
 
 fn external_sym(v int, type_ &CType, r int, ad &AttributeDef) &Sym {
+	vcc_trace('${@LOCATION}')
 	s := &Sym(0)
 	s = sym_find(v)
+	vcc_trace('${@LOCATION}')
 	for s != unsafe { nil } && s.sym_scope {
 		s = s.prev_tok
 	}
 	if !s {
+		vcc_trace('${@LOCATION}')
 		s = global_identifier_push(v, type_.t, 0)
 		s.r |= r
 		s.a = ad.a
 		s.asm_label = ad.asm_label
 		s.type_.ref = type_.ref
 		if local_stack {
+			vcc_trace('${@LOCATION}')
 			sym_copy_ref(s, &global_stack)
 		}
 	} else {
+		vcc_trace('${@LOCATION}')
 		patch_storage(s, ad, type_)
 	}
 	if local_stack && (s.type_.t & 15) != 6 {
+		vcc_trace('${@LOCATION}')
 		s = sym_copy(s, &local_stack)
 	}
+	vcc_trace('${@LOCATION}')
 	return s
 }
 
@@ -1845,8 +1892,8 @@ fn gen_opic(op int) {
 				gen_opi(op)
 			}
 		}
-		if vtop.r == 48 {
-			vtop.r |= 4096
+		if vtop.r == vt_const {
+			vtop.r |= vt_nonconst
 		}
 	}
 }
@@ -1865,8 +1912,8 @@ fn gen_opif(op int) {
 	v1 := &SValue(0)
 	v2 := &SValue(0)
 
-	f1 := 0.0
-	f2 := 0.0
+	f1 := f64(0.0)
+	f2 := f64(0.0)
 
 	v1 = unsafe { vtop - 1 }
 	v2 = vtop
@@ -1959,9 +2006,9 @@ fn gen_opif(op int) {
 		unsafe { vtop-- }
 		// RRRREG unary_result id=0x7fffed449028
 		unary_result:
-		if bt == 8 {
+		if bt == vt_float {
 			v1.c.f = f1
-		} else if bt == 9 {
+		} else if bt == vt_double {
 			v1.c.d = f1
 		} else {
 			v1.c.ld = f1
@@ -1977,7 +2024,7 @@ fn gen_opif(op int) {
 	}
 }
 
-fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
+fn type_to_str(buf &char, buf_size int, type_ &CType, varstr &char) {
 	bt := 0
 	v := 0
 	t := 0
@@ -1985,8 +2032,8 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 	s := &Sym(0)
 	sa := &Sym(0)
 
-	buf1 := [256]i8{}
-	tstr := &i8(0)
+	buf1 := [256]char{}
+	tstr := &char(0)
 	t = type_.t
 	bt = t & 15
 	buf[0] = `\x00`
@@ -2084,7 +2131,7 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 		6 { // case comp body kind=BinaryOperator is_enum=false
 			s = type_.ref
 			buf1[0] = 0
-			if varstr && c'*' == *varstr {
+			if varstr && `*` == *varstr {
 				pstrcat(buf1, sizeof(buf1), c'(')
 				pstrcat(buf1, sizeof(buf1), varstr)
 				pstrcat(buf1, sizeof(buf1), c')')
@@ -2092,7 +2139,7 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 			pstrcat(buf1, buf_size, c'(')
 			sa = s.next
 			for sa != (unsafe { nil }) {
-				buf2 := [256]i8{}
+				buf2 := [256]char{}
 				type_to_str(buf2, sizeof(buf2), &sa.type_, (unsafe { nil }))
 				pstrcat(buf1, sizeof(buf1), buf2)
 				sa = sa.next
@@ -2110,7 +2157,7 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 		5 { // case comp body kind=BinaryOperator is_enum=false
 			s = type_.ref
 			if t & (64 | 1024) {
-				if varstr && c'*' == *varstr {
+				if varstr && `*` == *varstr {
 					C.snprintf(buf1, sizeof(buf1), c'(%s)[%d]', varstr, s.c)
 				} else { // 3
 					C.snprintf(buf1, sizeof(buf1), c'%s[%d]', if varstr { varstr } else { c'' },
@@ -2143,18 +2190,18 @@ fn type_to_str(buf &i8, buf_size int, type_ &CType, varstr &i8) {
 	0
 }
 
-fn type_incompatibility_error(st &CType, dt &CType, fmt &i8) {
-	buf1 := [256]i8{}
-	buf2 := [256]i8{}
+fn type_incompatibility_error(st &CType, dt &CType, fmt &char) {
+	buf1 := [256]char{}
+	buf2 := [256]char{}
 
 	type_to_str(buf1, sizeof(buf1), st, (unsafe { nil }))
 	type_to_str(buf2, sizeof(buf2), dt, (unsafe { nil }))
 	_tcc_error('${buf1} ${buf2}')
 }
 
-fn type_incompatibility_warning(st &CType, dt &CType, fmt &i8) {
-	buf1 := [256]i8{}
-	buf2 := [256]i8{}
+fn type_incompatibility_warning(st &CType, dt &CType, fmt &char) {
+	buf1 := [256]char{}
+	buf2 := [256]char{}
 
 	type_to_str(buf1, sizeof(buf1), st, (unsafe { nil }))
 	type_to_str(buf2, sizeof(buf2), dt, (unsafe { nil }))
@@ -2836,9 +2883,11 @@ fn verify_assign_cast(dt &CType) {
 		}
 		5 { // case comp body kind=IfStmt is_enum=false
 			if is_null_pointer(vtop) {
+				return
 			}
 			if is_integer_btype(sbt) {
 				_tcc_warning('assignment makes pointer from integer without a cast')
+				return
 			}
 			type1 = pointed_type(dt)
 			if sbt == 5 {
@@ -2849,6 +2898,7 @@ fn verify_assign_cast(dt &CType) {
 				goto error // id: 0x7fffed477eb8
 			}
 			if is_compatible_types(type1, type2) {
+				return
 			}
 			qualwarn = 0
 			for lvl = qualwarn; true; lvl++ {
@@ -2858,16 +2908,19 @@ fn verify_assign_cast(dt &CType) {
 				dbt = type1.t & (15 | 2048)
 				sbt = type2.t & (15 | 2048)
 				if dbt != 5 || sbt != 5 {
+					return
 				}
 				type1 = pointed_type(type1)
 				type2 = pointed_type(type2)
 			}
 			if !is_compatible_unqualified_types(type1, type2) {
 				if (dbt == 0 || sbt == 0) && lvl == 0 {
+					return
 				} else if dbt == sbt && is_integer_btype(sbt & 15)
 					&& int((type1.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) + int((type2.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) + !!((type1.t ^ type2.t) & 16) < 2 {
 				} else {
 					_tcc_warning('assignment from incompatible pointer type')
+					return
 				}
 			}
 			if qualwarn {
@@ -3043,7 +3096,7 @@ fn inc(post int, c int) {
 	}
 }
 
-fn parse_mult_str(msg &i8) &strings.Builder {
+fn parse_mult_str(msg &char) &strings.Builder {
 	if tok != 200 {
 		expect(msg)
 	}
@@ -3082,7 +3135,7 @@ fn parse_attribute(ad &AttributeDef) {
 	t := 0
 	n := 0
 
-	astr := &i8(0)
+	astr := &char(0)
 	// RRRREG redo id=0x7fffed482e00
 	redo:
 	if tok != Tcc_token.tok_attribute1 && tok != Tcc_token.tok_attribute2 {
@@ -3218,7 +3271,10 @@ fn parse_attribute(ad &AttributeDef) {
 			}
 			.tok_dllimport { // case comp body kind=BinaryOperator is_enum=true
 				ad.a.dllimport = 1
-
+			}
+			else {
+				tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
+				_tcc_warning("'${get_tok_str(t, (unsafe { nil }))}' attribute ignored")
 				if tok == `(` {
 					parenthesis := 0
 					for {
@@ -3234,10 +3290,6 @@ fn parse_attribute(ad &AttributeDef) {
 						}
 					}
 				}
-			}
-			else {
-				tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
-				_tcc_warning("'${get_tok_str(t, (unsafe { nil }))}' attribute ignored")
 			}
 		}
 		if tok != `,` {
@@ -3574,7 +3626,7 @@ fn struct_decl(type_ &CType, u int) {
 			t := CType{}
 			t.ref = s
 			t.t = 3 | 8192 | (3 << 20)
-			for ; true; {
+			for {
 				v = tok
 				if v < Tcc_token.tok_define {
 					expect(c'identifier')
@@ -3773,27 +3825,28 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 	C.memset(ad, 0, sizeof(AttributeDef))
 	type_found = 0
 	typespec_found = 0
-	t = 3
+	t = vt_int
 	bt = -1
-	st = bt
-	type_.ref = (unsafe { nil })
+	st = -1
+	type_.ref = unsafe { nil }
 	for {
-		vcc_trace('${@LOCATION} ${tok}')
-		break
+		vcc_trace('${@LOCATION} ${tok} ${Tcc_token(tok)}')
 		match Tcc_token(tok) {
 			.tok_extension { // case comp body kind=CallExpr is_enum=true
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
 				continue
 			}
 			.tok_char { // case comp body kind=BinaryOperator is_enum=true
-				u = 1
+				u = vt_byte
 				// RRRREG basic_type id=0x7fffed4a2258
 				basic_type:
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
 				// RRRREG basic_type1 id=0x7fffed4a2ab0
 				basic_type1:
-				if u == 2 || u == 2048 {
-					if st != -1 || (bt != -1 && bt != 3) {
+				if u == vt_short || u == vt_long {
+					if st != -1 || (bt != -1 && bt != vt_int) {
 						// RRRREG tmbt id=0x7fffed4a2690
 						tmbt:
 						_tcc_error('too many basic types')
@@ -3801,218 +3854,278 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 					st = u
 				} else {
 					if bt != -1 || (st != -1 && u != 3) {
+						vcc_trace('${@LOCATION} ${tok}')
 						goto tmbt // id: 0x7fffed4a2690
 					}
 					bt = u
 				}
-				if u != 3 {
-					t = (t & ~(15 | 2048)) | u
+				if u != vt_int {
+					t = (t & ~(vt_btype | vt_long)) | u
 				}
 				typespec_found = 1
 			}
 			.tok_void { // case comp body kind=BinaryOperator is_enum=true
-				u = 0
+				u = vt_void
+				vcc_trace('${@LOCATION} ${tok}')
 				goto basic_type // id: 0x7fffed4a2258
 			}
 			.tok_short { // case comp body kind=BinaryOperator is_enum=true
-				u = 2
+				u = vt_short
+				vcc_trace('${@LOCATION} ${tok}')
 				goto basic_type // id: 0x7fffed4a2258
 			}
 			.tok_int { // case comp body kind=BinaryOperator is_enum=true
-				u = 3
+				u = vt_int
+				vcc_trace('${@LOCATION} ${tok}')
 				goto basic_type // id: 0x7fffed4a2258
 			}
 			.tok_alignas {
 				// case comp stmt
 				n = 0
 				ad1 := AttributeDef{}
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 				skip(`(`)
+				vcc_trace('${@LOCATION} ${tok}')
 				C.memset(&ad1, 0, sizeof(AttributeDef))
 				vcc_trace('${@LOCATION}')
 				if parse_btype(&type1, &ad1, 0) {
+					vcc_trace('${@LOCATION} ${tok}')
 					type_decl(&type1, &ad1, &n, 1)
 					if ad1.a.aligned {
 						n = 1 << (ad1.a.aligned - 1)
 					} else { // 3
+						vcc_trace('${@LOCATION} ${tok}')
 						type_size(&type1, &n)
 					}
 				} else {
+					vcc_trace('${@LOCATION} ${tok}')
 					n = expr_const()
 					if n < 0 || (n & (n - 1)) != 0 {
 						_tcc_error('alignment must be a positive power of two')
 					}
 				}
+				vcc_trace('${@LOCATION} ${tok}')
 				skip(`)`)
+				vcc_trace('${@LOCATION} ${tok}')
 				ad.a.aligned = exact_log2p1(n)
 				continue
 			}
 			.tok_long { // case comp body kind=IfStmt is_enum=true
-				if (t & 15) == 9 {
-					t = (t & ~(15 | 2048)) | 10
-				} else if (t & (15 | 2048)) == 2048 {
-					t = (t & ~(15 | 2048)) | 4
+				vcc_trace('${@LOCATION} ${tok}')
+				if (t & vt_btype) == vt_ldouble {
+					t = (t & ~(vt_btype | vt_long)) | vt_ldouble
+				} else if (t & (vt_btype | vt_long)) == vt_long {
+					t = (t & ~(vt_btype | vt_long)) | vt_llong
 				} else {
-					u = 2048
+					u = vt_long
 					goto basic_type // id: 0x7fffed4a2258
 				}
 				next()
 			}
 			.tok_bool { // case comp body kind=BinaryOperator is_enum=true
-				u = 11
+				vcc_trace('${@LOCATION} ${tok}')
+				u = vt_bool
 				goto basic_type // id: 0x7fffed4a2258
 			}
 			.tok_complex { // case comp body kind=CallExpr is_enum=true
+				vcc_trace('${@LOCATION} ${tok}')
 				_tcc_error('_Complex is not yet supported')
 			}
-			.tok_float { // case comp body kind=BinaryOperator is_enum=true
-				u = 8
+			.tok_float { // case comp body kind=BinaryOperator is_enum=
+				vcc_trace('${@LOCATION} ${tok}')
+				u = vt_float
 				goto basic_type // id: 0x7fffed4a2258
 			}
 			.tok_double { // case comp body kind=IfStmt is_enum=true
-				if (t & (15 | 2048)) == 2048 {
-					t = (t & ~(15 | 2048)) | 10
+				vcc_trace('${@LOCATION} ${tok}')
+				if (t & (vt_btype | vt_long)) == vt_long {
+					t = (t & ~(vt_btype | vt_long)) | vt_ldouble
 				} else {
-					u = 9
+					u = vt_double
 					goto basic_type // id: 0x7fffed4a2258
 				}
 				next()
 			}
 			.tok_enum { // case comp body kind=CallExpr is_enum=true
-				struct_decl(&type1, (2 << 20))
+				vcc_trace('${@LOCATION} ${tok}')
+				struct_decl(&type1, vt_enum)
 				// RRRREG basic_type2 id=0x7fffed4a4fc8
 				basic_type2:
+				vcc_trace('${@LOCATION} ${tok}')
 				u = type1.t
 				type_.ref = type1.ref
 				goto basic_type1 // id: 0x7fffed4a2ab0
 			}
 			.tok_struct { // case comp body kind=CallExpr is_enum=true
-				struct_decl(&type1, 7)
+				vcc_trace('${@LOCATION} ${tok}')
+				struct_decl(&type1, vt_struct)
 				goto basic_type2 // id: 0x7fffed4a4fc8
 			}
 			.tok_union { // case comp body kind=CallExpr is_enum=true
-				struct_decl(&type1, (1 << 20 | 7))
+				vcc_trace('${@LOCATION} ${tok}')
+				struct_decl(&type1, vt_union)
 				goto basic_type2 // id: 0x7fffed4a4fc8
 			}
 			.tok__atomic { // case comp body kind=CallExpr is_enum=true
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
 				type_.t = t
-				parse_btype_qualify(type_, 512)
+				vcc_trace('${@LOCATION} ${tok}')
+				parse_btype_qualify(type_, vt_atomic)
+				vcc_trace('${@LOCATION} ${tok}')
 				t = type_.t
 				if tok == `(` {
+					vcc_trace('${@LOCATION} ${tok}')
 					parse_expr_type(&type1)
-					type1.t &= ~((4096 | 8192 | 16384 | 32768) & ~16384)
+					vcc_trace('${@LOCATION} ${tok}')
+					type1.t &= ~(vt_storage & ~vt_typedef)
 					if type1.ref {
+						vcc_trace('${@LOCATION} ${tok}')
 						sym_to_attr(ad, type1.ref)
 					}
+					vcc_trace('${@LOCATION} ${tok}')
 					goto basic_type2 // id: 0x7fffed4a4fc8
 				}
 			}
 			.tok_const1, .tok_const2, .tok_const3 {
 				type_.t = t
-				parse_btype_qualify(type_, 256)
+				parse_btype_qualify(type_, vt_constant)
 				t = type_.t
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 			}
 			.tok_volatile1, .tok_volatile2, .tok_volatile3 {
+				vcc_trace('${@LOCATION} ${tok}')
 				type_.t = t
-				parse_btype_qualify(type_, 512)
+				parse_btype_qualify(type_, vt_volatile)
 				t = type_.t
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 			}
 			.tok_signed1, .tok_signed2, .tok_signed3 {
-				if (t & (32 | 16)) == (32 | 16) {
+				vcc_trace('${@LOCATION} ${tok}')
+				if (t & (vt_defsign | vt_unsigned)) == (vt_defsign | vt_unsigned) {
 					_tcc_error('signed and unsigned modifier')
 				}
-				t |= 32
+				t |= vt_defsign
 				next()
 				typespec_found = 1
 			}
 			.tok_register, .tok_auto, .tok_restrict1, .tok_restrict2, .tok_restrict3 {
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
 			}
 			.tok_unsigned { // case comp body kind=IfStmt is_enum=true
-				if (t & (32 | 16)) == 32 {
+				if (t & (vt_defsign | vt_unsigned)) == vt_defsign {
 					_tcc_error('signed and unsigned modifier')
 				}
-				t |= 32 | 16
+				vcc_trace('${@LOCATION} ${tok}')
+				t |= vt_defsign | vt_unsigned
 				next()
 				typespec_found = 1
 			}
 			.tok_extern { // case comp body kind=BinaryOperator is_enum=true
-				g = 4096
+				g = vt_extern
+				vcc_trace('${@LOCATION} ${tok}')
 				goto storage // id: 0x7fffed4a8020
 			}
 			.tok_static { // case comp body kind=BinaryOperator is_enum=true
-				g = 8192
+				g = vt_static
+				vcc_trace('${@LOCATION} ${tok}')
 				goto storage // id: 0x7fffed4a8020
 			}
 			.tok_typedef { // case comp body kind=BinaryOperator is_enum=true
-				g = 16384
+				g = vt_typedef
+				vcc_trace('${@LOCATION} ${tok}')
 				goto storage // id: 0x7fffed4a8020
 				// RRRREG storage id=0x7fffed4a8020
 				storage:
-				if t & (4096 | 8192 | 16384) & ~g {
+				vcc_trace('${@LOCATION} ${tok}')
+				if t & (vt_extern | vt_static | vt_typedef) & ~g {
 					_tcc_error('multiple storage classes')
 				}
 				t |= g
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 			}
 			.tok_inline1, .tok_inline2, .tok_inline3 {
-				t |= 32768
+				t |= vt_inline
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 			}
 			.tok_noreturn3 { // case comp body kind=CallExpr is_enum=true
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 				ad.f.func_noreturn = 1
 			}
 			.tok_attribute1, .tok_attribute2 {
 				parse_attribute(ad)
 				if ad.attr_mode {
 					u = ad.attr_mode - 1
-					t = (t & ~(15 | 2048)) | u
+					t = (t & ~(vt_btype | vt_long)) | u
 				}
 				continue
 			}
 			.tok_typeof1, .tok_typeof2, .tok_typeof3 {
+				vcc_trace('${@LOCATION} ${tok}')
 				next()
+				vcc_trace('${@LOCATION} ${tok}')
 				parse_expr_type(&type1)
-				type1.t &= ~((4096 | 8192 | 16384 | 32768) & ~16384)
+				vcc_trace('${@LOCATION} ${tok}')
+				type1.t &= ~(vt_storage & ~vt_typedef)
 				if type1.ref {
+					vcc_trace('${@LOCATION} ${tok}')
 					sym_to_attr(ad, type1.ref)
+					vcc_trace('${@LOCATION} ${tok}')
 				}
 				goto basic_type2 // id: 0x7fffed4a4fc8
 			}
 			.tok_thread_local { // case comp body kind=CallExpr is_enum=true
 				_tcc_error('_Thread_local is not implemented')
-				s = sym_find(tok)
-				if s == unsafe { nil } || !(s.type_.t & 16384) {
-					goto the_end // id: 0x7fffed4a9550
-				}
-				n = tok
-				next()
-				if tok == `:` && ignore_label {
-					unget_tok(n)
-					goto the_end // id: 0x7fffed4a9550
-				}
-				t &= ~(15 | 2048)
-				u = t & ~(256 | 512)
-				t ^= u
-				type_.t = (s.type_.t & ~16384) | u
-				type_.ref = s.type_.ref
-				if t {
-					parse_btype_qualify(type_, t)
-				}
-				t = type_.t
-				sym_to_attr(ad, s)
-				typespec_found = 1
-				st = -2
-				bt = st
 			}
 			else {
+				vcc_trace('${@LOCATION} tok unknown ${tok}')
 				if typespec_found {
 					goto the_end // id: 0x7fffed4a9550
 				}
+				vcc_trace('${@LOCATION}')
+				s = sym_find(tok)
+				vcc_trace('${@LOCATION}')
+				if s == unsafe { nil } || !(s.type_.t & vt_typedef) {
+					unsafe {
+						goto the_end
+					}
+				}
+				n = tok
+				vcc_trace('${@LOCATION}')
+				next()
+				vcc_trace('${@LOCATION}')
+				if (tok == `:` && ignore_label) {
+					// ignore if it's a label
+					unget_tok(n)
+					goto the_end
+				}
+
+				t &= ~(vt_byte | vt_long)
+				u = t & ~(vt_constant | vt_volatile)
+				t ^= u
+				type_.t = (s.type_.t & ~vt_typedef) | u
+				type_.ref = s.type_.ref
+				if t {
+					vcc_trace('${@LOCATION}')
+					parse_btype_qualify(type_, t)
+				}
+				t = type_.t
+				// get attributes from typedef
+				sym_to_attr(ad, s)
+				typespec_found = 1
+				st = -2
+				bt = -2
 			}
 		}
 		type_found = 1
@@ -4020,13 +4133,13 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 	// RRRREG the_end id=0x7fffed4a9550
 	the_end:
 	if tcc_state.char_is_unsigned {
-		if (t & (32 | 15)) == 1 {
-			t |= 16
+		if (t & (vt_defsign | vt_btype)) == vt_byte {
+			t |= vt_unsigned
 		}
 	}
-	bt = t & (15 | 2048)
-	if bt == 2048 {
-		t |= if 8 == 8 { 4 } else { 3 }
+	bt = t & (vt_btype | vt_long)
+	if bt == vt_long {
+		t |= if 8 == 8 { vt_llong } else { vt_int }
 	}
 	type_.t = t
 	return type_found
@@ -4047,7 +4160,7 @@ fn parse_asm_str() &strings.Builder {
 
 fn asm_label_instr() int {
 	v := 0
-	astr := &i8(0)
+	astr := &char(0)
 	next()
 	astr = parse_asm_str().data
 	skip(`)`)
@@ -4091,7 +4204,7 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 		arg_size = 0
 		local_scope++
 		if l {
-			for ; true; {
+			for {
 				if l != 2 {
 					if (pt.t & 15) == 0 && tok == `)` {
 						break
@@ -4142,7 +4255,7 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 				s.v |= 536870912
 			}
 		}
-		local_scope--$
+		local_scope--
 		type_.t &= ~256
 		if tok == `[` {
 			next()
@@ -4163,11 +4276,11 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 		n = -1
 		t1 = 0
 		if td & 4 {
-			for 1 {
+			for {
 				match tok {
 					int(Tcc_token.tok_restrict1), int(Tcc_token.tok_restrict2),
 					int(Tcc_token.tok_restrict3), int(Tcc_token.tok_const1),
-					int(Tcc_token.tok_volatile1), int(Tcc_token.tok_static), int(c'*') {
+					int(Tcc_token.tok_volatile1), int(Tcc_token.tok_static), int(`*`) {
 						next()
 						continue
 					}
@@ -4393,8 +4506,8 @@ fn parse_type(type_ &CType) {
 	type_decl(type_, &ad, &n, 1)
 }
 
-fn parse_builtin_params(nc int, args &i8) {
-	c := i8(0)
+fn parse_builtin_params(nc int, args &char) {
+	c := char(0)
 	sep := `(`
 
 	type_ := CType{}
@@ -4406,13 +4519,13 @@ fn parse_builtin_params(nc int, args &i8) {
 		skip(sep)
 	}
 	for {
-		c = *args++
+		c = unsafe { *args++ }
 		if !c {
 			break
 		}
 		skip(sep)
 		sep = `,`
-		if c == c't' {
+		if c == `t` {
 			parse_type(&type_)
 			vpush(&type_)
 			continue
@@ -4468,7 +4581,7 @@ fn parse_atomic(atok int) {
 	}
 
 	store := SValue{}
-	buf := [40]i8{}
+	buf := [40]char{}
 	templates := [c'alm.?', c'Asm.v', c'alsm.v', c'aplbmm.b', c'avm.v', c'avm.v', c'avm.v', c'avm.v',
 		c'avm.v', c'avm.v', c'avm.v', c'avm.v', c'avm.v', c'avm.v', c'avm.v', c'avm.v']!
 
@@ -4652,7 +4765,7 @@ fn unary() {
 			ad.section = tcc_state.rodata_section
 			decl_initializer_alloc(&type_, &ad, 48, 2, 0, 0)
 		}
-		167, int(c'(') {
+		167, int(`(`) {
 			t = tok
 			next()
 			if parse_btype(&type_, &ad, 0) {
@@ -4695,12 +4808,12 @@ fn unary() {
 				skip(`)`)
 			}
 		}
-		int(c'*') { // case comp body kind=CallExpr is_enum=true
+		int(`*`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
 			indir()
 		}
-		int(c'&') { // case comp body kind=CallExpr is_enum=true
+		int(`&`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
 			if (vtop.type_.t & 15) != 6 && !(vtop.type_.t & (64 | 1024)) {
@@ -4712,18 +4825,18 @@ fn unary() {
 			mk_pointer(&vtop.type_)
 			gaddrof()
 		}
-		int(c'!') { // case comp body kind=CallExpr is_enum=true
+		int(`!`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
 			gen_test_zero(148)
 		}
-		int(c'~') { // case comp body kind=CallExpr is_enum=true
+		int(`~`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
 			vpushi(-1)
 			gen_op(`^`)
 		}
-		int(c'+') { // case comp body kind=CallExpr is_enum=true
+		int(`+`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
 			if (vtop.type_.t & 15) == 5 {
@@ -4856,7 +4969,7 @@ fn unary() {
 			unary()
 			inc(0, t)
 		}
-		int(c'-') { // case comp body kind=CallExpr is_enum=true
+		int(`-`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
 			if is_float(vtop.type_.t) {
@@ -4941,10 +5054,11 @@ fn unary() {
 					skip_or_save_block((unsafe { nil }))
 				}
 				if tok == `)` {
+					break
 				}
 			}
 			if !str {
-				buf := [60]i8{}
+				buf := [60]char{}
 				type_to_str(buf, sizeof(buf), &controlling_type, (unsafe { nil }))
 				_tcc_error("type '${buf}' does not match any association")
 			}
@@ -4972,6 +5086,13 @@ fn unary() {
 		int(Tcc_token.tok___inf__) { // case comp body kind=BinaryOperator is_enum=true
 			n = 2139095040
 			goto special_math_val // id: 0x7fffed4cbd30
+		}
+		else {
+			// RRRREG tok_identifier id=0x7fffed4c0830
+			tok_identifier:
+			if tok < Tcc_token.tok_define {
+				_tcc_error("expression expected before '${get_tok_str(tok, &tokc)}'")
+			}
 			t = tok
 			next()
 			s = sym_find(t)
@@ -4996,15 +5117,8 @@ fn unary() {
 				vtop.c.i = s.enum_val
 			}
 		}
-		else {
-			// RRRREG tok_identifier id=0x7fffed4c0830
-			tok_identifier:
-			if tok < Tcc_token.tok_define {
-				_tcc_error("expression expected before '${get_tok_str(tok, &tokc)}'")
-			}
-		}
 	}
-	for 1 {
+	for {
 		if tok == 130 || tok == 128 {
 			inc(1, tok)
 			next()
@@ -5180,13 +5294,13 @@ fn precedence(tok int) int {
 		144 { // case comp body kind=ReturnStmt is_enum=false
 			return 2
 		}
-		int(c'|') { // case comp body kind=ReturnStmt is_enum=false
+		int(`|`) { // case comp body kind=ReturnStmt is_enum=false
 			return 3
 		}
-		int(c'^') { // case comp body kind=ReturnStmt is_enum=false
+		int(`^`) { // case comp body kind=ReturnStmt is_enum=false
 			return 4
 		}
-		int(c'&') { // case comp body kind=ReturnStmt is_enum=false
+		int(`&`) { // case comp body kind=ReturnStmt is_enum=false
 			return 5
 		}
 		148, 149 {
@@ -5194,13 +5308,13 @@ fn precedence(tok int) int {
 			// RRRREG relat id=0x7fffed4d6a10
 			relat:
 		}
-		int(c'<'), int(c'>') {
+		int(`<`), int(`>`) {
 			return 8
 		}
-		int(c'+'), int(c'-') {
+		int(`+`), int(`-`) {
 			return 9
 		}
-		int(c'*'), int(c'/'), int(c'%') {
+		int(`*`), int(`/`), int(`%`) {
 			return 10
 		}
 		else {
@@ -6929,7 +7043,8 @@ fn gen_function(sym &Sym) {
 		a -= ind
 		gen_fill_nops(a)
 	}
-	funcname = get_tok_str(sym.v, (unsafe { nil }))
+	funcname = get_tok_str(sym.v, unsafe { nil })
+	vcc_trace('${@LOCATION} ${funcname.vstring()}')
 	func_ind = ind
 	func_vt = sym.type_.ref.type_
 	func_var = sym.type_.ref.f.func_type == 3
@@ -7048,16 +7163,19 @@ fn decl(l int) int {
 	for {
 		vcc_trace('${@LOCATION}')
 		oldint = 0
+		vcc_trace('${@LOCATION}')
 		if !parse_btype(&btype, &adbase, l == 50) {
 			vcc_trace('${@LOCATION}')
 			if l == 52 {
 				return 0
 			}
 			if tok == `;` && l != 51 {
+				vcc_trace('${@LOCATION}')
 				next()
 				continue
 			}
 			if tok == Tcc_token.tok_static_assert {
+				vcc_trace('${@LOCATION}')
 				do_static_assert()
 				continue
 			}
@@ -7065,6 +7183,7 @@ fn decl(l int) int {
 				break
 			}
 			if tok == Tcc_token.tok_asm1 || tok == Tcc_token.tok_asm2 || tok == Tcc_token.tok_asm3 {
+				vcc_trace('${@LOCATION}')
 				asm_global_instr()
 				continue
 			}
@@ -7072,6 +7191,7 @@ fn decl(l int) int {
 				btype.t = 3
 				oldint = 1
 			} else {
+				vcc_trace('${@LOCATION} ${tok}')
 				if tok != (-1) {
 					expect(c'declaration')
 				}
@@ -7080,6 +7200,7 @@ fn decl(l int) int {
 		}
 		if tok == `;` {
 			if (btype.t & 15) == 7 {
+				vcc_trace('${@LOCATION}')
 				v = btype.ref.v
 				if !(v & 536870912) && (v & ~1073741824) >= 268435456 {
 					_tcc_warning('unnamed struct/union that defines no instances')
@@ -7088,6 +7209,7 @@ fn decl(l int) int {
 				continue
 			}
 			if ((btype.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) {
+				vcc_trace('${@LOCATION}')
 				next()
 				continue
 			}
@@ -7095,6 +7217,7 @@ fn decl(l int) int {
 		for {
 			type_ = btype
 			ad = adbase
+			vcc_trace('${@LOCATION}')
 			type_decl(&type_, &ad, &v, 2)
 			if (type_.t & 15) == 6 {
 				if type_.t & 8192 && l != 48 {
@@ -7103,6 +7226,7 @@ fn decl(l int) int {
 				sym = type_.ref
 				if sym.f.func_type == 2 && l == 48 {
 					func_vt = type_
+					vcc_trace('${@LOCATION}')
 					decl(51)
 				}
 				if type_.t & 4096 {
@@ -7113,6 +7237,7 @@ fn decl(l int) int {
 			}
 			if tcc_state.gnu_ext && (tok == Tcc_token.tok_asm1
 				|| tok == Tcc_token.tok_asm2 || tok == Tcc_token.tok_asm3) {
+				vcc_trace('${@LOCATION}')
 				ad.asm_label = asm_label_instr()
 				parse_attribute(&ad)
 			}
@@ -7123,10 +7248,11 @@ fn decl(l int) int {
 				if (type_.t & 15) != 6 {
 					expect(c'function definition')
 				}
+				vcc_trace('${@LOCATION}')
 				sym = type_.ref
 				for {
 					sym = sym.next
-					if sym == (unsafe { nil }) {
+					if sym == unsafe { nil } {
 						break
 					}
 					if !(sym.v & ~536870912) {
@@ -7141,8 +7267,7 @@ fn decl(l int) int {
 				type_.t &= ~4096
 				sym = external_sym(v, &type_, 0, &ad)
 				if sym.type_.t & 32768 {
-					fnc := &InlineFunc(0)
-					fnc = tcc_malloc(sizeof(*fnc) + C.strlen(file.filename))
+					fnc := &InlineFunc(tcc_malloc(sizeof(InlineFunc) + C.strlen(file.filename)))
 					C.strcpy(fnc.filename, file.filename)
 					fnc.sym = sym
 					skip_or_save_block(&fnc.func_str)
@@ -7152,6 +7277,7 @@ fn decl(l int) int {
 					if !tcc_state.cur_text_section {
 						tcc_state.cur_text_section = tcc_state.text_section
 					}
+					vcc_trace('${@LOCATION}')
 					gen_function(sym)
 				}
 				break
@@ -7174,6 +7300,7 @@ fn decl(l int) int {
 					convert_parameter_type(&type_)
 					sym.type_ = type_
 				} else if type_.t & 16384 {
+					vcc_trace('${@LOCATION}')
 					sym = sym_find(v)
 					if sym && sym.sym_scope == local_scope {
 						if !is_compatible_types(&sym.type_, &type_) || !(sym.type_.t & 16384) {
@@ -7194,6 +7321,7 @@ fn decl(l int) int {
 				} else if (type_.t & 15) == 0 && !(type_.t & 4096) {
 					_tcc_error('declaration of void object')
 				} else {
+					// vcc_trace('${@LOCATION}')
 					r = 0
 					if (type_.t & 15) == 6 {
 						merge_funcattr(&type_.ref.f, &ad.f)
@@ -7207,9 +7335,12 @@ fn decl(l int) int {
 					if (type_.t & 4096 && (!has_init || l != 48))
 						|| (type_.t & 15) == 6
 						|| (type_.t & 64 && !has_init && l == 48 && type_.ref.c < 0) {
+						// vcc_trace('${@LOCATION}')
 						type_.t |= 4096
 						sym = external_sym(v, &type_, r, &ad)
+						// vcc_trace('${@LOCATION}')
 					} else {
+						// vcc_trace('${@LOCATION}')
 						if l == 48 || type_.t & 8192 {
 							r |= 48
 						} else { // 3
@@ -7223,6 +7354,7 @@ fn decl(l int) int {
 						decl_initializer_alloc(&type_, &ad, r, has_init, v, l == 48)
 					}
 					if ad.alias_target && l == 48 {
+						// vcc_trace('${@LOCATION}')
 						alias_target := sym_find(ad.alias_target)
 						esym := elfsym(alias_target)
 						if !esym {
@@ -7234,16 +7366,19 @@ fn decl(l int) int {
 				}
 				if tok != `,` {
 					if l == 52 {
+						// vcc_trace('${@LOCATION}')
 						return 1
 					}
+					vcc_trace('${@LOCATION}')
 					skip(`;`)
+					vcc_trace('${@LOCATION}')
 					break
 				}
-				vcc_trace('${@LOCATION}')
+				// vcc_trace('${@LOCATION}')
 				next()
 			}
 		}
-		vcc_trace('${@LOCATION}')
 	}
+	vcc_trace('${@LOCATION}')
 	return 0
 }
