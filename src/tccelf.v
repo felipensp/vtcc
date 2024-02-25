@@ -160,7 +160,7 @@ fn tccelf_end_file(s1 &TCCState) {
 	vcc_trace('${@LOCATION}')
 	for i = 1; i < s1.nb_sections; i++ {
 		sr := s1.sections[i]
-		if sr.sh_type == 4 && sr.link == s {
+		if sr.sh_type == 4 && voidptr(sr.link) == voidptr(s) {
 			rel := &Elf64_Rela((sr.data + sr.sh_offset))
 			rel_end := &Elf64_Rela((sr.data + sr.data_offset))
 			unsafe {
@@ -775,7 +775,7 @@ fn modify_reloctions_old_to_new(s1 &TCCState, s &Section, old_to_new_syms &int) 
 	rel := &Elf64_Rela(0)
 	for i = 1; i < s1.nb_sections; i++ {
 		sr = s1.sections[i]
-		if sr.sh_type == 4 && sr.link == s {
+		if sr.sh_type == 4 && voidptr(sr.link) == voidptr(s) {
 			unsafe {
 				for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
 					sym_index = ((rel.r_info) >> 32)
@@ -1114,7 +1114,7 @@ fn relocate_sections(s1 &TCCState) {
 			continue
 		}
 		s = s1.sections[sr.sh_info]
-		if s != s1.got || s1.static_link || s1.output_type == 1 {
+		if voidptr(s) != voidptr(s1.got) || s1.static_link || s1.output_type == 1 {
 			relocate_section(s1, s, sr)
 		}
 		if sr.sh_flags & (1 << 1) {
@@ -1248,7 +1248,7 @@ fn build_got_entries(s1 &TCCState, got_sym int) {
 		if s.sh_type != 4 {
 			continue
 		}
-		if s.link != s1.symtab_section {
+		if voidptr(s.link) != voidptr(s1.symtab_section) {
 			continue
 		}
 		unsafe {
@@ -1635,7 +1635,7 @@ fn fill_got(s1 &TCCState) {
 		if s.sh_type != 4 {
 			continue
 		}
-		if s.link != s1.symtab_section {
+		if voidptr(s.link) != voidptr(s1.symtab_section) {
 			continue
 		}
 		unsafe {
@@ -1876,7 +1876,7 @@ fn sort_sections(s1 &TCCState, sec_order &int, interp &Section) int {
 			k = 18
 		} else if s.sh_type == 4 {
 			k = 32
-			if s1.plt && s == s1.plt.reloc {
+			if s1.plt && voidptr(s) == voidptr(s1.plt.reloc) {
 				k = 33
 			}
 		} else if s.sh_type == 16 {
@@ -1885,13 +1885,15 @@ fn sort_sections(s1 &TCCState, sec_order &int, interp &Section) int {
 			k = 66
 		} else if s.sh_type == 15 {
 			k = 67
-		} else if s == s1.bounds_section || s == s1.lbounds_section {
+		} else if voidptr(s) == voidptr(s1.bounds_section)
+			|| voidptr(s) == voidptr(s1.lbounds_section) {
 			k = 68
-		} else if s == s1.rodata_section || 0 == unsafe { C.strcmp(s.name, c'.data.rel.ro') } {
+		} else if voidptr(s) == voidptr(s1.rodata_section)
+			|| 0 == unsafe { C.strcmp(s.name, c'.data.rel.ro') } {
 			k = 69
 		} else if s.sh_type == 6 {
 			k = 70
-		} else if s == s1.got {
+		} else if voidptr(s) == voidptr(s1.got) {
 			k = 71
 		} else {
 			k = 80
@@ -1904,7 +1906,7 @@ fn sort_sections(s1 &TCCState, sec_order &int, interp &Section) int {
 			if s.sh_type == 8 {
 				k = 128
 			}
-			if s == interp {
+			if voidptr(s) == voidptr(interp) {
 				k = 0
 			}
 		}
@@ -2174,7 +2176,7 @@ fn update_reloc_sections(s1 &TCCState, dyninf &Dyn_inf) {
 	dyninf.rel_size = dyninf.rel_addr
 	for i = 1; i < s1.nb_sections; i++ {
 		s = s1.sections[i]
-		if s.sh_type == 4 && s != relocplt {
+		if s.sh_type == 4 && voidptr(s) != voidptr(relocplt) {
 			if dyninf.rel_size == 0 {
 				dyninf.rel_addr = s.sh_addr
 				file_offset = s.sh_offset
@@ -2583,7 +2585,7 @@ fn alloc_sec_names(s1 &TCCState, is_obj int) {
 		if is_obj {
 			s.sh_size = s.data_offset
 		}
-		if s == strsec || s.sh_size || s.sh_flags & (1 << 1) {
+		if voidptr(s) == voidptr(strsec) || s.sh_size || s.sh_flags & (1 << 1) {
 			s.sh_name = put_elf_str(strsec, s.name)
 		}
 	}
@@ -2786,10 +2788,10 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 					goto next // id: 0x7fffe90586f0
 				}
 				if s1.stab_section {
-					if s == s1.stab_section {
+					if voidptr(s) == voidptr(s1.stab_section) {
 						stab_index = i
 					}
-					if s == s1.stab_section.link {
+					if voidptr(s) == voidptr(s1.stab_section.link) {
 						stabstr_index = i
 					}
 				}

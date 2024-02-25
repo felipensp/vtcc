@@ -184,9 +184,10 @@ fn skip(c int) {
 		vcc_trace('${@LOCATION}')
 		tmp := [40]char{}
 		vcc_trace('${@LOCATION}')
+		a := get_tok_str(c, &tokc)
 		pstrcpy(tmp, sizeof(tmp), get_tok_str(c, &tokc))
 		vcc_trace('${@LOCATION}')
-		_tcc_error('\'${tmp}\' expected (got "${get_tok_str(tok, &tokc)}")')
+		_tcc_error('\'${(&char(tmp)).vstring()}\' expected (got "${get_tok_str(tok, &tokc).vstring()}")')
 	}
 	vcc_trace('${@LOCATION}')
 	next()
@@ -560,8 +561,8 @@ fn get_tok_str(v int, cv &CValue) &char {
 	i := 0
 	len := 0
 
-	// cstr_reset(&cstr_buf)
-	// p = cstr_buf.data
+	cstr_reset(&cstr_buf)
+	p = cstr_buf.data
 	match v {
 		194, 195, 198, 199, 196, 197 {
 			C.sprintf(p, c'%llu', i64(cv.i))
@@ -633,17 +634,23 @@ fn get_tok_str(v int, cv &CValue) &char {
 			return C.strcpy(p, c'<no name>')
 		}
 		else {
+			vcc_trace('${@LOCATION}')
 			if v < 256 {
-				q := &u8(tok_two_chars[0])
+				vcc_trace('${@LOCATION}')
+				q := &u32(tok_two_chars)
+				vcc_trace('${@LOCATION} ${rune(*q)}')
 				for *q {
+					vcc_trace('${@LOCATION}')
 					if q[2] == v {
 						unsafe {
+							vcc_trace('${@LOCATION}')
 							*p++ = q[0]
 							*p++ = q[1]
 							*p = `\x00`
 						}
 						return cstr_buf.data
 					}
+					vcc_trace('${@LOCATION}')
 					q += 3
 				}
 				if v >= 127 || (v < 32 && !is_space(v) && v != `\n`) {
@@ -728,10 +735,10 @@ fn handle_stray_noerror(err int) int {
 	ch := 0
 	for {
 		ch = next_c()
-		vcc_trace('${@LOCATION} ${rune(ch)}')
 		if ch != `\\` {
 			break
 		}
+		vcc_trace('${@LOCATION} ${rune(ch)}')
 		ch = next_c()
 		// vcc_trace('${@LOCATION} ${rune(ch)}')
 		if ch == `\n` {
@@ -796,7 +803,6 @@ fn parse_line_comment(p &u8) &u8 {
 		for {
 			p++
 			c = *p
-			// RRRREG redo id=0x7fffd8899480
 			redo:
 			if c == `\n` || c == `\\` {
 				break
@@ -827,7 +833,6 @@ fn parse_comment(p &u8) &u8 {
 		for {
 			p++
 			c = *p
-			// RRRREG redo id=0x7fffd8899fd8
 			redo:
 			if c == `\n` || c == `*` || c == `\\` {
 				break
@@ -876,7 +881,6 @@ fn parse_pp_string(p &u8, sep int, str &CString) &u8 {
 	for {
 		p++
 		c = *p
-		// RRRREG redo id=0x7fffd889bc88
 		redo:
 		if c == sep {
 			break
@@ -952,13 +956,12 @@ fn preprocess_skip() {
 	p := &u8(0)
 	p = file.buf_ptr
 	a = 0
-	// RRRREG redo_start id=0x7fffd889cef8
+
 	redo_start:
 	start_of_line = 1
 	in_warn_or_error = 0
 	vcc_trace('${@LOCATION}')
 	for {
-		// RRRREG redo_no_start id=0x7fffd889d088
 		redo_no_start:
 		c = *p
 		match rune(c) {
@@ -994,7 +997,7 @@ fn preprocess_skip() {
 				}
 				tok_flags &= ~1
 				vcc_trace('${@LOCATION}')
-				p = parse_pp_string(p, c, (unsafe { nil }))
+				p = parse_pp_string(p, c, unsafe { nil })
 			}
 			`/` { // case comp body kind=IfStmt is_enum=false
 				vcc_trace('${@LOCATION}')
@@ -1058,7 +1061,6 @@ fn preprocess_skip() {
 		}
 		start_of_line = 0
 	}
-	// RRRREG the_end id=0x7fffd889e6e0
 	the_end:
 	vcc_trace('${@LOCATION}')
 	file.buf_ptr = p
@@ -1327,7 +1329,7 @@ fn define_find(v int) &Sym {
 }
 
 fn free_defines(b &Sym) {
-	for define_stack != unsafe { nil } && b != unsafe { nil } && define_stack != b {
+	for voidptr(define_stack) != voidptr(b) {
 		top := define_stack
 		define_stack = top.prev
 		tok_str_free_str(top.d)
@@ -1473,10 +1475,9 @@ fn expr_preprocess(s1 &TCCState) int {
 	c := 0
 	t := 0
 
-	str := &TokenString(0)
-	str = tok_str_alloc()
+	str := &TokenString(tok_str_alloc())
 	pp_expr = 1
-	for tok != 10 && tok != (-1) {
+	for tok != 10 && tok != tok_eof {
 		next()
 		// RRRREG redo id=0x7fffd88bbd88
 		redo:
@@ -1563,7 +1564,7 @@ fn parse_define() {
 	if v < 256 || v == Tcc_token.tok_defined {
 		_tcc_error("invalid macro name '${get_tok_str(tok, &tokc)}'")
 	}
-	first = (unsafe { nil })
+	first = unsafe { nil }
 	t = 0
 	parse_flags = ((parse_flags & ~8) | 16)
 	vcc_trace('${@LOCATION}')
@@ -1597,7 +1598,7 @@ fn parse_define() {
 					_tcc_error('bad macro parameter list')
 				}
 				vcc_trace('${@LOCATION}')
-				s = sym_push2(&define_stack, varg | 536870912, is_vaargs, 0)
+				s = sym_push2(&define_stack, varg | sym_field, is_vaargs, 0)
 				vcc_trace('${@LOCATION}')
 				*ps = s
 				vcc_trace('${@LOCATION}')
@@ -1721,8 +1722,8 @@ fn pragma_parse(s1 &TCCState) {
 	if tok == Tcc_token.tok_push_macro || tok == Tcc_token.tok_pop_macro {
 		t := tok
 		v := 0
-
 		s := &Sym(0)
+
 		next()
 		if tok != `(` {
 			goto pragma_err // id: 0x7fffd88c22b8
@@ -1740,13 +1741,13 @@ fn pragma_parse(s1 &TCCState) {
 			vcc_trace('${@LOCATION}')
 			s = define_find(v)
 			for unsafe { nil } == s {
-				define_push(v, 0, (unsafe { nil }), (unsafe { nil }))
+				define_push(v, 0, unsafe { nil }, unsafe { nil })
 				s = define_find(v)
 			}
 			s.type_.ref = s
 		} else {
 			for s = define_stack; s; s = s.prev {
-				if s.v == v && s.type_.ref == s {
+				if s.v == v && voidptr(s.type_.ref) == voidptr(s) {
 					s.type_.ref = (unsafe { nil })
 					break
 				}
@@ -1855,10 +1856,8 @@ fn preprocess(is_bof int) {
 	s := &Sym(0)
 	saved_parse_flags = parse_flags
 	parse_flags = 1 | 2 | 64 | 4 | (parse_flags & 8)
-	vcc_trace('${@LOCATION}')
+
 	next_nomacro()
-	vcc_trace('${@LOCATION}')
-	// RRRREG redo id=0x7fffd88c9688
 	redo:
 	vcc_trace('${@LOCATION} ${tok}')
 	match tok {
@@ -1892,7 +1891,6 @@ fn preprocess(is_bof int) {
 		int(Tcc_token.tok_if) { // case comp body kind=BinaryOperator is_enum=true
 			vcc_trace('${@LOCATION}')
 			c = expr_preprocess(s1)
-			vcc_trace('${@LOCATION}')
 			goto do_if // id: 0x7fffd88c7850
 		}
 		int(Tcc_token.tok_ifdef) { // case comp body kind=BinaryOperator is_enum=true
@@ -1913,7 +1911,6 @@ fn preprocess(is_bof int) {
 					file.ifndef_macro = tok
 				}
 			}
-			vcc_trace('${@LOCATION}')
 			if define_find(tok) || tok == Tcc_token.tok___has_include
 				|| tok == Tcc_token.tok___has_include_next {
 				c ^= 1
@@ -2001,7 +1998,6 @@ fn preprocess(is_bof int) {
 			vcc_trace('${@LOCATION}')
 			next()
 			if tok != 194 {
-				// RRRREG _line_err id=0x7fffd88ca4d0
 				_line_err:
 				_tcc_error('wrong #line format')
 			}
@@ -2042,20 +2038,23 @@ fn preprocess(is_bof int) {
 		int(Tcc_token.tok_error), int(Tcc_token.tok_warning) {
 			vcc_trace('${@LOCATION}')
 			q = buf
+			vcc_trace('${@LOCATION}')
 			c = skip_spaces()
+			vcc_trace('${@LOCATION}')
 			for c != `\n` && c != ch_eof {
 				if (q - buf) < sizeof(buf) - 1 {
 					unsafe {
 						*q++ = c
 					}
 				}
+				vcc_trace('${@LOCATION} ${rune(c)}')
 				c = handle_stray_noerror(0)
 			}
 			*q = `\x00`
 			if tok == Tcc_token.tok_error {
-				_tcc_error('#error ${buf}')
+				_tcc_error('#error ${(&char(buf)).vstring()}')
 			} else { // 3
-				_tcc_warning('#warning ${buf}')
+				_tcc_warning('#warning ${(&char(buf)).vstring()}')
 			}
 		}
 		int(Tcc_token.tok_pragma) { // case comp body kind=CallExpr is_enum=true
@@ -2088,7 +2087,6 @@ fn preprocess(is_bof int) {
 		vcc_trace('${@LOCATION}')
 		next_nomacro()
 	}
-	// RRRREG the_end id=0x7fffd88c9f18
 	the_end:
 	parse_flags = saved_parse_flags
 	vcc_trace('${@LOCATION}')
@@ -2163,7 +2161,6 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 						}
 					}
 					if is_long {
-						// RRRREG add_hex_or_ucn id=0x7fffd88ceb38
 						add_hex_or_ucn:
 						c = n
 						goto add_char_nonext // id: 0x7fffd88ce020
@@ -2259,7 +2256,6 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 			p += 1 + cont
 			c = n
 			goto add_char_nonext // id: 0x7fffd88ce020
-			// RRRREG invalid_utf8_sequence id=0x7fffd88d0150
 			invalid_utf8_sequence:
 			_tcc_warning("ill-formed UTF-8 subsequence starting with: '\\x${c}'")
 			c = 65533
@@ -2267,7 +2263,6 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 			goto add_char_nonext // id: 0x7fffd88ce020
 		}
 		p++
-		// RRRREG add_char_nonext id=0x7fffd88ce020
 		add_char_nonext:
 		if !is_long {
 			cstr_ccat(outstr, c)
@@ -2546,8 +2541,6 @@ fn parse_number(p &char) {
 					*q++ = ch
 					ch = *p++
 				}
-				// RRRREG float_frac_parse id=0x7fffd88d6070
-
 				float_frac_parse: for ch >= `0` && ch <= `9` {
 					if q >= &token_buf[0] + 1024 {
 						goto num_too_long // id: 0x7fffd88d7010
@@ -2730,22 +2723,14 @@ fn next_nomacro1() {
 	h := u32(0)
 	p = file.buf_ptr
 	nested := 0
-	// RRRREG redo_no_start id=0x7fffd88e0230
 	redo_no_start:
 	c = u8(*p)
-	// if c == `\\` {
-	// 	nested++
-	// }
-	// vcc_trace('${@LOCATION} ${rune(c)}')
-	// if nested > 10 {
-	// 	return
-	// }
+
 	match rune(c) {
 		` `, `\t` {
 			vcc_trace('${@LOCATION}')
 			tok = c
 			p++
-			// RRRREG maybe_space id=0x7fffd88e0560
 			maybe_space:
 			if parse_flags & 16 {
 				goto keep_tok_flags // id: 0x7fffd88e04d8
@@ -3309,7 +3294,6 @@ fn next_nomacro1() {
 		}
 	}
 	tok_flags = 0
-	// RRRREG keep_tok_flags id=0x7fffd88e04d8
 	keep_tok_flags:
 	file.buf_ptr = p
 	vcc_trace('${@LOCATION}')
@@ -3320,14 +3304,15 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 	t0 := 0
 	t1 := 0
 	spc := 0
-
 	st := &int(0)
 	s := &Sym(0)
 	cval := CValue{}
 	str := TokenString{}
+
 	tok_str_new(&str)
 	t0 = 0
 	t1 = 0
+
 	for {
 		tok_get_macro(&t, &macro_str, &cval)
 		if !t {
@@ -3341,7 +3326,7 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 			s = sym_find2(args, t)
 			if s != unsafe { nil } {
 				cstr_reset(&tokcstr)
-				cstr_ccat(&tokcstr, `\"`)
+				cstr_ccat(&tokcstr, `"`)
 				st = s.d
 				spc = 0
 				for *st >= 0 {
@@ -3860,7 +3845,7 @@ fn macro_subst(tok_str &TokenString, nested_list &&Sym, macro_str &int) {
 				begin_macro(str, 2)
 				tok = t
 				macro_subst_tok(tok_str, nested_list, s)
-				if macro_stack != str {
+				if voidptr(macro_stack) != voidptr(str) {
 					break
 				}
 				macro_str = macro_ptr
@@ -3908,7 +3893,6 @@ fn next_nomacro() {
 	vcc_trace('${@LOCATION}')
 	t := 0
 	if macro_ptr {
-		// RRRREG redo id=0x7fffd8905950
 		redo:
 		// vcc_trace('${@LOCATION}')
 		t = *macro_ptr
@@ -3941,7 +3925,6 @@ fn next_nomacro() {
 
 fn next() {
 	t := 0
-	// RRRREG redo id=0x7fffd8906568
 	redo:
 	next_nomacro()
 	t = tok
@@ -4009,8 +3992,9 @@ fn unget_tok(last_tok int) {
 const target_os_defs = ['__linux__', '__linux', '__unix__', '__unix']
 
 fn putdef(cs &strings.Builder, p string) {
-	vcc_trace('${@LOCATION}')
-	cs.write_string('#define ${p}${' 1'[int(!!C.strchr(p.str, ` `)) * 2]}\n')
+	vcc_trace('${@LOCATION} - #define ${p}')
+	// cs.write_string('#define ${p}${' 1'[int(!!C.strchr(p.str, ` `)) * 2]}\n')
+	cs.write_string('#define ${p}\n')
 }
 
 fn putdefs(cs &CString, strs []string) {
@@ -4065,7 +4049,7 @@ fn tcc_predefs(s1 &TCCState, cs &CString, is_asm int) {
 		cstr_printf(cs, '#include <tccdefs.h>\n')
 		// cstr_cat(cs, c'#define __SIZE_TYPE__ unsigned long\n#define __PTRDIFF_TYPE__ long\n#define __LP64__ 1\n#define __INT64_TYPE__ long\n#define __SIZEOF_INT__ 4\n#define __INT_MAX__ 0x7fffffff\n#define __LONG_MAX__ 0x7fffffffffffffffL\n#define __SIZEOF_LONG_LONG__ 8\n#define __LONG_LONG_MAX__ 0x7fffffffffffffffLL\n#define __CHAR_BIT__ 8\n#define __ORDER_LITTLE_ENDIAN__ 1234\n#define __ORDER_BIG_ENDIAN__ 4321\n#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__\n#define __WCHAR_TYPE__ int\n#define __WINT_TYPE__ unsigned int\n#if __STDC_VERSION__>=201112L\n#define __STDC_NO_ATOMICS__ 1\n#define __STDC_NO_COMPLEX__ 1\n#define __STDC_NO_THREADS__ 1\n#define __STDC_UTF_16__ 1\n#define __STDC_UTF_32__ 1\n#endif\n#define __UINTPTR_TYPE__ unsigned __PTRDIFF_TYPE__\n#define __INTPTR_TYPE__ __PTRDIFF_TYPE__\n#define __INT32_TYPE__ int\n#define __REDIRECT(name,proto,alias) name proto __asm__(#alias)\n#define __REDIRECT_NTH(name,proto,alias) name proto __asm__(#alias)__THROW\n#define __REDIRECT_NTHNL(name,proto,alias) name proto __asm__(#alias)__THROWNL\n#define __PRETTY_FUNCTION__ __FUNCTION__\n#define __has_builtin(x) 0\n#define __has_feature(x) 0\n#define _Nonnull\n#define _Nullable\n#define _Nullable_result\n#define _Null_unspecified\n#ifndef __TCC_PP__\n#define __builtin_offsetof(type,field) ((__SIZE_TYPE__)&((type*)0)->field)\n#define __builtin_extract_return_addr(x) x\ntypedef struct{\nunsigned gp_offset,fp_offset;\nunion{\nunsigned overflow_offset;\nchar*overflow_arg_area;\n};\nchar*reg_save_area;\n}__builtin_va_list[1];\nvoid*__va_arg(__builtin_va_list ap,int arg_type,int size,int align);\n#define __builtin_va_start(ap,last) (*(ap)=*(__builtin_va_list)((char*)__builtin_frame_address(0)-24))\n#define __builtin_va_arg(ap,t) (*(t*)(__va_arg(ap,__builtin_va_arg_types(t),sizeof(t),__alignof__(t))))\n#define __builtin_va_copy(dest,src) (*(dest)=*(src))\n#define __builtin_va_end(ap) (void)(ap)\n#ifndef __builtin_va_copy\n#define __builtin_va_copy(dest,src) (dest)=(src)\n#endif\n#ifdef __leading_underscore\n#define __RENAME(X) __asm__(\"_\"X)\n#else\n#define __RENAME(X) __asm__(X)\n#endif\n#ifdef __TCC_BCHECK__\n#define __BUILTINBC(ret,name,params) ret __builtin_##name params __RENAME(\"__bound_\"#name);\n#define __BOUND(ret,name,params) ret name params __RENAME(\"__bound_\"#name);\n#else\n#define __BUILTINBC(ret,name,params) ret __builtin_##name params __RENAME(#name);\n#define __BOUND(ret,name,params)\n#endif\n#define __BOTH(ret,name,params) __BUILTINBC(ret,name,params)__BOUND(ret,name,params)\n#define __BUILTIN(ret,name,params) ret __builtin_##name params __RENAME(#name);\n__BOTH(void*,memcpy,(void*,const void*,__SIZE_TYPE__))\n__BOTH(void*,memmove,(void*,const void*,__SIZE_TYPE__))\n__BOTH(void*,memset,(void*,int,__SIZE_TYPE__))\n__BOTH(int,memcmp,(const void*,const void*,__SIZE_TYPE__))\n__BOTH(__SIZE_TYPE__,strlen,(const char*))\n__BOTH(char*,strcpy,(char*,const char*))\n__BOTH(char*,strncpy,(char*,const char*,__SIZE_TYPE__))\n__BOTH(int,strcmp,(const char*,const char*))\n__BOTH(int,strncmp,(const char*,const char*,__SIZE_TYPE__))\n__BOTH(char*,strcat,(char*,const char*))\n__BOTH(char*,strncat,(char*,const char*,__SIZE_TYPE__))\n__BOTH(char*,strchr,(const char*,int))\n__BOTH(char*,strrchr,(const char*,int))\n__BOTH(char*,strdup,(const char*))\n#define __MAYBE_REDIR __BUILTIN\n__MAYBE_REDIR(void*,malloc,(__SIZE_TYPE__))\n__MAYBE_REDIR(void*,realloc,(void*,__SIZE_TYPE__))\n__MAYBE_REDIR(void*,calloc,(__SIZE_TYPE__,__SIZE_TYPE__))\n__MAYBE_REDIR(void*,memalign,(__SIZE_TYPE__,__SIZE_TYPE__))\n__MAYBE_REDIR(void,free,(void*))\n__BOTH(void*,alloca,(__SIZE_TYPE__))\n__BUILTIN(void,abort,(void))\n__BOUND(void,longjmp,())\n__BOUND(void*,mmap,())\n__BOUND(int,munmap,())\n#undef __BUILTINBC\n#undef __BUILTIN\n#undef __BOUND\n#undef __BOTH\n#undef __MAYBE_REDIR\n#undef __RENAME\n#define __BUILTIN_EXTERN(name,u) int __builtin_##name(u int);int __builtin_##name##l(u long);int __builtin_##name##ll(u long long);\n__BUILTIN_EXTERN(ffs,)\n__BUILTIN_EXTERN(clz,unsigned)\n__BUILTIN_EXTERN(ctz,unsigned)\n__BUILTIN_EXTERN(clrsb,)\n__BUILTIN_EXTERN(popcount,unsigned)\n__BUILTIN_EXTERN(parity,unsigned)\n#undef __BUILTIN_EXTERN\n#endif\n', -1)
 	}
-	cstr_printf(cs, '#define __BASE_FILE__ "${file.filename}"\n')
+	cstr_printf(cs, '#define __BASE_FILE__ "${(&char(file.filename)).vstring()}"\n')
 }
 
 fn preprocess_start(s1 &TCCState, filetype int) {

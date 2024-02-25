@@ -10,6 +10,8 @@ __global func_ret_sub = int(0)
 
 pub const target_machine_defs = ['__x86_64__', '__amd64__']
 
+pub const ptr_size = 8
+
 const RC_INT = 0x0001 // generic integer register
 const RC_FLOAT = 0x0002 // generic float register
 const RC_RAX = 0x0004
@@ -17,7 +19,7 @@ const RC_RDX = 0x0008
 const RC_RCX = 0x0010
 const RC_RSI = 0x0020
 const RC_RDI = 0x0040
-const RC_ST0 = 0x0080 // only for long double
+const rc_st0 = 0x0080 // only for long double
 const RC_R8 = 0x0100
 const RC_R9 = 0x0200
 const RC_R10 = 0x0400
@@ -32,7 +34,7 @@ const RC_XMM6 = 0x40000
 const RC_XMM7 = 0x80000
 const RC_IRET = RC_RAX // function return: integer register
 const RC_IRE2 = RC_RDX // function return: second integer register
-const RC_FRET = RC_XMM0 // function return: float register
+const rc_fret = RC_XMM0 // function return: float register
 const RC_FRE2 = RC_XMM1 // function return: second float register
 
 const reg_classes = [0x0001 | 0x0004, // eax

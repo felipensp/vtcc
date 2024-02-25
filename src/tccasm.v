@@ -138,7 +138,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 		}
 		192, 193 {
 			pe.v = unsafe { tokc.i }
-			pe.sym = (unsafe { nil })
+			pe.sym = unsafe { nil }
 			pe.pcrel = 0
 			next()
 		}
@@ -160,7 +160,7 @@ fn asm_expr_unary(s1 &TCCState, pe &ExprValue) {
 				esym = elfsym(sym)
 				if esym && esym.st_shndx == 65521 {
 					pe.v = esym.st_value
-					pe.sym = (unsafe { nil })
+					pe.sym = unsafe { nil }
 					pe.pcrel = 0
 				} else {
 					pe.v = 0
@@ -261,20 +261,20 @@ fn asm_expr_sum(s1 &TCCState, pe &ExprValue) {
 		next()
 		asm_expr_logic(s1, &e2)
 		if op == `+` {
-			if pe.sym != (unsafe { nil }) && e2.sym != (unsafe { nil }) {
+			if pe.sym != unsafe { nil } && e2.sym != unsafe { nil } {
 				unsafe {
 					goto cannot_relocate
 				} // id: 0x7fffceac81a8
 			}
 			pe.v += e2.v
-			if pe.sym == (unsafe { nil }) && e2.sym != (unsafe { nil }) {
+			if pe.sym == unsafe { nil } && e2.sym != unsafe { nil } {
 				pe.sym = e2.sym
 			}
 		} else {
 			pe.v -= e2.v
 			if !e2.sym {
-			} else if pe.sym == e2.sym {
-				pe.sym = (unsafe { nil })
+			} else if voidptr(pe.sym) == voidptr(e2.sym) {
+				pe.sym = unsafe { nil }
 			} else {
 				esym1 := &Elf64_Sym(0)
 				esym2 := &Elf64_Sym(0)
@@ -283,11 +283,11 @@ fn asm_expr_sum(s1 &TCCState, pe &ExprValue) {
 				esym2 = elfsym(e2.sym)
 				if esym1 && esym1.st_shndx == esym2.st_shndx && esym1.st_shndx != 0 {
 					pe.v += esym1.st_value - esym2.st_value
-					pe.sym = (unsafe { nil })
+					pe.sym = unsafe { nil }
 				} else if esym2.st_shndx == tcc_state.cur_text_section.sh_num {
 					pe.v -= esym2.st_value - ind - 4
 					pe.pcrel = 1
-					e2.sym = (unsafe { nil })
+					e2.sym = unsafe { nil }
 				} else {
 					// RRRREG cannot_relocate id=0x7fffceac81a8
 					cannot_relocate:
@@ -428,7 +428,7 @@ fn pop_section(s1 &TCCState) {
 	if !prev {
 		_tcc_error('.popsection without .pushsection')
 	}
-	tcc_state.cur_text_section.prev = (unsafe { nil })
+	tcc_state.cur_text_section.prev = unsafe { nil }
 	use_section1(s1, prev)
 }
 
@@ -917,7 +917,7 @@ fn tcc_assemble_inline(s1 &TCCState, str &char, len int, global int) {
 	dolid := set_idnum(`$`, 0)
 	tcc_open_bf(s1, c':asm:', len)
 	unsafe { C.memcpy(file.buffer, str, len) }
-	macro_ptr = (unsafe { nil })
+	macro_ptr = unsafe { nil }
 	tcc_assemble_internal(s1, 0, global)
 	tcc_close()
 	set_idnum(`$`, dolid)
@@ -1169,7 +1169,7 @@ fn asm_instr() {
 	tcc_assemble_inline(tcc_state, astr.data, astr.len - 1, 0)
 	cstr_free(&astr)
 	nb_stk_data--
-	if sec != tcc_state.cur_text_section {
+	if voidptr(sec) != voidptr(tcc_state.cur_text_section) {
 		_tcc_warning('inline asm tries to change current section')
 		use_section1(tcc_state, sec)
 	}

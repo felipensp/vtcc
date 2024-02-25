@@ -1,5 +1,23 @@
 module main
 
+pub const shn_undef = 0
+
+// Legal values for ST_BIND subfield of st_info (symbol binding).
+
+pub const stb_local = 0 // Local symbol
+pub const stb_global = 1 // Global symbol
+pub const stb_weak = 2 // Weak symbol
+pub const stb_num = 3 // Number of defined types.
+pub const stb_loos = 10 // Start of OS-specific
+pub const stb_gnu_unique = 10 // Unique symbol.
+pub const stb_hios = 12 // End of OS-specific
+pub const stb_loproc = 13 // Start of processor-specific
+pub const stb_hiproc = 15 //  End of processor-specific
+
+pub const stt_notype = 0 // Symbol type is unspecified
+pub const stt_object = 1 // Symbol is a data object
+pub const stt_func = 2 // Symbol is a code object
+
 type Elf32_Half = u16
 type Elf64_Half = u16
 type Elf32_Word = u32

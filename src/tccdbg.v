@@ -860,7 +860,7 @@ fn tcc_debug_line(s1 &TCCState) {
 	if !s1.do_debug {
 		return
 	}
-	if s1.cur_text_section != s1.text_section || nocode_wanted {
+	if voidptr(s1.cur_text_section) != voidptr(s1.text_section) || nocode_wanted {
 		return
 	}
 	f = put_new_file(s1)
@@ -968,7 +968,7 @@ fn tcc_debug_find(s1 &TCCState, t &Sym, dwarf int) int {
 	i := 0
 	if !s1.dState.debug_info && dwarf != 0 && (t.type_.t & 15) == 7 && t.c == -1 {
 		for i = 0; i < s1.dState.n_debug_anon_hash; i++ {
-			if t == s1.dState.debug_anon_hash[i].type_ {
+			if voidptr(t) == voidptr(s1.dState.debug_anon_hash[i].type_) {
 				return 0
 			}
 		}
@@ -980,7 +980,7 @@ fn tcc_debug_find(s1 &TCCState, t &Sym, dwarf int) int {
 		return 0
 	}
 	for i = 0; i < s1.dState.n_debug_hash; i++ {
-		if t == s1.dState.debug_hash[i].type_ {
+		if voidptr(t) == voidptr(s1.dState.debug_hash[i].type_) {
 			return s1.dState.debug_hash[i].debug_type
 		}
 	}
@@ -991,7 +991,7 @@ fn tcc_debug_check_anon(s1 &TCCState, t &Sym, debug_type int) {
 	i := 0
 	if !s1.dState.debug_info && (t.type_.t & 15) == 7 && t.type_.ref.c == -1 {
 		for i = 0; i < s1.dState.n_debug_anon_hash; i++ {
-			if t.type_.ref == s1.dState.debug_anon_hash[i].type_ {
+			if voidptr(t.type_.ref) == voidptr(s1.dState.debug_anon_hash[i].type_) {
 				s1.dState.debug_anon_hash[i].debug_type = tcc_realloc(s1.dState.debug_anon_hash[i].debug_type,
 					(s1.dState.debug_anon_hash[i].n_debug_type + 1) * sizeof(int))
 				s1.dState.debug_anon_hash[i].debug_type[s1.dState.debug_anon_hash[i].n_debug_type++] = debug_type
@@ -1010,7 +1010,7 @@ fn tcc_debug_fix_anon(s1 &TCCState, t &CType) {
 	}
 	if (t.t & 15) == 7 && t.ref.c != -1 {
 		for i = 0; i < s1.dState.n_debug_anon_hash; i++ {
-			if t.ref == s1.dState.debug_anon_hash[i].type_ {
+			if voidptr(t.ref) == voidptr(s1.dState.debug_anon_hash[i].type_) {
 				sym := Sym{
 					v: 0
 				}
@@ -1046,7 +1046,7 @@ fn tcc_debug_add(s1 &TCCState, t &Sym, dwarf int) int {
 fn tcc_debug_remove(s1 &TCCState, t &Sym) {
 	i := 0
 	for i = 0; i < s1.dState.n_debug_hash; i++ {
-		if t == s1.dState.debug_hash[i].type_ {
+		if voidptr(t) == voidptr(s1.dState.debug_hash[i].type_) {
 			s1.dState.n_debug_hash--
 			for ; i < s1.dState.n_debug_hash; i++ {
 				s1.dState.debug_hash[i] = s1.dState.debug_hash[i + 1]
@@ -1661,7 +1661,7 @@ fn tcc_add_debug_info(s1 &TCCState, param int, s &Sym, e &Sym) {
 		return
 	}
 	cstr_new(&debug_str)
-	for ; s != e; s = s.prev {
+	for ; voidptr(s) != voidptr(e); s = s.prev {
 		if !s.v || (s.r & 63) != 50 {
 			continue
 		}
@@ -1848,7 +1848,8 @@ fn tcc_debug_extern_sym(s1 &TCCState, sym &Sym, sh_num int, sym_bind int, sym_ty
 			tcc_debug_stabs(s1, str.data, Stab_debug_code.n_gsym, 0, (unsafe { nil }),
 				0, 0)
 		} else { // 3
-			tcc_debug_stabs(s1, str.data, if sym.type_.t & 8192 && s1.data_section == s {
+			tcc_debug_stabs(s1, str.data, if sym.type_.t & 8192
+				&& voidptr(s1.data_section) == voidptr(s) {
 				Stab_debug_code.n_stsym
 			} else {
 				Stab_debug_code.n_lcsym
