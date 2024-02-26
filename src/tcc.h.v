@@ -69,6 +69,8 @@ pub struct CType {
 	ref &Sym
 }
 
+const LDOUBLE_SIZE = 16
+
 pub union CValue {
 	ld  f64
 	d   f64
@@ -79,7 +81,7 @@ pub union CValue {
 		size int
 	}
 
-	tab [4]int
+	tab [LDOUBLE_SIZE / 4]int
 }
 
 pub struct SValue {
@@ -89,8 +91,8 @@ pub struct SValue {
 	jtrue  int
 	jfalse int
 	c      CValue
-	cmp_op u8
-	cmp_r  u8
+	cmp_op u16
+	cmp_r  u16
 	sym    &Sym
 }
 

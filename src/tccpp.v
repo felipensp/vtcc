@@ -3,6 +3,7 @@ module main
 
 import strings
 
+#include <math.h>
 #include <time.h>
 
 const STRING_MAX_SIZE = 1024
@@ -174,22 +175,22 @@ __global tcc_keywords = ['int', 'void', 'char', 'if', 'else', 'while', 'break', 
 	'rsqrtps', 'sqrtps', 'subps', 'movnti', 'movntil', 'movntiq', 'prefetchnta', 'prefetcht0',
 	'prefetcht1', 'prefetcht2', 'prefetchw', 'lfence', 'mfence', 'sfence', 'clflush']!
 
-const tok_two_chars = [`<`, `=`, 158, `>`, `=`, 157, `!`, `=`, 149, `&`, `&`, 144, `|`, `|`, 145,
-	`+`, `+`, 130, `-`, `-`, 128, `=`, `=`, 148, `<`, `<`, `<`, `>`, `>`, `>`, `+`, `=`, 176, `-`,
-	`=`, 177, `*`, `=`, 178, `/`, `=`, 179, `%`, `=`, 180, `&`, `=`, 181, `^`, `=`, 183, `|`, `=`,
-	182, `-`, `>`, 160, `.`, `.`, 162, `#`, `#`, 163, `#`, `#`, 166, 0]!
+const tok_two_chars = [u8(`<`), `=`, 158, `>`, `=`, 157, `!`, `=`, 149, `&`, `&`, 144, `|`, `|`,
+	145, `+`, `+`, 130, `-`, `-`, 128, `=`, `=`, 148, `<`, `<`, `<`, `>`, `>`, `>`, `+`, `=`, 176,
+	`-`, `=`, 177, `*`, `=`, 178, `/`, `=`, 179, `%`, `=`, 180, `&`, `=`, 181, `^`, `=`, 183, `|`,
+	`=`, 182, `-`, `>`, 160, `.`, `.`, 162, `#`, `#`, 163, `#`, `#`, 166, 0]!
 
 fn skip(c int) {
 	if tok != c {
-		vcc_trace('${@LOCATION}')
+		// vcc_trace('${@LOCATION}')
 		tmp := [40]char{}
-		vcc_trace('${@LOCATION}')
+		// vcc_trace('${@LOCATION}')
 		a := get_tok_str(c, &tokc)
 		pstrcpy(tmp, sizeof(tmp), get_tok_str(c, &tokc))
-		vcc_trace('${@LOCATION}')
+		// vcc_trace('${@LOCATION}')
 		_tcc_error('\'${(&char(tmp)).vstring()}\' expected (got "${get_tok_str(tok, &tokc).vstring()}")')
 	}
-	vcc_trace('${@LOCATION}')
+	// vcc_trace('${@LOCATION}')
 	next()
 	vcc_trace('${@LOCATION}')
 }
@@ -565,7 +566,7 @@ fn get_tok_str(v int, cv &CValue) &char {
 	p = cstr_buf.data
 	match v {
 		194, 195, 198, 199, 196, 197 {
-			C.sprintf(p, c'%llu', i64(cv.i))
+			C.sprintf(p, c'%llu', u64(cv.i))
 		}
 		193 { // case comp body kind=CallExpr is_enum=false
 			cstr_ccat(&cstr_buf, `L`)
@@ -637,10 +638,10 @@ fn get_tok_str(v int, cv &CValue) &char {
 			vcc_trace('${@LOCATION}')
 			if v < 256 {
 				vcc_trace('${@LOCATION}')
-				q := &u32(tok_two_chars)
+				q := &tok_two_chars[0]
 				vcc_trace('${@LOCATION} ${rune(*q)}')
 				for *q {
-					vcc_trace('${@LOCATION}')
+					vcc_trace('${@LOCATION} ${rune(*q)}')
 					if q[2] == v {
 						unsafe {
 							vcc_trace('${@LOCATION}')
@@ -664,8 +665,8 @@ fn get_tok_str(v int, cv &CValue) &char {
 				}
 			} else if v < tok_ident {
 				return &char(table_ident[v - 256].str)
-			} else if v >= 268435456 {
-				C.sprintf(p, c'L.%u', v - 268435456)
+			} else if v >= sym_first_anom {
+				C.sprintf(p, c'L.%u', v - sym_first_anom)
 			} else {
 				return unsafe { nil }
 			}
@@ -674,8 +675,9 @@ fn get_tok_str(v int, cv &CValue) &char {
 	return cstr_buf.data
 }
 
+@[inline]
 fn check_space(t int, spc &int) int {
-	if t < 256 && isidnum_table[t - (-1)] & 1 {
+	if t < 256 && isidnum_table[t - ch_eof] & 1 {
 		if *spc {
 			return 1
 		}
@@ -713,7 +715,7 @@ fn handle_eob() int {
 		vcc_trace('${@LOCATION} ${rune(bf.buf_ptr[0])}')
 		return bf.buf_ptr[0]
 	} else {
-		bf.buf_ptr = bf.buf_end
+		bf.buf_ptr = &bf.buf_end[0]
 		vcc_trace('${@LOCATION} ${bf.buf_ptr.vstring()}')
 		return -1
 	}
@@ -886,7 +888,7 @@ fn parse_pp_string(p &u8, sep int, str &CString) &u8 {
 			break
 		} else if c == `\\` {
 			c = handle_bs(&p)
-			if c == (-1) {
+			if c == ch_eof {
 				// RRRREG unterminated_string id=0x7fffd889b538
 				unterminated_string:
 				tok_flags &= ~1
@@ -933,7 +935,7 @@ fn parse_pp_string(p &u8, sep int, str &CString) &u8 {
 			if str {
 				cstr_ccat(str, `\r`)
 			}
-			goto unterminated_string // id: 0x7fffd889bc88
+			goto redo // id: 0x7fffd889bc88
 		} else {
 			// RRRREG add_char id=0x7fffd889bbf0
 			add_char:
@@ -1156,9 +1158,10 @@ fn tok_str_add2(s &TokenString, t int, cv &CValue) {
 	len := 0
 	str := &int(0)
 
-	len = s.len
-	s.lastlen = len
+	s.lastlen = s.len
+	len = s.lastlen
 	str = s.str
+
 	if len + 4 >= s.allocated_len {
 		str = tok_str_realloc(s, len + 4 + 1)
 	}
@@ -1209,7 +1212,7 @@ fn tok_get(t &int, pp &&int, cv &CValue) {
 	n := 0
 
 	// vcc_trace('${@LOCATION} ${cv != unsafe { nil }}')
-	tab := &int(cv.tab)
+	tab := &int(&cv.tab[0])
 	// vcc_trace('${@LOCATION}')
 	*t = *p++
 	vcc_trace('${@LOCATION} ${*t}')
@@ -1220,7 +1223,7 @@ fn tok_get(t &int, pp &&int, cv &CValue) {
 		}
 		195 { // case comp body kind=BinaryOperator is_enum=false
 			// vcc_trace('${@LOCATION}')
-			cv.i = u8(*p++)
+			cv.i = u32(*p++)
 		}
 		202 { // case comp body kind=BinaryOperator is_enum=false
 			// vcc_trace('${@LOCATION}')
@@ -1244,9 +1247,7 @@ fn tok_get(t &int, pp &&int, cv &CValue) {
 			copy: for {
 				vcc_trace('${@LOCATION}')
 				vcc_trace('${@LOCATION} ${n} ${tab == unsafe { nil }} ${p == unsafe { nil }}')
-				*tab = *p
-				tab++
-				p++
+				*tab++ = *p++
 				// while()
 				n--
 				if !n {
@@ -1271,7 +1272,7 @@ fn tok_get_macro(t &int, p &&int, cv &CValue) {
 	} else { // 3
 		// vcc_trace('${@LOCATION}')
 		*t = _t
-		(*p)++
+		*p++
 		// vcc_trace('${@LOCATION}')
 	}
 }
@@ -1376,7 +1377,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 	} else {
 		parse_flags = 1 | 4 | (parse_flags & 8)
 		name[0] = 0
-		for ; true; {
+		for {
 			next()
 			p = name
 			i = C.strlen(p) - 1
@@ -1445,7 +1446,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 				_tcc_error('#include recursion too deep')
 			}
 			vcc_trace('${@LOCATION}')
-			*s1.include_stack_ptr++ = &file.prev
+			*s1.include_stack_ptr++ = file.prev
 		}
 		file.include_next_index = i
 		vcc_trace('${@LOCATION}')
@@ -1748,7 +1749,7 @@ fn pragma_parse(s1 &TCCState) {
 		} else {
 			for s = define_stack; s; s = s.prev {
 				if s.v == v && voidptr(s.type_.ref) == voidptr(s) {
-					s.type_.ref = (unsafe { nil })
+					s.type_.ref = unsafe { nil }
 					break
 				}
 			}
@@ -2513,7 +2514,7 @@ fn parse_number(p &char) {
 				}
 			}
 			exp_val = exp_val * s
-			d = f64(bn[1]) * 4294967296 + f64(bn[0])
+			d = f64(bn[1]) * 4294967296.0 + f64(bn[0])
 			d = C.ldexp(d, exp_val - frac_bits)
 			t = toup(ch)
 			if t == `F` {
@@ -2589,21 +2590,21 @@ fn parse_number(p &char) {
 					ch = *p++
 				}
 				tok = 202
-				tokc.f = C.strtof(&token_buf[0], (unsafe { nil }))
+				tokc.f = C.strtof(&token_buf[0], unsafe { nil })
 			} else if t == `L` {
 				unsafe {
 					ch = *p++
 				}
 				tok = 204
-				tokc.ld = C.strtold(&token_buf[0], (unsafe { nil }))
+				tokc.ld = C.strtold(&token_buf[0], unsafe { nil })
 			} else {
 				tok = 203
-				tokc.d = C.strtod(&token_buf[0], (unsafe { nil }))
+				tokc.d = C.strtod(&token_buf[0], unsafe { nil })
 			}
 		}
 	} else {
-		n := i64(0)
-		n1 := i64(0)
+		n := u64(0)
+		n1 := u64(0)
 
 		lcount := 0
 		ucount := 0
@@ -2635,7 +2636,7 @@ fn parse_number(p &char) {
 			}
 			n1 = n
 			n = n * b + t
-			if n1 >= 1152921504606846976 && n / b != n1 {
+			if n1 >= u64(0x1000000000000000) && n / b != n1 {
 				ov = 1
 			}
 		}
@@ -2669,23 +2670,23 @@ fn parse_number(p &char) {
 		}
 		if ucount == 0 && b == 10 {
 			if lcount <= (8 == 4) {
-				if n >= 2147483648 {
+				if n >= u64(0x80000000) {
 					lcount = int(8 == 4) + 1
 				}
 			}
-			if n >= 9223372036854775808 {
+			if n >= u64(0x8000000000000000) {
 				ov = 1
 				ucount = 1
 			}
 		} else {
 			if lcount <= (8 == 4) {
-				if n >= 4294967296 {
+				if n >= u64(0x100000000) {
 					lcount = int(8 == 4) + 1
 				} else if n >= 2147483648 {
 					ucount = 1
 				}
 			}
-			if n >= 9223372036854775808 {
+			if n >= u64(0x8000000000000000) {
 				ucount = 1
 			}
 		}
@@ -3296,7 +3297,7 @@ fn next_nomacro1() {
 	tok_flags = 0
 	keep_tok_flags:
 	file.buf_ptr = p
-	vcc_trace('${@LOCATION}')
+	vcc_trace('${@LOCATION} ${tok} ${get_tok_str(tok, &tokc).vstring()}')
 }
 
 fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
@@ -3343,8 +3344,8 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 						}
 					}
 				}
-				// tokcstr.size -= spc
-				cstr_ccat(&tokcstr, `\"`)
+				tokcstr.go_back(spc)
+				cstr_ccat(&tokcstr, `"`)
 				cstr_ccat(&tokcstr, `\x00`)
 				cval.str.size = tokcstr.len
 				cval.str.data = tokcstr.data
@@ -3525,7 +3526,7 @@ fn macro_twosharps(ptr0 &int) &int {
 fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 	vcc_trace('${@LOCATION}')
 	t := 0
-	p := &int(0)
+	p := &u8(0)
 	sa := &Sym(0)
 	for {
 		// vcc_trace('${@LOCATION}')
@@ -3615,7 +3616,6 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 	args := &Sym(0)
 	sa := &Sym(0)
 	sa1 := &Sym(0)
-
 	parlevel := 0
 	t := 0
 	t1 := 0
@@ -3753,7 +3753,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 				tok_str_add(&str, -1)
 				tok_str_add(&str, 0)
 				vcc_trace('${@LOCATION}')
-				sa1 = sym_push2(&args, sa.v & ~536870912, sa.type_.t, 0)
+				sa1 = sym_push2(&args, sa.v & ~sym_field, sa.type_.t, 0)
 				sa1.d = str.str
 				sa = sa.next
 				if tok == `)` {
@@ -3865,16 +3865,8 @@ fn macro_subst(tok_str &TokenString, nested_list &&Sym, macro_str &int) {
 			}
 			// vcc_trace('${@LOCATION}')
 			if nosubst {
-				if nosubst > 1 {
-					if spc {
-						vcc_trace('${@LOCATION}')
-						continue
-					}
-					nosubst++
-					if (nosubst == 3 && t == `(`) {
-						vcc_trace('${@LOCATION}')
-						continue
-					}
+				if nosubst > 1 && (spc || ((1 + nosubst++) == 3 && t == `(`)) {
+					continue
 				}
 				nosubst = 0
 			}
@@ -3925,7 +3917,10 @@ fn next_nomacro() {
 
 fn next() {
 	t := 0
+	n := 0
 	redo:
+	n++
+	vcc_trace('${@LOCATION} ${tok} [${n}] ${file.buf_ptr.vstring()[0..10]}')
 	next_nomacro()
 	t = tok
 	if macro_ptr != unsafe { nil } {
@@ -3994,7 +3989,7 @@ const target_os_defs = ['__linux__', '__linux', '__unix__', '__unix']
 fn putdef(cs &strings.Builder, p string) {
 	vcc_trace('${@LOCATION} - #define ${p}')
 	// cs.write_string('#define ${p}${' 1'[int(!!C.strchr(p.str, ` `)) * 2]}\n')
-	cs.write_string('#define ${p}\n')
+	cs.write_string('#define ${p} 1\n')
 }
 
 fn putdefs(cs &CString, strs []string) {
@@ -4211,8 +4206,8 @@ fn tok_print(msg &char, str &int) {
 	fp := &C.FILE(0)
 	t := 0
 	s := 0
-
 	cval := CValue{}
+
 	fp = tcc_state.ppfp
 	C.fprintf(fp, c'%s', msg)
 	for str {
@@ -4233,7 +4228,6 @@ fn pp_line(s1 &TCCState, f &BufferedFile, level int) {
 		return
 	}
 	if s1.pflag == Line_macro_output_format.line_macro_output_format_none {
-		0
 	} else if level == 0 && f.line_ref && d < 8 {
 		for d > 0 {
 			C.fputs(c'\n', s1.ppfp)
@@ -4256,8 +4250,9 @@ fn define_print(s1 &TCCState, v int) {
 	fp := &C.FILE(0)
 	s := &Sym(0)
 	vcc_trace('${@LOCATION}')
+
 	s = define_find(v)
-	if (unsafe { nil }) == s || (unsafe { nil }) == s.d {
+	if unsafe { nil } == s || unsafe { nil } == s.d {
 		return
 	}
 	fp = s1.ppfp
@@ -4266,8 +4261,8 @@ fn define_print(s1 &TCCState, v int) {
 		a := s.next
 		C.fprintf(fp, c'(')
 		if a {
-			for ; true; {
-				C.fprintf(fp, c'%s', get_tok_str(a.v & ~536870912, (unsafe { nil })))
+			for {
+				C.fprintf(fp, c'%s', get_tok_str(a.v & ~sym_field, unsafe { nil }))
 				a = a.next
 				if !a {
 					break
@@ -4284,20 +4279,22 @@ fn pp_debug_defines(s1 &TCCState) {
 	vcc_trace('${@LOCATION}')
 	v := 0
 	t := 0
-
 	vs := &char(0)
 	fp := &C.FILE(0)
+
 	t = pp_debug_tok
 	if t == 0 {
 		return
 	}
+
 	file.line_num--
 	pp_line(s1, file, 0)
 	file.line_num++
 	file.line_ref = file.line_num
+
 	fp = s1.ppfp
 	v = pp_debug_symv
-	vs = get_tok_str(v, (unsafe { nil }))
+	vs = get_tok_str(v, unsafe { nil })
 	if t == Tcc_token.tok_define {
 		define_print(s1, v)
 	} else if t == Tcc_token.tok_undef {
@@ -4346,7 +4343,7 @@ fn pp_need_space(a int, b int) bool {
 fn pp_check_he0xe(t int, p &char) int {
 	vcc_trace('${@LOCATION}')
 	if t == 205 && toup(C.strchr(p, 0)[-1]) == `E` {
-		return int(c'E')
+		return int(`E`)
 	}
 	return t
 }
@@ -4357,9 +4354,9 @@ fn tcc_preprocess(s1 &TCCState) int {
 	token_seen := 0
 	spcs := 0
 	level := 0
-
 	p := &char(0)
 	white := [400]char{}
+
 	parse_flags = 1 | (parse_flags & 8) | 4 | 16 | 32
 	if s1.pflag == Line_macro_output_format.line_macro_output_format_p10 {
 		parse_flags |= 2
@@ -4367,7 +4364,7 @@ fn tcc_preprocess(s1 &TCCState) int {
 	}
 	if s1.do_bench {
 		for {
-			next
+			next()
 			// while()
 			if !(tok != (-1)) {
 				break
@@ -4389,7 +4386,7 @@ fn tcc_preprocess(s1 &TCCState) int {
 	for {
 		iptr = s1.include_stack_ptr
 		next()
-		if tok == (-1) {
+		if tok == tok_eof {
 			break
 		}
 		level = unsafe { (&char(s1.include_stack_ptr) - &char(iptr)) / sizeof(&BufferedFile) }

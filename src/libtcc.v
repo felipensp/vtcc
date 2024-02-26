@@ -456,7 +456,7 @@ fn error1(mode int, message string) {
 	}
 	if mode == error_error && s1.error_set_jmp_enabled {
 		for nb_stk_data {
-			tcc_free(*&voidptr(stk_data[nb_stk_data--$]))
+			tcc_free(*&voidptr(stk_data[nb_stk_data-- - 1]))
 		}
 		C.longjmp(s1.error_jmp_buf, 1)
 	}
@@ -1002,45 +1002,47 @@ fn strstart(val &char, str &&char) int {
 	return 1
 }
 
-fn link_option(str &rune, val &char, ptr &&u8) int {
-	p := &rune(0)
-	q := &rune(0)
+fn link_option(str &char, val &char, ptr &&char) int {
+	p := &char(0)
+	q := &char(0)
 
 	ret := 0
-	if *str++ != `-` {
-		return 0
-	}
-	if *str == `-` {
-		str++
-	}
-	p = str
-	q = val
-	ret = 1
-	if q[0] == `?` {
-		q++
-		if strstart(c'no-', &p) {
-			ret = -1
-		}
-	}
-	for *q != `\x00` && *q != `=` {
-		if *p != *q {
+	unsafe {
+		if *str++ != `-` {
 			return 0
 		}
-		p++
-		q++
-	}
-	if *q == `=` {
-		if *p == 0 {
-			*ptr = p
+		if *str == `-` {
+			str++
 		}
-		if *p != `,` && *p != `=` {
+		p = str
+		q = val
+		ret = 1
+		if q[0] == `?` {
+			q++
+			if strstart(c'no-', &p) {
+				ret = -1
+			}
+		}
+		for *q != `\x00` && *q != `=` {
+			if *p != *q {
+				return 0
+			}
+			p++
+			q++
+		}
+		if *q == `=` {
+			if *p == 0 {
+				*ptr = p
+			}
+			if *p != `,` && *p != `=` {
+				return 0
+			}
+			p++
+		} else if *p {
 			return 0
 		}
-		p++
-	} else if *p {
-		return 0
+		*ptr = p
 	}
-	*ptr = p
 	return ret
 }
 

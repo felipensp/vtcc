@@ -318,7 +318,7 @@ fn dwarf_file(s1 &TCCState) {
 		undo := filename
 		dir := file.filename
 		unsafe {
-			*filename++ = c'\x00'
+			*filename++ = `\x00`
 		}
 		for i = 0; i < s1.dState.dwarf_line.dir_size; i++ {
 			if unsafe { C.strcmp(s1.dState.dwarf_line.dir_table[i], dir) == 0 } {

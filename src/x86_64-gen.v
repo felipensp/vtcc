@@ -839,17 +839,16 @@ fn gfunc_call(nb_args int) {
 				o(14028646)
 				o(4 + (r & 7) * 8)
 				o(36)
-
-				r = gv(1)
-				orex(0, r, 0, 80 + (r & 7))
 			}
 			else {
 				assert mode == X86_64_Mode.x86_64_mode_integer
+				r = gv(1)
+				orex(0, r, 0, 80 + (r & 7))
 			}
 		}
 		args_size += size
 		vpop()
-		nb_args--$
+		nb_args--
 		k++
 	}
 	tcc_free(onstack)
@@ -874,7 +873,7 @@ fn gfunc_call(nb_args int) {
 				}
 			} else {
 				assert reg_count == 1
-				sse_reg--$
+				sse_reg--
 				gv(4096 << sse_reg)
 			}
 		} else if mode == X86_64_Mode.x86_64_mode_integer {
@@ -950,7 +949,7 @@ fn gfunc_prolog(func_sym &Sym) {
 		seen_stack_size = 8 * 2
 		sym = func_type.ref
 		sym = sym.next
-		for sym != (unsafe { nil }) {
+		for sym != unsafe { nil } {
 			type_ = &sym.type_
 			mode = classify_x86_64_arg(type_, (unsafe { nil }), &size, &align, &reg_count)
 			match mode {
@@ -967,7 +966,6 @@ fn gfunc_prolog(func_sym &Sym) {
 					seen_sse_num += reg_count
 				}
 				else {
-					// RRRREG stack_arg id=0x7fffc8c1eaa0
 					stack_arg:
 					seen_stack_size = ((seen_stack_size + align - 1) & -align) + size
 				}
@@ -1157,14 +1155,13 @@ fn gen_opi(op int) {
 	match op {
 		int(`+`), 135 {
 			opc = 0
-			// RRRREG gen_op8 id=0x7fffc8c27fb0
 			gen_op8:
 			if cc && (!ll || int(vtop.c.i) == int(vtop.c.i)) {
 				vswap()
 				r = gv(1)
 				vswap()
 				c = vtop.c.i
-				if c == i8(c) {
+				if c == char(c) {
 					orex(ll, r, 0, 131)
 					o(192 | (opc << 3) | (r & 7))
 					g(c)
@@ -1226,7 +1223,6 @@ fn gen_opi(op int) {
 		}
 		int(`>`) { // case comp body kind=BinaryOperator is_enum=false
 			opc = 7
-			// RRRREG gen_shift id=0x7fffc8c28f80
 			gen_shift:
 			opc = 192 | (opc << 3)
 			if cc {
@@ -1268,11 +1264,10 @@ fn gen_opi(op int) {
 				r = treg_rax
 			}
 			vtop.r = r
-
-			goto gen_op8 // id: 0x7fffc8c27fb0
 		}
 		else {
 			opc = 7
+			goto gen_op8
 		}
 	}
 }

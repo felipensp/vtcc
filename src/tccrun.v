@@ -194,7 +194,7 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&u8) int {
 		rc.esym_start = &Elf64_Sym((s1.symtab_section.data))
 		rc.esym_end = &Elf64_Sym((s1.symtab_section.data + s1.symtab_section.data_offset))
 		rc.elf_str = &char(s1.symtab_section.link.data)
-		rc.prog_base = s1.text_section.sh_addr & 18446744069414584320
+		rc.prog_base = s1.text_section.sh_addr & u64(0xffffffff00000000)
 		rc.top_func = tcc_get_symbol(s1, c'main')
 		rc.num_callers = s1.rt_num_callers
 		p = tcc_get_symbol(s1, c'__rt_error')
@@ -358,7 +358,7 @@ fn set_pages_executable(s1 &TCCState, mode int, ptr voidptr, length u32) int {
 }
 
 fn rt_vprintf(msg string) int {
-	ret := C.fputs(C.stderr, msg.str)
+	ret := C.fputs(msg.str, C.stderr)
 	C.fflush(C.stderr)
 	return ret
 }
@@ -508,7 +508,7 @@ fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf
 	found:
 	i = last_incl_index
 	if i > 0 {
-		str = incl_files[i--$]
+		str = incl_files[i-- - 1]
 		if skip[0] && C.strstr(str, skip) {
 			return Elf64_Addr(-1)
 		}
@@ -1131,7 +1131,7 @@ fn rt_get_caller_pc(paddr &Elf64_Addr, rc &Rt_context, level int) int {
 	} else {
 		ip = 0
 		fp = rc.fp
-		for level--$ {
+		for (level-- - 1) {
 			if fp <= 4096 {
 				break
 			}
