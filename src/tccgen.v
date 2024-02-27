@@ -5435,6 +5435,7 @@ fn expr_infix(p int) {
 			gen_op(t)
 		}
 		t = tok
+		vcc_trace_print('${@LOCATION} tok=${tok}')
 	}
 }
 
@@ -5513,6 +5514,9 @@ fn expr_cond() {
 	type_ := CType{}
 	unary()
 	expr_infix(1)
+
+	vcc_trace_print('${@LOCATION} ${tok}')
+
 	if tok == `?` {
 		next()
 		c = condition_3way()
@@ -5669,6 +5673,7 @@ fn expr_const64() i64 {
 		expect(c'constant expression')
 	}
 	c = vtop.c.i
+	vcc_trace_print('${@LOCATION} vtop.c.i=${c}')
 	vpop()
 	return c
 }
@@ -6702,6 +6707,9 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 
 	indexsym := Sym{}
 	t1 := &CType(0)
+
+	vcc_trace_print('${@LOCATION} flags=${flags}')
+
 	if debug_modes && !(flags & 2) && !p.sec {
 		tcc_debug_line(tcc_state)
 		tcc_tcov_check_line(tcc_state, 1)
@@ -6738,6 +6746,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 			}
 			for tok == 200 || tok == 201 {
 				if initstr.len {
+					vcc_trace_print('${@LOCATION} go_back ${size1} ${initstr.len}')
 					initstr.go_back(size1)
 				}
 				if tok == 200 {
@@ -6936,6 +6945,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 		begin_macro(init_str, 1)
 		next()
 		decl_initializer(&p, type_, 0, 1 | 2)
+		vcc_trace_print('${@LOCATION} set macro_ptr=init_str')
 		macro_ptr = init_str.str
 		next()
 		size = type_size(type_, &align)

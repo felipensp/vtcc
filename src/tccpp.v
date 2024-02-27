@@ -1138,6 +1138,7 @@ fn begin_macro(str &TokenString, alloc int) {
 	str.save_line_num = file.line_num
 	macro_ptr = str.str
 	macro_stack = str
+	vcc_trace_print('${@LOCATION} beginmacro')
 }
 
 fn end_macro() {
@@ -1148,10 +1149,11 @@ fn end_macro() {
 	str.len = 0
 	if str.alloc != 0 {
 		if str.alloc == 2 {
-			str.str = (unsafe { nil })
+			str.str = unsafe { nil }
 		}
 		tok_str_free(str)
 	}
+	vcc_trace_print('${@LOCATION} endmacro')
 }
 
 fn tok_str_add2(s &TokenString, t int, cv &CValue) {
@@ -1207,7 +1209,7 @@ fn tok_str_add_tok(s &TokenString) {
 }
 
 fn tok_get(t &int, pp &&int, cv &CValue) {
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION} -- begin -- ${tok} ${file.buf_ptr.vstring()[0..10]}')
 	p := &int(*pp)
 	n := 0
 
@@ -1259,7 +1261,7 @@ fn tok_get(t &int, pp &&int, cv &CValue) {
 	}
 	// vcc_trace('${@LOCATION}')
 	*pp = p
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION} -- ret --  ${tok} ${file.buf_ptr.vstring()[0..10]}')
 }
 
 @[inline]
@@ -1472,7 +1474,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 }
 
 fn expr_preprocess(s1 &TCCState) int {
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION} ${tok}')
 	c := 0
 	t := 0
 
@@ -1537,6 +1539,7 @@ fn expr_preprocess(s1 &TCCState) int {
 		}
 		tok_str_add_tok(str)
 	}
+	vcc_trace_print('${@LOCATION} ${tok}')
 	pp_expr = 0
 	tok_str_add(str, -1)
 	tok_str_add(str, 0)
@@ -1544,6 +1547,7 @@ fn expr_preprocess(s1 &TCCState) int {
 	next()
 	c = expr_const()
 	end_macro()
+	vcc_trace_print('${@LOCATION} c=${c}')
 	vcc_trace('${@LOCATION}')
 	return int(c != 0)
 }
@@ -2727,6 +2731,8 @@ fn next_nomacro1() {
 	redo_no_start:
 	c = u8(*p)
 
+	vcc_trace_print('${@LOCATION} *p=${rune(c)}')
+
 	match rune(c) {
 		` `, `\t` {
 			vcc_trace('${@LOCATION}')
@@ -3546,6 +3552,7 @@ fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 				}
 			}
 			if t == 0 {
+				vcc_trace_print('${@LOCATION} endmacro')
 				end_macro()
 				sa = *nested_list
 				for sa && sa.v == 0 {
@@ -3560,6 +3567,7 @@ fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 			p = file.buf_ptr
 			ch := handle_bs(&p)
 			if ws_str {
+				vcc_trace_print('${@LOCATION} space - ${ch}')
 				for is_space(ch) || ch == `\n` || ch == `/` {
 					if ch == `/` {
 						c := 0
@@ -3600,7 +3608,7 @@ fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 			t = ch
 		}
 		if ws_str {
-			vcc_trace('${@LOCATION}')
+			vcc_trace_print('${@LOCATION} space end - ${t}')
 			return t
 		}
 		next_nomacro()
@@ -3612,7 +3620,7 @@ fn next_argstream(nested_list &&Sym, ws_str &TokenString) int {
 }
 
 fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	args := &Sym(0)
 	sa := &Sym(0)
 	sa1 := &Sym(0)
@@ -3888,27 +3896,32 @@ fn next_nomacro() {
 		redo:
 		// vcc_trace('${@LOCATION}')
 		t = *macro_ptr
+		vcc_trace_print('${@LOCATION} *macro_ptr=${t}')
 		// vcc_trace('${@LOCATION}')
 		if (t >= 192 && t <= 207) {
-			vcc_trace('${@LOCATION}')
+			vcc_trace_print('${@LOCATION} *macro_ptr=${t} has_value')
 			tok_get(&tok, &macro_ptr, &tokc)
 			if t == 207 {
 				file.line_num = tokc.i
+				vcc_trace_print('${@LOCATION} *macro_ptr=${t} redo1')
 				goto redo // id: 0x7fffd8905950
 			}
 		} else {
 			vcc_trace('${@LOCATION}')
 			macro_ptr++
 			if t < 256 {
-				if !(parse_flags & 16) && isidnum_table[t - ch_eof] & 1 {
+				vcc_trace_print('${@LOCATION} *macro_ptr=${t} t < tok_ident ${(parse_flags & 16)} ${(isidnum_table[t - ch_eof] & 1)}')
+				if (!(parse_flags & 16)) && (isidnum_table[t - ch_eof] & 1) {
+					vcc_trace_print('${@LOCATION} *macro_ptr=${t} redo2')
 					goto redo // id: 0x7fffd8905950
 				}
 			}
 			tok = t
+			vcc_trace_print('${@LOCATION} tok=${t}')
 		}
 		// vcc_trace('${@LOCATION}')
 	} else {
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION} call nomacro1')
 		next_nomacro1()
 		// vcc_trace('${@LOCATION}')
 	}
@@ -3920,7 +3933,7 @@ fn next() {
 	n := 0
 	redo:
 	n++
-	vcc_trace('${@LOCATION} ${tok} [${n}] ${file.buf_ptr.vstring()[0..10]}')
+	vcc_trace_print('${@LOCATION} ${tok} [${n}] ${file.buf_ptr.vstring()[0..10]}')
 	next_nomacro()
 	t = tok
 	if macro_ptr != unsafe { nil } {
@@ -3962,13 +3975,13 @@ fn next() {
 		return
 	}
 	if t == 205 {
-		vcc_trace('${@LOCATION}')
 		if parse_flags & 2 {
+			vcc_trace_print('${@LOCATION} parse_number')
 			parse_number(&char(tokc.str.data))
 		}
 	} else if t == 206 {
-		vcc_trace('${@LOCATION}')
 		if parse_flags & 64 {
+			vcc_trace_print('${@LOCATION} parse_string')
 			parse_string(&char(tokc.str.data), tokc.str.size - 1)
 		}
 	}
@@ -4119,24 +4132,29 @@ fn set_idnum(c int, val int) int {
 	return prev
 }
 
+const is_spc = 1
+const is_id = 2
+const is_num = 4
 fn tccpp_new(s &TCCState) {
 	i := 0
 	c := 0
 
 	for i = (-1); i < 128; i++ {
-		set_idnum(i, if is_space(i) {
-			1
+		val := if is_space(i) {
+			is_spc
 		} else {
 			if isid(i) {
-				2
+				is_id
 			} else {
-				if isnum(i) { 4 } else { 0 }
+				if isnum(i) { is_num } else { 0 }
 			}
-		})
+		}
+		vcc_trace_print('isisdnum_table[${i}]=${val}')
+		set_idnum(i, val)
 	}
 	vcc_trace('${@LOCATION}')
 	for i = 128; i < 256; i++ {
-		set_idnum(i, 2)
+		set_idnum(i, is_id)
 	}
 	vcc_trace('${@LOCATION}')
 	tal_new(&toksym_alloc, 256, (768 * 1024))

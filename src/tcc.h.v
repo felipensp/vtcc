@@ -431,7 +431,7 @@ pub struct TokenString {
 	save_line_num int
 	prev          &TokenString
 	prev_ptr      &int
-	alloc         i8
+	alloc         char
 }
 
 pub struct AttributeDef {
@@ -1563,7 +1563,7 @@ enum Line_macro_output_format {
 }
 
 fn is_space(ch int) bool {
-	return ch == ` ` || ch == `\x09` || ch == `\x0b` || ch == `\x0c` || ch == `\x0a`
+	return ch == ` ` || ch == `\t` || ch == `\v` || ch == `\f` || ch == `\r`
 }
 
 fn isid(c int) bool {
