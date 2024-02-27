@@ -495,10 +495,10 @@ fn tok_alloc_new(pts &&TokenSym, str &char, len int) &TokenSym {
 	ptable := &&TokenSym(0)
 
 	i := 0
-	if tok_ident >= 268435456 {
+	if tok_ident >= sym_first_anom {
 		_tcc_error('memory full (symbols)')
 	}
-	i = tok_ident - 256
+	i = tok_ident - TOK_IDENT
 	if (i % 512) == 0 {
 		ptable = &&TokenSym(tcc_realloc(table_ident, (i + 512) * sizeof(&TokenSym)))
 		table_ident = ptable
@@ -507,6 +507,7 @@ fn tok_alloc_new(pts &&TokenSym, str &char, len int) &TokenSym {
 	ts = &TokenSym(tal_realloc_impl(&toksym_alloc, unsafe { nil }, sizeof(TokenSym) + len))
 	// vcc_trace('${@LOCATION}')
 	table_ident[i] = ts
+	vcc_trace_print('${@LOCATION} i=${i} new token=${str.vstring()[0..len]}')
 	// vcc_trace('${@LOCATION}')
 	ts.tok = tok_ident++
 	ts.sym_define = unsafe { nil }
@@ -664,7 +665,7 @@ fn get_tok_str(v int, cv &CValue) &char {
 					*p = `\x00`
 				}
 			} else if v < tok_ident {
-				return &char(table_ident[v - 256].str)
+				return &char(table_ident[v - TOK_IDENT].str)
 			} else if v >= sym_first_anom {
 				C.sprintf(p, c'L.%u', v - sym_first_anom)
 			} else {
@@ -1306,8 +1307,8 @@ fn define_push(v int, macro_type int, str &int, first_arg &Sym) {
 	s.d = &int(str)
 	vcc_trace('${@LOCATION}')
 	s.next = first_arg
-	table_ident[v - 256].sym_define = s
-	vcc_trace('${@LOCATION}')
+	table_ident[v - TOK_IDENT].sym_define = s
+	vcc_trace_print('${@LOCATION} - v=${v}')
 	if o != unsafe { nil } && !macro_is_equal(o.d, s.d) {
 		_tcc_warning('${get_tok_str(v, (unsafe { nil }))} redefined')
 	}
@@ -1316,14 +1317,14 @@ fn define_push(v int, macro_type int, str &int, first_arg &Sym) {
 
 fn define_undef(s &Sym) {
 	v := s.v
-	if v >= 256 && v < tok_ident {
+	if v >= TOK_IDENT && v < tok_ident {
 		table_ident[v - 256].sym_define = unsafe { nil }
 	}
 }
 
 fn define_find(v int) &Sym {
-	v -= 256
-	if u32(v) >= u32((tok_ident - 256)) {
+	v -= TOK_IDENT
+	if u32(v) >= u32((tok_ident - TOK_IDENT)) {
 		vcc_trace('${@LOCATION}')
 		return unsafe { nil }
 	}
@@ -1347,7 +1348,7 @@ fn maybe_run_test(s &TCCState) {
 	if &char(s.include_stack_ptr) != &char(s.include_stack[0]) {
 		return
 	}
-	p = get_tok_str(tok, (unsafe { nil }))
+	p = get_tok_str(tok, unsafe { nil })
 	if 0 != C.memcmp(p, c'test_', 5) {
 		return
 	}
@@ -1357,7 +1358,7 @@ fn maybe_run_test(s &TCCState) {
 	}
 	C.fprintf(s.ppfp, &c'\n[%s]\n'[!(s.dflag & 32)], p)
 	C.fflush(s.ppfp)
-	define_push(tok, 0, (unsafe { nil }), (unsafe { nil }))
+	define_push(tok, 0, unsafe { nil }, unsafe { nil })
 }
 
 fn parse_include(s1 &TCCState, do_next int, test int) int {
@@ -1474,12 +1475,12 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 }
 
 fn expr_preprocess(s1 &TCCState) int {
-	vcc_trace_print('${@LOCATION} ${tok}')
 	c := 0
 	t := 0
 
 	str := &TokenString(tok_str_alloc())
 	pp_expr = 1
+	vcc_trace_print('${@LOCATION} - start - ${tok}')
 	for tok != 10 && tok != tok_eof {
 		next()
 		// RRRREG redo id=0x7fffd88bbd88
@@ -1501,7 +1502,7 @@ fn expr_preprocess(s1 &TCCState) int {
 				maybe_run_test(s1)
 			}
 			c = 0
-			vcc_trace('${@LOCATION}')
+			vcc_trace_print('${@LOCATION} - check defined - tok=${tok}')
 			if define_find(tok) || tok == Tcc_token.tok___has_include
 				|| tok == Tcc_token.tok___has_include_next {
 				c = 1
@@ -1527,6 +1528,7 @@ fn expr_preprocess(s1 &TCCState) int {
 			tok = 194
 			tokc.i = c
 		} else {
+			vcc_trace_print('${@LOCATION} - preprocess.else tok=${tok}')
 			t = tok
 			tok = 194
 			tokc.i = 0
@@ -1539,15 +1541,15 @@ fn expr_preprocess(s1 &TCCState) int {
 		}
 		tok_str_add_tok(str)
 	}
-	vcc_trace_print('${@LOCATION} ${tok}')
+	vcc_trace_print('${@LOCATION} pp_expr=0 ${tok}')
 	pp_expr = 0
 	tok_str_add(str, -1)
 	tok_str_add(str, 0)
 	begin_macro(str, 1)
 	next()
 	c = expr_const()
-	end_macro()
 	vcc_trace_print('${@LOCATION} c=${c}')
+	end_macro()	
 	vcc_trace('${@LOCATION}')
 	return int(c != 0)
 }
@@ -1758,8 +1760,8 @@ fn pragma_parse(s1 &TCCState) {
 				}
 			}
 		}
-		if s {
-			table_ident[v - 256].sym_define = if s.d { s } else { unsafe { nil } }
+		if s != unsafe { nil } {
+			table_ident[v - 256].sym_define = if s.d != unsafe { nil } { s } else { unsafe { nil } }
 		} else { // 3
 			_tcc_warning('unbalanced #pragma pop_macro')
 		}
@@ -1896,6 +1898,7 @@ fn preprocess(is_bof int) {
 		int(Tcc_token.tok_if) { // case comp body kind=BinaryOperator is_enum=true
 			vcc_trace('${@LOCATION}')
 			c = expr_preprocess(s1)
+			vcc_trace_print('${@LOCATION} - preprocess.2 c=${c}')
 			goto do_if // id: 0x7fffd88c7850
 		}
 		int(Tcc_token.tok_ifdef) { // case comp body kind=BinaryOperator is_enum=true
@@ -1928,6 +1931,7 @@ fn preprocess(is_bof int) {
 				_tcc_error('memory full (ifdef)')
 			}
 			*s1.ifdef_stack_ptr++ = c
+			vcc_trace_print('${@LOCATION} - preprocess.0 c=${c}')
 			vcc_trace('${@LOCATION}')
 			goto test_skip // id: 0x7fffd88c8390
 		}
@@ -1957,16 +1961,18 @@ fn preprocess(is_bof int) {
 			} else {
 				c = expr_preprocess(s1)
 				s1.ifdef_stack_ptr[-1] = c
+				vcc_trace_print('${@LOCATION} - preprocess.1 c=${c}')
 			}
 			// RRRREG test_else id=0x7fffd88c8a38
 			test_else:
 			if s1.ifdef_stack_ptr == file.ifdef_stack_ptr + 1 {
 				file.ifndef_macro = 0
+				vcc_trace_print('${@LOCATION} - test_else')
 			}
 			// RRRREG test_skip id=0x7fffd88c8390
 			test_skip:
 			if !(c & 1) {
-				vcc_trace('${@LOCATION}')
+				vcc_trace_print('${@LOCATION} - preprocess_skip')
 				preprocess_skip()
 				vcc_trace('${@LOCATION}')
 				is_bof = 0
@@ -1982,6 +1988,7 @@ fn preprocess(is_bof int) {
 			s1.ifdef_stack_ptr--
 			vcc_trace('${@LOCATION}')
 			if file.ifndef_macro && s1.ifdef_stack_ptr == file.ifdef_stack_ptr {
+				vcc_trace_print('${@LOCATION} stack_ptr')
 				file.ifndef_macro_saved = file.ifndef_macro
 				file.ifndef_macro = 0
 				for tok != 10 {
@@ -3321,26 +3328,31 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 	t1 = 0
 
 	for {
+		vcc_trace('${@LOCATION}')
 		tok_get_macro(&t, &macro_str, &cval)
 		if !t {
 			break
 		}
 		if t == `#` {
+			vcc_trace('${@LOCATION}')
 			tok_get_macro(&t, &macro_str, &cval)
 			if !t {
 				goto bad_stringy // id: 0x7fffd88f10a0
 			}
 			s = sym_find2(args, t)
 			if s != unsafe { nil } {
+				vcc_trace('${@LOCATION}')
 				cstr_reset(&tokcstr)
 				cstr_ccat(&tokcstr, `"`)
 				st = s.d
 				spc = 0
 				for *st >= 0 {
+					vcc_trace('${@LOCATION}')
 					tok_get_macro(&t, &st, &cval)
 					if t != 165 && 0 == check_space(t, &spc) {
 						s2 := get_tok_str(t, &cval)
 						for *s2 {
+							vcc_trace('${@LOCATION}')
 							if t == 206 && *s2 != `'` {
 								add_char(&tokcstr, *s2)
 							} else { // 3
@@ -3350,11 +3362,13 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 						}
 					}
 				}
+				vcc_trace('${@LOCATION} -= spc')
 				tokcstr.go_back(spc)
 				cstr_ccat(&tokcstr, `"`)
 				cstr_ccat(&tokcstr, `\x00`)
 				cval.str.size = tokcstr.len
 				cval.str.data = tokcstr.data
+				vcc_trace('${@LOCATION}')
 				tok_str_add2(&str, 206, &cval)
 			} else {
 				// RRRREG bad_stringy id=0x7fffd88f10a0
@@ -3362,8 +3376,9 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 				expect(c"macro parameter after '#'")
 			}
 		} else if t >= 256 {
+			vcc_trace('${@LOCATION}')
 			s = sym_find2(args, t)
-			if s {
+			if s != unsafe { nil } {
 				st = s.d
 				if *macro_str == 166 || t1 == 166 {
 					if t1 == 166 && t0 == `,` && tcc_state.gnu_ext && s.type_.t {
@@ -3391,6 +3406,7 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 					}
 					st = s.next.d
 				}
+				vcc_trace('${@LOCATION}')
 				for {
 					t2 := 0
 					tok_get_macro(&t2, &st, &cval)
@@ -3400,6 +3416,7 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 					tok_str_add2(&str, t2, &cval)
 				}
 			} else {
+				vcc_trace('${@LOCATION}')
 				tok_str_add(&str, t)
 			}
 		} else {
@@ -3762,11 +3779,14 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 				tok_str_add(&str, 0)
 				vcc_trace('${@LOCATION}')
 				sa1 = sym_push2(&args, sa.v & ~sym_field, sa.type_.t, 0)
+				vcc_trace('${@LOCATION}')
 				sa1.d = str.str
+				vcc_trace('${@LOCATION}')
 				sa = sa.next
 				if tok == `)` {
 					if sa != unsafe { nil } && sa.type_.t && tcc_state.gnu_ext {
 						// vcc_trace('${@LOCATION}')
+						vcc_trace('${@LOCATION}')
 						goto empty_arg // id: 0x7fffd88ffdc8
 					}
 					break
@@ -3778,28 +3798,32 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 			if sa {
 				_tcc_error("macro '${get_tok_str(s.v, unsafe { nil })}' used with too few args")
 			}
-			// vcc_trace('${@LOCATION}')
+			vcc_trace('${@LOCATION}')
 			mstr = macro_arg_subst(nested_list, mstr, args)
 			sa = args
+			vcc_trace('${@LOCATION}')
 			for sa {
+				vcc_trace('${@LOCATION}')
 				sa1 = sa.prev
+				vcc_trace('${@LOCATION}')
 				tok_str_free_str(sa.d)
 				if sa.next {
+					vcc_trace('${@LOCATION}')
 					tok_str_free_str(sa.next.d)
 					sym_free(sa.next)
 				}
-				// vcc_trace('${@LOCATION}')
+				vcc_trace('${@LOCATION}')
 				sym_free(sa)
 				sa = sa1
 			}
 			parse_flags = saved_parse_flags
 		}
-		// vcc_trace('${@LOCATION}')
+		vcc_trace('${@LOCATION}')
 		sym_push2(nested_list, s.v, 0, 0)
-		// vcc_trace('${@LOCATION}')
+		vcc_trace('${@LOCATION}')
 		parse_flags = saved_parse_flags
 		joined_str = macro_twosharps(mstr)
-		// vcc_trace('${@LOCATION}')
+		vcc_trace('${@LOCATION}')
 		macro_subst(tok_str, nested_list, if joined_str { joined_str } else { mstr })
 		// vcc_trace('${@LOCATION}')
 		sa1 = *nested_list
@@ -3808,12 +3832,12 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 		sym_free(sa1)
 		// vcc_trace('${@LOCATION}')
 		if joined_str {
-			// vcc_trace('${@LOCATION}')
+			vcc_trace('${@LOCATION}')
 			tok_str_free_str(joined_str)
 		}
 		// vcc_trace('${@LOCATION}')
 		if mstr != s.d {
-			// vcc_trace('${@LOCATION}')
+			vcc_trace('${@LOCATION}')
 			tok_str_free_str(mstr)
 			// vcc_trace('${@LOCATION}')
 		}
@@ -4196,7 +4220,7 @@ fn tccpp_delete(s &TCCState) {
 
 	vcc_trace('${@LOCATION}')
 	dynarray_reset(&s.cached_includes, &s.nb_cached_includes)
-	n = tok_ident - 256
+	n = tok_ident - TOK_IDENT
 	if n > tcc_state.total_idents {
 		tcc_state.total_idents = n
 	}
@@ -4328,7 +4352,7 @@ fn pp_debug_defines(s1 &TCCState) {
 fn pp_debug_builtins(s1 &TCCState) {
 	vcc_trace('${@LOCATION}')
 	v := 0
-	for v = 256; v < tok_ident; v++ {
+	for v = TOK_IDENT; v < tok_ident; v++ {
 		define_print(s1, v)
 	}
 }
