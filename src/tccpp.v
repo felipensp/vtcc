@@ -2174,10 +2174,10 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 					continue
 				}
 				`a` { // case comp body kind=BinaryOperator is_enum=false
-					c = `\x07`
+					c = `\a`
 				}
 				`b` { // case comp body kind=BinaryOperator is_enum=false
-					c = `\x08`
+					c = `\b`
 				}
 				`f` { // case comp body kind=BinaryOperator is_enum=false
 					c = `\f`
