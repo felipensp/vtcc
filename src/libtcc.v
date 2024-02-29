@@ -77,7 +77,6 @@ pub enum Stab_debug_code {
 	last_unused_stab_code
 }
 
-//__global tcc_state = &TCCState{}
 __global stk_data = &voidptr(0)
 __global nb_stk_data int
 __global file = &BufferedFile(0)
@@ -708,7 +707,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	s.output_type = output_type
 	if !s.nostdinc {
 		vcc_trace('${@LOCATION}')
-		tcc_add_sysinclude_path(s, c'{B}/include:/usr/include/x86_64-linux-gnu:/usr/include')
+		tcc_add_sysinclude_path(s, c'/usr/include/x86_64-linux-gnu:/usr/include')
 	}
 	if output_type == 5 {
 		s.do_debug = 0
@@ -722,7 +721,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 		return 0
 	}
 	vcc_trace('${@LOCATION}')
-	tcc_add_library_path(s, c'{B}:{R}:/usr/lib:/lib/x86_64-linux-gnu:/usr/local/lib')
+	tcc_add_library_path(s, c'{R}:/usr/lib:/lib/x86_64-linux-gnu:/usr/local/lib')
 	vcc_trace('${@LOCATION}')
 	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'{R}')
 	vcc_trace('${@LOCATION}')

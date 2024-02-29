@@ -5,17 +5,11 @@ import strings
 
 #include <semaphore.h>
 
-__global global_stack = &Sym{}
-__global local_stack = &Sym{}
-__global local_label_stack = &Sym{}
-__global global_label_stack = &Sym{}
-__global define_stack = &Sym{}
-
 __global int_type = CType{}
 __global func_old_type = CType{}
 __global char_pointer_type = CType{}
 __global char_type = CType{}
-__global vtop = &SValue{}
+__global vtop = &SValue(0)
 __global rsym = int(0)
 __global anon_sym = int(0)
 __global ind = int(0)
@@ -129,7 +123,7 @@ pub struct Sym {
 	jnext         int
 	f             FuncAttr
 	auxtype       int
-	enum_val      u64
+	enum_val      i64
 	d             &int
 	ncl           &Sym
 	type_         CType
