@@ -708,7 +708,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	s.output_type = output_type
 	if !s.nostdinc {
 		vcc_trace('${@LOCATION}')
-		tcc_add_sysinclude_path(s, c'/usr/include/x86_64-linux-gnu:/usr/include')
+		tcc_add_sysinclude_path(s, c'{B}/include:/usr/include/x86_64-linux-gnu:/usr/include')
 	}
 	if output_type == 5 {
 		s.do_debug = 0
