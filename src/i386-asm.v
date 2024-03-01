@@ -60,7 +60,6 @@ struct Operand {
 	e     ExprValue
 }
 
-@[export: 'asm_instrs']
 __global asm_instrs = [
 	ASMInstr{
 		sym: u16(Tcc_token.tok_asm_vmcall)
