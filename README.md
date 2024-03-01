@@ -13,4 +13,4 @@ TCC commit reference: _76d605192dae84c172722c3d73bf546a064b7e1c_
 
 ### How to use
 
-`./vtcc hello.c -Iinclude -L/path/to/libtcc1.a`
+`./vtcc hello.c -Iinclude`
