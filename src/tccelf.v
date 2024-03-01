@@ -1550,7 +1550,7 @@ fn tcc_add_runtime(s1 &TCCState) {
 		}
 		tcc_add_library_err(s1, c'c')
 		// if c'libtcc1.a'[0] {
-		//tcc_add_support(s1, c'libtcc1.a')
+		// tcc_add_support(s1, c'libtcc1.a')
 		//}
 		if s1.output_type != 1 {
 			tccelf_add_crtend(s1)
