@@ -800,13 +800,13 @@ fn gfunc_call(nb_args int) {
 		mode = classify_x86_64_arg(&vtop[-i].type_, unsafe { nil }, &size, &align, &reg_count)
 		vcc_trace_print('${@LOCATION} size=${size}')
 		if size {
-			vcc_trace_print('${@LOCATION} onstack=${i+k}')
+			vcc_trace_print('${@LOCATION} onstack=${i + k}')
 			if !onstack[i + k] {
 				i++
 				continue
 			}
 			if stack_adjust {
-				vcc_trace_print("${@LOCATION} stack_adjust")
+				vcc_trace_print('${@LOCATION} stack_adjust')
 				o(80)
 				args_size += 8
 				stack_adjust = 0
@@ -815,9 +815,9 @@ fn gfunc_call(nb_args int) {
 				stack_adjust = 1
 			}
 		}
-		vcc_trace_print("${@LOCATION} vrob.1")
+		vcc_trace_print('${@LOCATION} vrob.1')
 		vrotb(i + 1)
-		vcc_trace_print("${@LOCATION} vrob.2")
+		vcc_trace_print('${@LOCATION} vrob.2')
 		match vtop.type_.t & 15 {
 			7 { // case comp body kind=CallExpr is_enum=false
 				o(72)

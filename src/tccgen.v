@@ -512,7 +512,7 @@ fn put_extern_sym(sym &Sym, s &Section, value Elf64_Addr, size u32) {
 		&& (nocode_wanted > 0 || (s && voidptr(s) == voidptr(tcc_state.cur_text_section))) {
 		vcc_trace_print('${@LOCATION} ret')
 		return
-	}	
+	}
 	put_extern_sym2(sym, if s { s.sh_num } else { shn_undef }, value, size, 1)
 	vcc_trace_print('${@LOCATION} extern_sym=${size}')
 }
@@ -5769,7 +5769,7 @@ fn gexpr() {
 		convert_parameter_type(&vtop.type_)
 		if (vtop.r & vt_valmask) == vt_const && nocode_wanted
 			&& !(nocode_wanted & CONST_WANTED_MASK) {
-				vcc_trace_print('${@LOCATION} gexpr.5')
+			vcc_trace_print('${@LOCATION} gexpr.5')
 			gv(rc_type(vtop.type_.t))
 		}
 	}
@@ -7058,7 +7058,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 			if (p.sec == unsafe { nil } && (flags & dif_clear) != 0
 				&& (vtop.r & (vt_valmask | vt_lval | vt_sym)) == vt_const && vtop.c.i == 0
 				&& btype_size(type_.t & vt_btype)) {
-					vcc_trace_print('${@LOCATION} declinit.13')
+				vcc_trace_print('${@LOCATION} declinit.13')
 				vpop()
 			} else {
 				vcc_trace_print('${@LOCATION} declinit.14')
@@ -7341,7 +7341,7 @@ fn gen_function(sym &Sym) {
 	func_ind = ind
 	func_vt = sym.type_.ref.type_
 	func_var = sym.type_.ref.f.func_type == func_ellipsis
-	
+
 	vcc_trace_print('${@LOCATION} gen_fun.1')
 	put_extern_sym(sym, tcc_state.cur_text_section, ind, 0)
 
@@ -7374,7 +7374,7 @@ fn gen_function(sym &Sym) {
 	block(0)
 	vcc_trace_print('${@LOCATION} gen_fun.11')
 	gsym(rsym)
-	
+
 	nocode_wanted = 0
 
 	vcc_trace_print('${@LOCATION} gen_fun.12')
@@ -7383,7 +7383,7 @@ fn gen_function(sym &Sym) {
 	tcc_debug_prolog_epilog(tcc_state, 1)
 	vcc_trace_print('${@LOCATION} gen_fun.14')
 	gfunc_epilog()
-	
+
 	vcc_trace_print('${@LOCATION} gen_fun.15')
 	tcc_debug_funcend(tcc_state, ind - func_ind)
 
