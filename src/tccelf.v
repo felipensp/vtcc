@@ -11,6 +11,7 @@ fn C.dlclose(int)
 fn C.unlink(&char)
 fn C.strtol(&char, &&char, int) u64
 fn C.fwrite(voidptr, usize, usize, &C.FILE) usize
+fn C.strcmp(&char, &char) int
 
 const shf_relro = (1 << 1) | (1 << 0)
 const shf_private = int(0x8000_0000)
@@ -542,22 +543,28 @@ fn version_add(s1 &TCCState) {
 	if 0 == s1.nb_sym_versions {
 		return
 	}
+	vcc_trace_print('${@LOCATION}')
 	s1.versym_section = new_section(s1, c'.gnu.version', 1879048191, (1 << 1))
 	s1.versym_section.sh_entsize = sizeof(Elf64_Half)
 	s1.versym_section.link = s1.dynsym
 	symtab = s1.dynsym
 	end_sym = symtab.data_offset / sizeof(Elf64_Sym)
 	versym = section_ptr_add(s1.versym_section, end_sym * sizeof(Elf64_Half))
+	vcc_trace_print('${@LOCATION}')
 	for sym_index = 1; sym_index < end_sym; sym_index++ {
 		dllindex := 0
 		verndx := 0
-
+		vcc_trace_print('${@LOCATION}')
 		sym = &(&Elf64_Sym(symtab.data))[sym_index]
+		vcc_trace_print('${@LOCATION}')
 		if sym.st_shndx != 0 {
 			continue
 		}
+		vcc_trace_print('${@LOCATION}')
 		name = unsafe { &char(symtab.link.data) + sym.st_name }
+		vcc_trace_print('${@LOCATION}')
 		dllindex = find_elf_sym(s1.dynsymtab_section, name)
+		vcc_trace_print('${@LOCATION}')
 		verndx = if (dllindex && dllindex < s1.nb_sym_to_version) {
 			s1.sym_to_version[dllindex]
 		} else {
@@ -573,7 +580,9 @@ fn version_add(s1 &TCCState) {
 	if nb_versions > 2 {
 		s1.verneed_section = new_section(s1, c'.gnu.version_r', 1879048190, (1 << 1))
 		s1.verneed_section.link = s1.dynsym.link
-		for i = s1.nb_sym_versions; i > 0; {
+		vcc_trace_print('${@LOCATION} - ${s1.nb_sym_versions}')
+		for i = s1.nb_sym_versions - 1; i >= 0; {
+			vcc_trace_print('${@LOCATION} - i=${i}')
 			sv := &s1.sym_versions[i]
 			n_same_libs := 0
 			prev := 0
@@ -582,17 +591,22 @@ fn version_add(s1 &TCCState) {
 			vna := &Elf64_Vernaux(0)
 			if sv.out_index < 1 {
 				i--
+				vcc_trace_print('${@LOCATION} continue')
 				continue
 			}
+			vcc_trace_print('${@LOCATION} ${sv.lib}')
 			if unsafe { C.strcmp(sv.lib, c'ld-linux.so.2') } {
-				vcc_trace('${@LOCATION} - ${sv.lib.vstring()}')
+				vcc_trace_print('${@LOCATION}')
 				tcc_add_dllref(s1, sv.lib, 0)
+				vcc_trace_print('${@LOCATION}')
 			}
+			vcc_trace_print('${@LOCATION}')
 			vnofs = section_add(s1.verneed_section, sizeof(*vn), 1)
 			unsafe {
 				vn = &Elf64_Verneed((s1.verneed_section.data + vnofs))
 			}
 			vn.vn_version = 1
+			vcc_trace_print('${@LOCATION}')
 			vn.vn_file = put_elf_str(s1.verneed_section.link, sv.lib)
 			vn.vn_aux = sizeof(*vn)
 			for {
@@ -628,6 +642,7 @@ fn version_add(s1 &TCCState) {
 		s1.verneed_section.sh_info = nb_entries
 	}
 	s1.dt_verneednum = nb_entries
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn set_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shndx int, name &char) int {
@@ -2450,11 +2465,11 @@ fn elf_output_file(s1 &TCCState, filename &char) int {
 	dynstr = unsafe { nil }
 	sec_order = unsafe { nil }
 	dyninf.roinf = &dyninf._roinf
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	tcc_add_runtime(s1)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	resolve_common_syms(s1)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	if !s1.static_link {
 		if file_type & 2 {
 			ptr := &char(0)
@@ -2462,6 +2477,7 @@ fn elf_output_file(s1 &TCCState, filename &char) int {
 			if elfint == unsafe { nil } {
 				elfint = c'/lib64/ld-linux-x86-64.so.2'
 			}
+			vcc_trace_print('${@LOCATION}')
 			interp = new_section(s1, c'.interp', 1, (1 << 1))
 			interp.sh_addralign = 1
 			ptr = section_ptr_add(interp, 1 + C.strlen(elfint))
@@ -2474,8 +2490,10 @@ fn elf_output_file(s1 &TCCState, filename &char) int {
 		dynamic = new_section(s1, c'.dynamic', 6, (1 << 1) | (1 << 0))
 		dynamic.link = dynstr
 		dynamic.sh_entsize = sizeof(Elf64_Dyn)
+		vcc_trace_print('${@LOCATION}')
 		got_sym = build_got(s1)
 		if file_type & 2 {
+			vcc_trace_print('${@LOCATION}')
 			bind_exe_dynsyms(s1, file_type & 4)
 			if s1.nb_errors {
 				unsafe {
@@ -2483,88 +2501,116 @@ fn elf_output_file(s1 &TCCState, filename &char) int {
 				} // id: 0x7fffe904af18
 			}
 		}
+		vcc_trace_print('${@LOCATION}')
 		build_got_entries(s1, got_sym)
 		if file_type & 2 {
+			vcc_trace_print('${@LOCATION}')
 			bind_libs_dynsyms(s1)
 		} else {
+			vcc_trace_print('${@LOCATION}')
 			export_global_syms(s1)
 		}
+		vcc_trace_print('${@LOCATION}')
 		dyninf.gnu_hash = create_gnu_hash(s1)
 	} else {
+		vcc_trace_print('${@LOCATION}')
 		build_got_entries(s1, 0)
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	version_add(s1)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	textrel = set_sec_sizes(s1)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	alloc_sec_names(s1, 0)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	if !s1.static_link {
 		for i = 0; i < s1.nb_loaded_dlls; i++ {
+			vcc_trace_print('${@LOCATION}')
 			dllref := s1.loaded_dlls[i]
 			if dllref.level == 0 {
+				vcc_trace_print('${@LOCATION}')
 				put_dt(dynamic, 1, put_elf_str(dynstr, dllref.name))
 			}
 		}
 		if s1.rpath {
+			vcc_trace_print('${@LOCATION}')
 			put_dt(dynamic, if s1.enable_new_dtags { 29 } else { 15 }, put_elf_str(dynstr,
 				s1.rpath))
 		}
 		dt_flags_1 = 1
 		if file_type & 4 {
 			if s1.soname {
+				vcc_trace_print('${@LOCATION}')
 				put_dt(dynamic, 14, put_elf_str(dynstr, s1.soname))
 			}
 			if textrel {
+				vcc_trace_print('${@LOCATION}')
 				put_dt(dynamic, 22, 0)
 			}
 			if file_type & 2 {
 				dt_flags_1 = 1 | 134217728
 			}
 		}
+		vcc_trace_print('${@LOCATION}')
 		put_dt(dynamic, 30, 8)
+		vcc_trace_print('${@LOCATION}')
 		put_dt(dynamic, 1879048187, dt_flags_1)
 		if s1.symbolic {
+			vcc_trace_print('${@LOCATION}')
 			put_dt(dynamic, 16, 0)
 		}
 		dyninf.dynamic = dynamic
 		dyninf.dynstr = dynstr
 		dyninf.data_offset = dynamic.data_offset
+		vcc_trace_print('${@LOCATION}')
 		fill_dynamic(s1, &dyninf)
 		dynamic.sh_size = dynamic.data_offset
 		dynstr.sh_size = dynstr.data_offset
+		vcc_trace_print('${@LOCATION}')
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	sec_order = tcc_malloc(sizeof(int) * 2 * s1.nb_sections)
+	vcc_trace_print('${@LOCATION}')
 	file_offset = layout_sections(s1, sec_order, &dyninf)
+	vcc_trace_print('${@LOCATION}')
 	if dynamic {
+		vcc_trace_print('${@LOCATION}')
 		write32le(s1.got.data, dynamic.sh_addr)
 		if file_type == 2 || (1 && file_type & 4) {
+			vcc_trace_print('${@LOCATION}')
 			relocate_plt(s1)
 		}
+		vcc_trace_print('${@LOCATION}')
 		relocate_syms(s1, s1.dynsym, 2)
 	}
+	vcc_trace_print('${@LOCATION}')
 	relocate_syms(s1, s1.symtab, 0)
 	if s1.nb_errors != 0 {
 		unsafe {
 			goto the_end
 		} // id: 0x7fffe904af18
 	}
+	vcc_trace_print('${@LOCATION}')
 	relocate_sections(s1)
 	if dynamic {
+		vcc_trace_print('${@LOCATION}')
 		update_reloc_sections(s1, &dyninf)
 		dynamic.data_offset = dyninf.data_offset
+		vcc_trace_print('${@LOCATION}')
 		fill_dynamic(s1, &dyninf)
 	}
 	if file_type == 2 && s1.static_link {
+		vcc_trace_print('${@LOCATION}')
 		fill_got(s1)
 	} else if s1.got {
+		vcc_trace_print('${@LOCATION}')
 		fill_local_got_entries(s1)
 	}
 	if dyninf.gnu_hash {
+		vcc_trace_print('${@LOCATION}')
 		update_gnu_hash(s1, dyninf.gnu_hash)
 	}
+	vcc_trace_print('${@LOCATION}')
 	ret = tcc_write_elf_file(s1, filename, dyninf.phnum, dyninf.phdr, file_offset, sec_order)
 	// RRRREG the_end id=0x7fffe904af18
 	the_end:
@@ -2617,15 +2663,15 @@ fn elf_output_obj(s1 &TCCState, filename &char) int {
 
 fn tcc_output_file(s &TCCState, filename &char) int {
 	if s.test_coverage {
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 		tcc_tcov_add_file(s, filename)
 		vcc_trace('${@LOCATION}')
 	}
 	if s.output_type == 3 {
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 		return elf_output_obj(s, filename)
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	return elf_output_file(s, filename)
 }
 
@@ -3105,6 +3151,7 @@ fn tcc_load_archive(s1 &TCCState, fd int, alacarte int) int {
 }
 
 fn set_ver_to_ver(s1 &TCCState, n &int, lv &&int, i int, lib &char, version &char) {
+	vcc_trace_print('${@LOCATION} lib=${lib.vstring()}')
 	for i >= *n {
 		*lv = tcc_realloc(*lv, (*n + 1) * sizeof(**lv))
 		(*lv)[(*n)++] = -1
@@ -3123,7 +3170,7 @@ fn set_ver_to_ver(s1 &TCCState, n &int, lv &&int, i int, lib &char, version &cha
 			}
 		}
 		if v == s1.nb_sym_versions {
-			s1.sym_versions = tcc_realloc(s1.sym_versions, (v + 1) * sizeof(*s1.sym_versions))
+			s1.sym_versions = tcc_realloc(s1.sym_versions, (v + 1) * sizeof(Sym_version))
 			s1.sym_versions[v].lib = tcc_strdup(lib)
 			s1.sym_versions[v].version = tcc_strdup(version)
 			s1.sym_versions[v].out_index = 0
@@ -3417,7 +3464,7 @@ fn ld_add_file(s1 &TCCState, filename &char) int {
 		}
 		filename = tcc_basename(filename)
 	}
-	vcc_trace('${@LOCATION} - ${filename.vstring()}')
+	vcc_trace_print('${@LOCATION} - ${filename.vstring()}')
 	return tcc_add_dll(s1, filename, 16)
 }
 

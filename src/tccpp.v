@@ -540,7 +540,7 @@ fn tok_alloc(str &char, len int) &TokenSym {
 	}
 	// vcc_trace('${@LOCATION}')
 	h &= (16384 - 1)
-	pts = &hash_ident[h]
+	pts = unsafe { &&TokenSym(hash_ident) + h }
 	for {
 		ts = *pts
 		if !ts {
@@ -1213,7 +1213,7 @@ fn tok_str_add_tok(s &TokenString) {
 }
 
 fn tok_get(t &int, pp &&int, cv &CValue) {
-	vcc_trace_print('${@LOCATION} -- begin -- ${tok} ${file.buf_ptr.vstring()[0..10]}')
+	vcc_trace_print('${@LOCATION} -- begin -- ${tok} ${int(file.buf_ptr[0])}')
 	p := &int(*pp)
 	n := 0
 
@@ -1265,10 +1265,10 @@ fn tok_get(t &int, pp &&int, cv &CValue) {
 	}
 	// vcc_trace('${@LOCATION}')
 	*pp = p
-	vcc_trace_print('${@LOCATION} --end-- p=${*p} ${tok} ${file.buf_ptr.vstring()[0..10]}')
+	vcc_trace_print('${@LOCATION} --end-- p=${*p} ${tok} ${int(file.buf_ptr[0])}')
 }
 
-type intpp = &&int
+type intpp = &int
 
 @[inline]
 fn tok_get_macro(mut t &int, mut p intpp, mut cv CValue) {
@@ -1291,12 +1291,13 @@ fn macro_is_equal(a &int, b &int) int {
 	if !a || !b {
 		return 1
 	}
-	for *a != 0 && *b != 0 {
+	for *a && *b {
 		cstr_reset(&tokcstr)
 		tok_get_macro(mut &t, mut &a, mut &cv)
 		cstr_cat(&tokcstr, get_tok_str(t, &cv), 0)
-		tok_get_macro(mut &t, mut &a, mut &cv)
+		tok_get_macro(mut &t, mut &b, mut &cv)
 		if C.strcmp(tokcstr.data, get_tok_str(t, &cv)) {
+			vcc_trace_print('${@LOCATION}')
 			return 0
 		}
 	}
@@ -1315,7 +1316,7 @@ fn define_push(v int, macro_type int, str &int, first_arg &Sym) {
 	table_ident[v - TOK_IDENT].sym_define = s
 	vcc_trace_print('${@LOCATION} - v=${v}')
 	if o != unsafe { nil } && !macro_is_equal(o.d, s.d) {
-		_tcc_warning('${get_tok_str(v, (unsafe { nil }))} redefined')
+		_tcc_warning('${get_tok_str(v, (unsafe { nil })).vstring()} redefined')
 	}
 	vcc_trace('${@LOCATION}')
 }
@@ -2905,7 +2906,7 @@ fn next_nomacro1() {
 			if c != `\\` {
 				pts := &&TokenSym(0)
 				h &= (16384 - 1)
-				pts = &hash_ident[h]
+				pts = unsafe { &&TokenSym(hash_ident) + h }
 				// vcc_trace('${@LOCATION}')
 				for {
 					ts = *pts
@@ -3334,7 +3335,6 @@ fn next_nomacro1() {
 	keep_tok_flags:
 	file.buf_ptr = p
 	vcc_trace_print('${@LOCATION} p=${int(*p)}')
-	vcc_trace('${@LOCATION} ${tok} ${get_tok_str(tok, &tokc).vstring()}')
 }
 
 fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
@@ -4002,7 +4002,7 @@ fn next() {
 	n := 0
 	redo:
 	n++
-	vcc_trace_print('${@LOCATION} ${tok} [${n}] ${file.buf_ptr.vstring()[0..10]}')
+	vcc_trace_print('${@LOCATION} ${tok} [${n}] ${int(file.buf_ptr[0])}')
 	next_nomacro()
 	t = tok
 	if macro_ptr != unsafe { nil } {

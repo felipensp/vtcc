@@ -153,7 +153,7 @@ fn oad(c int, s int) int {
 }
 
 fn gen_addr32(r int, sym &Sym, c int) {
-	if r & 512 {
+	if r & vt_sym {
 		greloca(tcc_state.cur_text_section, sym, ind, 11, c)
 		c = 0
 	}
@@ -161,7 +161,7 @@ fn gen_addr32(r int, sym &Sym, c int) {
 }
 
 fn gen_addr64(r int, sym &Sym, c i64) {
-	if r & 512 {
+	if r & vt_sym {
 		greloca(tcc_state.cur_text_section, sym, ind, 1, c)
 		c = 0
 	}
@@ -169,7 +169,7 @@ fn gen_addr64(r int, sym &Sym, c i64) {
 }
 
 fn gen_addrpc32(r int, sym &Sym, c int) {
-	if r & 512 {
+	if r & vt_sym {
 		greloca(tcc_state.cur_text_section, sym, ind, 2, c - 4)
 		c = 4
 	}
@@ -735,6 +735,7 @@ fn arg_prepare_reg(idx int) int {
 }
 
 fn gfunc_call(nb_args int) {
+	vcc_trace_print('${@LOCATION}')
 	mode := X86_64_Mode{}
 	type_ := CType{}
 	size := 0
@@ -751,13 +752,15 @@ fn gfunc_call(nb_args int) {
 	sse_reg := 0
 	gen_reg := 0
 
-	onstack := &i8(tcc_malloc((nb_args + 1) * sizeof(i8)))
+	onstack := &char(tcc_malloc((nb_args + 1) * sizeof(char)))
 	if tcc_state.do_bounds_check {
+		vcc_trace_print('${@LOCATION} 1')
 		gbound_args(nb_args)
 	}
 	stack_adjust = 0
 	for i = nb_args - 1; i >= 0; i-- {
-		mode = classify_x86_64_arg(&vtop[-i].type_, (unsafe { nil }), &size, &align, &reg_count)
+		vcc_trace_print('${@LOCATION} 2')
+		mode = classify_x86_64_arg(&vtop[-i].type_, unsafe { nil }, &size, &align, &reg_count)
 		if size == 0 {
 			continue
 		}
@@ -784,6 +787,7 @@ fn gfunc_call(nb_args int) {
 		_tcc_error('SSE disabled but floating point arguments passed')
 	}
 	if (vtop.r & 63) == 51 {
+		vcc_trace_print('${@LOCATION} 3')
 		gv(1)
 	}
 	gen_reg = nb_reg_args
@@ -792,13 +796,17 @@ fn gfunc_call(nb_args int) {
 	stack_adjust &= 15
 	i = 0
 	for k = i; i < nb_args; {
-		mode = classify_x86_64_arg(&vtop[-i].type_, (unsafe { nil }), &size, &align, &reg_count)
+		vcc_trace_print('${@LOCATION} 4')
+		mode = classify_x86_64_arg(&vtop[-i].type_, unsafe { nil }, &size, &align, &reg_count)
+		vcc_trace_print('${@LOCATION} size=${size}')
 		if size {
+			vcc_trace_print('${@LOCATION} onstack=${i+k}')
 			if !onstack[i + k] {
 				i++
 				continue
 			}
 			if stack_adjust {
+				vcc_trace_print("${@LOCATION} stack_adjust")
 				o(80)
 				args_size += 8
 				stack_adjust = 0
@@ -807,7 +815,9 @@ fn gfunc_call(nb_args int) {
 				stack_adjust = 1
 			}
 		}
+		vcc_trace_print("${@LOCATION} vrob.1")
 		vrotb(i + 1)
+		vcc_trace_print("${@LOCATION} vrob.2")
 		match vtop.type_.t & 15 {
 			7 { // case comp body kind=CallExpr is_enum=false
 				o(72)
@@ -851,17 +861,21 @@ fn gfunc_call(nb_args int) {
 		nb_args--
 		k++
 	}
+	vcc_trace_print('${@LOCATION} 20')
 	tcc_free(onstack)
+	vcc_trace_print('${@LOCATION} 21')
 	save_regs(0)
 	assert gen_reg <= 6
 	assert sse_reg <= 8
 	for i = 0; i < nb_args; i++ {
+		vcc_trace_print('${@LOCATION} 30')
 		mode = classify_x86_64_arg(&vtop.type_, &type_, &size, &align, &reg_count)
 		if size == 0 {
 			continue
 		}
 		vtop.type_ = type_
 		if mode == X86_64_Mode.x86_64_mode_sse {
+			vcc_trace_print('${@LOCATION} 22')
 			if reg_count == 2 {
 				sse_reg -= 2
 				gv(4096)
@@ -872,11 +886,13 @@ fn gfunc_call(nb_args int) {
 					o(192 + (sse_reg << 3))
 				}
 			} else {
+				vcc_trace_print('${@LOCATION} 23')
 				assert reg_count == 1
 				sse_reg--
 				gv(4096 << sse_reg)
 			}
 		} else if mode == X86_64_Mode.x86_64_mode_integer {
+			vcc_trace_print('${@LOCATION} 24')
 			d := 0
 			gen_reg -= reg_count
 			r = gv(1)
@@ -891,6 +907,7 @@ fn gfunc_call(nb_args int) {
 		}
 		unsafe { vtop-- }
 	}
+	vcc_trace_print('${@LOCATION} 25')
 	assert gen_reg == 0
 	assert sse_reg == 0
 	save_regs(0)
@@ -908,6 +925,7 @@ fn gfunc_call(nb_args int) {
 		gadd_sp(args_size)
 	}
 	unsafe { vtop-- }
+	vcc_trace_print('${@LOCATION} end')
 }
 
 fn push_arg_reg(i int) {

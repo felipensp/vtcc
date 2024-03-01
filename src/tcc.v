@@ -208,7 +208,7 @@ fn main() {
 				first_file = &char(f.name)
 				vcc_trace('${@LOCATION} ${first_file.vstring()}')
 			}
-			vcc_trace('${@LOCATION}')
+			vcc_trace_print('${@LOCATION}')
 			if tcc_add_file(s, f.name) < 0 {
 				ret = 1
 			}
@@ -218,11 +218,11 @@ fn main() {
 		if !(!done && (s.output_type != 3 || s.option_r)) {
 			break
 		}
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	if s.do_bench {
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 		end_time = getclock_ms()
 	}
 	if s.run_test {
@@ -230,27 +230,27 @@ fn main() {
 	} else if s.output_type == 5 {
 	} else if 0 == ret {
 		if s.output_type == 1 {
-			vcc_trace('${@LOCATION}')
+			vcc_trace_print('${@LOCATION}')
 			ret = tcc_run(s, argc, argv)
 		} else {
 			if !s.outfile {
 				vcc_trace('${@LOCATION}')
 				s.outfile = default_outputfile(s, first_file)
 			}
-			vcc_trace('${@LOCATION}')
+			vcc_trace_print('${@LOCATION}')
 			if !s.just_deps && tcc_output_file(s, s.outfile) {
 				ret = 1
 			} else if s.gen_deps {
-				vcc_trace('${@LOCATION}')
+				vcc_trace_print('${@LOCATION}')
 				ret = gen_makedeps(s, s.outfile, s.deps_outfile)
 			}
 		}
 	}
 	if done && 0 == t && 0 == ret && s.do_bench {
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 		tcc_print_stats(s, end_time - start_time)
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	tcc_delete(s)
 	vcc_trace('${@LOCATION}')
 	if !done {

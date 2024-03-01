@@ -606,11 +606,12 @@ pub fn tcc_compile(s1 &TCCState, filetype int, str &char, fd int) int {
 	}
 	vcc_trace('${@LOCATION}')
 	tccgen_finish(s1)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	preprocess_end(s1)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	s1.error_set_jmp_enabled = 0
 	tcc_exit_state(s1)
+	vcc_trace_print('${@LOCATION}')
 	return if s1.nb_errors != 0 { -1 } else { 0 }
 }
 
@@ -846,9 +847,9 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &char, flags int) int {
 	} else {
 		vcc_trace('${@LOCATION}')
 		dynarray_add(&s1.target_deps, &s1.nb_target_deps, tcc_strdup(filename))
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 		ret = tcc_compile(s1, flags, filename, fd)
-		vcc_trace('${@LOCATION}')
+		vcc_trace_print('${@LOCATION}')
 	}
 	vcc_trace('${@LOCATION}')
 	s1.current_filename = unsafe { nil }

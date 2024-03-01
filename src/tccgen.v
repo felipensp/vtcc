@@ -401,15 +401,15 @@ fn tccgen_finish(s1 &TCCState) { // ok
 	sym_pop(&local_stack, unsafe { nil }, 0)
 	vcc_trace('${@LOCATION}')
 	free_defines(unsafe { nil })
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	dynarray_reset(&sym_pools, &nb_sym_pools)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 	sym_free_first = unsafe { nil }
 	global_label_stack = unsafe { nil }
 	local_label_stack = global_label_stack
 	cstr_free(&initstr)
 	dynarray_reset(&stk_data, &nb_stk_data)
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION}')
 }
 
 pub fn elfsym(s &Sym) &Elf64_Sym { // ok
@@ -454,12 +454,15 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 	esym := &Elf64_Sym(0)
 	name := &char(0)
 	buf1 := [256]char{}
+
+	vcc_trace_print('${@LOCATION}')
+
 	if !sym.c {
 		name = get_tok_str(sym.v, unsafe { nil })
 		t = sym.type_.t
 		if (t & vt_btype) == vt_func {
 			sym_type = stt_func
-		} else if (t & 15) == vt_void {
+		} else if (t & vt_btype) == vt_void {
 			sym_type = stt_notype
 			if (t & (15 | ((0 | 1 << 20) | 2 << 20))) == ((0 | 1 << 20) | 2 << 20) {
 				sym_type = stt_func
@@ -483,10 +486,13 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 			name = buf1
 		}
 		info = ((sym_bind << 4) + (sym_type & 15))
+		vcc_trace_print('${@LOCATION} elf_sym')
 		sym.c = put_elf_sym(tcc_state.symtab_section, value, size, info, other, sh_num,
 			name)
 		// vcc_trace('${@LOCATION} ${name.vstring()}')
+		vcc_trace_print('${@LOCATION} debug')
 		if debug_modes {
+			vcc_trace_print('${@LOCATION} debug.1')
 			tcc_debug_extern_sym(tcc_state, sym, sh_num, sym_bind, sym_type)
 		}
 	} else {
@@ -495,26 +501,32 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 		esym.st_size = size
 		esym.st_shndx = sh_num
 	}
+	vcc_trace_print('${@LOCATION} updatestorage')
 	update_storage(sym)
+	vcc_trace_print('${@LOCATION} end')
 }
 
 fn put_extern_sym(sym &Sym, s &Section, value Elf64_Addr, size u32) {
+	vcc_trace_print('${@LOCATION} extern_sym.0=${size}')
 	if nocode_wanted
 		&& (nocode_wanted > 0 || (s && voidptr(s) == voidptr(tcc_state.cur_text_section))) {
 		vcc_trace_print('${@LOCATION} ret')
 		return
-	}
+	}	
 	put_extern_sym2(sym, if s { s.sh_num } else { shn_undef }, value, size, 1)
 	vcc_trace_print('${@LOCATION} extern_sym=${size}')
 }
 
-fn greloca(s &Section, sym &Sym, offset u32, type_ int, addend Elf64_Addr) {
+fn greloca(s &Section, sym &Sym, offset u64, type_ int, addend Elf64_Addr) {
 	c := 0
+	vcc_trace_print('${@LOCATION} 1')
 	if nocode_wanted && voidptr(s) == voidptr(tcc_state.cur_text_section) {
 		return
 	}
-	if sym {
+	if sym != unsafe { nil } {
+		vcc_trace_print('${@LOCATION} 2')
 		if 0 == sym.c {
+			vcc_trace_print('${@LOCATION} 3')
 			put_extern_sym(sym, unsafe { nil }, 0, 0)
 		}
 		c = sym.c
@@ -635,10 +647,10 @@ fn sym_push(v int, type_ &CType, r int, c int) &Sym {
 		*ps = s
 		s.sym_scope = local_scope
 		vcc_trace_print('${@LOCATION} ${v & sym_struct} sym=${(v & ~sym_struct) - TOK_IDENT} local_scope=${local_scope} nocode=${nocode_wanted}')
-		if s.prev_tok {
+		if s.prev_tok != unsafe { nil } {
 			vcc_trace_print('${@LOCATION} has prev_tok')
 		}
-		if s.prev_tok && sym_scope(s.prev_tok) == s.sym_scope {
+		if s.prev_tok != unsafe { nil } && sym_scope(s.prev_tok) == s.sym_scope {
 			_tcc_error("redeclaration of '${get_tok_str(v & ~sym_struct, (unsafe { nil })).vstring()}'")
 		} else {
 			vcc_trace_print('${@LOCATION} ok ${get_tok_str(v & ~sym_struct, (unsafe { nil })).vstring()}')
@@ -664,6 +676,9 @@ fn global_identifier_push(v int, t int, c int) &Sym { // ok
 			ps = &(*ps).prev_tok
 			vcc_trace_print('${@LOCATION}')
 		}
+		if *ps == unsafe { nil } {
+			vcc_trace_print('${@LOCATION} *ps == null')
+		}
 		s.prev_tok = *ps
 		*ps = s
 		vcc_trace_print('${@LOCATION} globalpush')
@@ -684,7 +699,7 @@ fn sym_pop(ptop &&Sym, b &Sym, keep int) {
 		ss = s.prev
 		v = s.v
 		if !(v & sym_field) && (v & ~sym_struct) < sym_first_anom {
-			ts = &table_ident[(v & ~sym_struct) - TOK_IDENT]
+			ts = table_ident[(v & ~sym_struct) - TOK_IDENT]
 			if v & sym_struct {
 				ps = &ts.sym_struct
 			} else { // 3
@@ -1176,18 +1191,22 @@ fn external_sym(v int, type_ &CType, r int, ad &AttributeDef) &Sym {
 		vcc_trace('${@LOCATION}')
 		s = sym_copy(s, &local_stack)
 	}
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION} external.end')
 	return s
 }
 
 fn save_regs(n int) {
+	vcc_trace_print('${@LOCATION} ${n}')
 	p := &SValue(0)
 	p1 := &SValue(0)
 
-	p = _vstack + 1
+	p = unsafe { &_vstack[0] + 1 }
+	vcc_trace_print('${@LOCATION} .1')
 	unsafe {
 		for p1 = vtop - n; voidptr(p) <= voidptr(p1); p++ {
+			vcc_trace_print('${@LOCATION} .2')
 			save_reg(p.r)
+			vcc_trace_print('${@LOCATION} .3')
 		}
 	}
 }
@@ -2698,9 +2717,11 @@ fn gen_cast(type_ &CType) {
 	vcc_trace_print('${@LOCATION}')
 
 	if vtop.r & 3072 {
+		vcc_trace_print('${@LOCATION} cast.1')
 		force_charshort_cast()
 	}
 	if vtop.type_.t & 128 {
+		vcc_trace_print('${@LOCATION} cast.2')
 		gv(1)
 	}
 	dbt = type_.t & (15 | 16)
@@ -2721,6 +2742,7 @@ fn gen_cast(type_ &CType) {
 		if sbt_bt == vt_void {
 			// RRRREG error id=0x7fffed46baf8
 			error:
+			vcc_trace_print('${@LOCATION} cast.error')
 			cast_error(&vtop.type_, type_)
 		}
 		c = (vtop.r & (63 | 256 | 512)) == 48
@@ -2789,6 +2811,7 @@ fn gen_cast(type_ &CType) {
 			goto done // id: 0x7fffed46b878
 		}
 		if sf || df {
+			vcc_trace_print('${@LOCATION} cast.2')
 			if sf && df {
 				gen_cvt_ftof(dbt)
 			} else if df {
@@ -2835,6 +2858,7 @@ fn gen_cast(type_ &CType) {
 				goto done // id: 0x7fffed46b878
 			}
 		}
+		vcc_trace_print('${@LOCATION} cast.3')
 		gv(1)
 		trunc = 0
 		if ds == 8 {
@@ -2859,6 +2883,7 @@ fn gen_cast(type_ &CType) {
 			gen_cvt_csti(dbt)
 			goto done // id: 0x7fffed46b878
 		}
+		vcc_trace_print('${@LOCATION} cast.4')
 		bits = (ss - ds) * 8
 		vtop.type_.t = (if ss == 8 { vt_llong } else { vt_int }) | (dbt & vt_unsigned)
 		vpushi(bits)
@@ -2872,6 +2897,7 @@ fn gen_cast(type_ &CType) {
 	done:
 	vtop.type_ = *type_
 	vtop.type_.t &= ~(vt_constant | vt_volatile | vt_array)
+	vcc_trace_print('${@LOCATION} cast.end')
 }
 
 fn type_size(type_ &CType, a &int) int {
@@ -4530,18 +4556,22 @@ fn type_decl(type_ &CType, ad &AttributeDef, v &int, td int) &CType {
 		}
 	} else if tok >= 256 && td & 2 {
 		*v = tok
+		vcc_trace_print('${@LOCATION} ${tok}')
 		next()
 	} else {
 		// RRRREG abstract id=0x7fffed4b5160
 		abstract:
+		vcc_trace_print('${@LOCATION}')
 		if !(td & 1) {
 			expect(c'identifier')
 		}
 		*v = 0
 	}
+	vcc_trace_print('${@LOCATION} end')
 	post_type(post, ad, if voidptr(post) != voidptr(ret) { 0 } else { storage }, td & ~(2 | 1))
 	parse_attribute(ad)
 	type_.t |= storage
+	vcc_trace_print('${@LOCATION} - ${storage}')
 	return ret
 }
 
@@ -5502,10 +5532,13 @@ fn expr_infix(p int) {
 fn condition_3way() int {
 	c := -1
 	if (vtop.r & (vt_valmask | vt_lval)) == vt_const && (!(vtop.r & 512) || !vtop.sym.a.weak) {
+		vcc_trace_print('${@LOCATION} cond3way.0 c=${c}')
 		vdup()
+		vcc_trace_print('${@LOCATION} cond3way.1 c=${c}')
 		gen_cast_s(vt_bool)
+		vcc_trace_print('${@LOCATION} cond3way.2 c=${c}')
 		c = vtop.c.i
-		vcc_trace_print('${@LOCATION} cond3way c=${c}')
+		vcc_trace_print('${@LOCATION} cond3way.3 c=${c}')
 		vpop()
 	}
 	return c
@@ -5695,7 +5728,9 @@ fn expr_eq() {
 	t = tok
 	vcc_trace_print('${@LOCATION} - ${t}')
 	if t == `=` || (t >= 176 && t <= 185) {
+		vcc_trace_print('${@LOCATION} - eq.0 - ${t}')
 		test_lvalue()
+		vcc_trace_print('${@LOCATION} - eq.20 - ${t}')
 		next()
 		if t == `=` {
 			vcc_trace_print('${@LOCATION} - eq - ${t}')
@@ -5703,9 +5738,12 @@ fn expr_eq() {
 		} else {
 			vcc_trace_print('${@LOCATION} - eq.1 - ${t}')
 			vdup()
+			vcc_trace_print('${@LOCATION} - eq.2 - ${t}')
 			expr_eq()
+			vcc_trace_print('${@LOCATION} - eq.3 - ${t}')
 			gen_op((c'+-*/%&|^<>'[t - 176]))
 		}
+		vcc_trace_print('${@LOCATION} - eq.4 - ${t}')
 		vstore()
 	}
 }
@@ -5715,26 +5753,32 @@ fn gexpr() {
 	expr_eq()
 	if tok == `,` {
 		for {
+			vcc_trace_print('${@LOCATION} gexpr.0')
 			vpop()
+			vcc_trace_print('${@LOCATION} gexpr.1')
 			next()
+			vcc_trace_print('${@LOCATION} gexpr.2')
 			expr_eq()
+			vcc_trace_print('${@LOCATION} gexpr.3')
 			// while()
 			if !(tok == `,`) {
 				break
 			}
 		}
+		vcc_trace_print('${@LOCATION} gexpr.4')
 		convert_parameter_type(&vtop.type_)
 		if (vtop.r & vt_valmask) == vt_const && nocode_wanted
 			&& !(nocode_wanted & CONST_WANTED_MASK) {
+				vcc_trace_print('${@LOCATION} gexpr.5')
 			gv(rc_type(vtop.type_.t))
 		}
 	}
 }
 
 fn expr_const1() {
-	nocode_wanted += 65536
+	nocode_wanted += CONST_WANTED_BIT
 	expr_cond()
-	nocode_wanted -= 65536
+	nocode_wanted -= CONST_WANTED_BIT
 }
 
 fn expr_const64() i64 {
@@ -5991,9 +6035,12 @@ fn vla_leave(o &Scope) {
 }
 
 fn new_scope(o &Scope) {
+	vcc_trace_print('${@LOCATION}')
 	*o = *cur_scope
+	vcc_trace_print('${@LOCATION} 1')
 	o.prev = cur_scope
 	cur_scope = o
+	vcc_trace_print('${@LOCATION} 2')
 	cur_scope.vla.num = 0
 	o.lstk = local_stack
 	o.llstk = local_label_stack
@@ -6070,16 +6117,21 @@ fn block(flags int) {
 	}
 	// RRRREG again id=0x7fffed4f0b70
 	again:
+	vcc_trace_print('${@LOCATION} ${tok}')
 	t = tok
 	if (t >= 192 && t <= 207) {
+		vcc_trace_print('${@LOCATION} goto ${tok}')
 		goto expr // id: 0x7fffed4f0d10
 	}
 	next()
 	if debug_modes {
+		vcc_trace_print('${@LOCATION} debug_modes=${debug_modes}')
 		tcc_tcov_check_line(tcc_state, 0)
 		tcc_tcov_block_begin(tcc_state)
+		vcc_trace_print('${@LOCATION} debug_modes=${debug_modes} end')
 	}
 	if t == Tcc_token.tok_if {
+		vcc_trace_print('${@LOCATION} if')
 		new_scope_s(&o)
 		skip(`(`)
 		gexpr()
@@ -6087,6 +6139,7 @@ fn block(flags int) {
 		a = gvtst(1, 0)
 		block(0)
 		if tok == Tcc_token.tok_else {
+			vcc_trace_print('${@LOCATION} else')
 			d = gjmp_acs(0)
 			gsym(a)
 			next()
@@ -6097,6 +6150,7 @@ fn block(flags int) {
 		}
 		prev_scope_s(&o)
 	} else if t == Tcc_token.tok_while {
+		vcc_trace_print('${@LOCATION} while')
 		new_scope_s(&o)
 		d = gind()
 		skip(`(`)
@@ -6110,11 +6164,15 @@ fn block(flags int) {
 		gsym(a)
 		prev_scope_s(&o)
 	} else if t == `{` {
+		vcc_trace_print('${@LOCATION} block')
 		if debug_modes {
+			vcc_trace_print('${@LOCATION} debug.2')
 			tcc_debug_stabn(tcc_state, Stab_debug_code.n_lbrac, ind - func_ind)
 		}
+		vcc_trace_print('${@LOCATION} new_scope')
 		new_scope(&o)
 		for tok == Tcc_token.tok_label {
+			vcc_trace_print('${@LOCATION} label-for')
 			for {
 				next()
 				if tok < Tcc_token.tok_define {
@@ -6130,6 +6188,7 @@ fn block(flags int) {
 			skip(`;`)
 		}
 		for tok != `}` {
+			vcc_trace_print('${@LOCATION} loop != }')
 			decl(vt_local)
 			if tok != `}` {
 				if flags & 1 {
@@ -6138,16 +6197,20 @@ fn block(flags int) {
 				block(flags | 2)
 			}
 		}
+		vcc_trace_print('${@LOCATION} prev_scope.2')
 		prev_scope(&o, flags & 1)
 		if debug_modes {
 			tcc_debug_stabn(tcc_state, Stab_debug_code.n_rbrac, ind - func_ind)
 		}
 		if local_scope {
+			vcc_trace_print('${@LOCATION} local_scope')
 			next()
 		} else if !nocode_wanted {
+			vcc_trace_print('${@LOCATION} check_return')
 			check_func_return()
 		}
 	} else if t == Tcc_token.tok_return {
+		vcc_trace_print('${@LOCATION} return')
 		b = (func_vt.t & 15) != 0
 		if tok != `;` {
 			gexpr()
@@ -6178,6 +6241,7 @@ fn block(flags int) {
 			nocode_wanted |= code_off_bit
 		}
 	} else if t == Tcc_token.tok_break {
+		vcc_trace_print('${@LOCATION} break')
 		if !cur_scope.bsym {
 			_tcc_error('cannot break')
 		}
@@ -6189,6 +6253,7 @@ fn block(flags int) {
 		*cur_scope.bsym = gjmp_acs(*cur_scope.bsym)
 		skip(`;`)
 	} else if t == Tcc_token.tok_continue {
+		vcc_trace_print('${@LOCATION} continue')
 		if !cur_scope.csym {
 			_tcc_error('cannot continue')
 		}
@@ -6196,6 +6261,7 @@ fn block(flags int) {
 		*cur_scope.csym = gjmp_acs(*cur_scope.csym)
 		skip(`;`)
 	} else if t == Tcc_token.tok_for {
+		vcc_trace_print('${@LOCATION} for')
 		new_scope(&o)
 		skip(`(`)
 		if tok != `;` {
@@ -6229,6 +6295,7 @@ fn block(flags int) {
 		gsym(a)
 		prev_scope(&o, 0)
 	} else if t == Tcc_token.tok_do {
+		vcc_trace_print('${@LOCATION} do')
 		new_scope_s(&o)
 		a = 0
 		b = a
@@ -6245,6 +6312,7 @@ fn block(flags int) {
 		gsym(a)
 		prev_scope_s(&o)
 	} else if t == Tcc_token.tok_switch {
+		vcc_trace_print('${@LOCATION} switch')
 		sw := &Switch_t(0)
 		sw = tcc_mallocz(sizeof(*sw))
 		sw.bsym = &a
@@ -6296,6 +6364,7 @@ fn block(flags int) {
 		cur_switch = sw.prev
 		tcc_free(sw)
 	} else if t == Tcc_token.tok_case {
+		vcc_trace_print('${@LOCATION} case')
 		cr := &Case_t(tcc_malloc(sizeof(Case_t)))
 		if !cur_switch {
 			expect(c'switch')
@@ -6317,6 +6386,7 @@ fn block(flags int) {
 		skip(`:`)
 		goto block_after_label // id: 0x7fffed4fa5a0
 	} else if t == Tcc_token.tok_default {
+		vcc_trace_print('${@LOCATION} default')
 		if !cur_switch {
 			expect(c'switch')
 		}
@@ -6327,6 +6397,7 @@ fn block(flags int) {
 		skip(`:`)
 		goto block_after_label // id: 0x7fffed4fa5a0
 	} else if t == Tcc_token.tok_goto {
+		vcc_trace_print('${@LOCATION} goto')
 		vla_restore(cur_scope.vla.locorig)
 		if tok == `*` && tcc_state.gnu_ext {
 			next()
@@ -6360,10 +6431,14 @@ fn block(flags int) {
 		}
 		skip(`;`)
 	} else if t == Tcc_token.tok_asm1 || t == Tcc_token.tok_asm2 || t == Tcc_token.tok_asm3 {
+		vcc_trace_print('${@LOCATION} asm')
 		asm_instr()
 	} else {
+		vcc_trace_print('${@LOCATION} others')
 		if tok == `:` && t >= Tcc_token.tok_define {
+			vcc_trace_print('${@LOCATION} others.4')
 			next()
+			vcc_trace_print('${@LOCATION} others.3')
 			s = label_find(t)
 			if s {
 				if s.r == 0 {
@@ -6375,23 +6450,30 @@ fn block(flags int) {
 					for pcl = s.next; pcl; pcl = pcl.prev {
 						gsym(pcl.jnext)
 					}
-					sym_pop(&s.next, (unsafe { nil }), 0)
+					sym_pop(&s.next, unsafe { nil }, 0)
 				} else { // 3
+					vcc_trace_print('${@LOCATION} others.1')
 					gsym(s.jnext)
 				}
 			} else {
+				vcc_trace_print('${@LOCATION} others.2')
 				s = label_push(&global_label_stack, t, 0)
 			}
+			vcc_trace_print('${@LOCATION} others.5')
 			s.jnext = gind()
+			vcc_trace_print('${@LOCATION} others.6')
 			s.cleanupstate = cur_scope.cl.s
 			block_after_label:
 			{
 				ad_tmp := AttributeDef{}
 				parse_attribute(&ad_tmp)
 			}
+			vcc_trace_print('${@LOCATION} others.7')
 			if debug_modes {
+				vcc_trace_print('${@LOCATION} others.8')
 				tcc_tcov_reset_ind(tcc_state)
 			}
+			vcc_trace_print('${@LOCATION} others.9')
 			vla_restore(cur_scope.vla.loc)
 			if tok != `}` {
 				if 0 == (flags & 2) {
@@ -6403,24 +6485,33 @@ fn block(flags int) {
 			}
 		} else {
 			if t != `;` {
+				vcc_trace_print('${@LOCATION} others.11')
 				unget_tok(t)
 				// RRRREG expr id=0x7fffed4f0d10
 				expr:
+				vcc_trace_print('${@LOCATION} others.12')
 				if flags & 1 {
 					vpop()
+					vcc_trace_print('${@LOCATION} others.13')
 					gexpr()
+					vcc_trace_print('${@LOCATION} others.14')
 				} else {
+					vcc_trace_print('${@LOCATION} others.15')
 					gexpr()
+					vcc_trace_print('${@LOCATION} others.16')
 					vpop()
+					vcc_trace_print('${@LOCATION} others.17')
 				}
 				skip(`;`)
 			}
 		}
 	}
 	if debug_modes {
+		vcc_trace_print('${@LOCATION} debug-end')
 		tcc_tcov_check_line(tcc_state, 0)
 		tcc_tcov_block_end(tcc_state, 0)
 	}
+	vcc_trace_print('${@LOCATION} block.end')
 }
 
 fn skip_or_save_block(str &&TokenString) {
@@ -6787,6 +6878,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 	vcc_trace_print('${@LOCATION} flags=${flags}')
 
 	if debug_modes && !(flags & 2) && !p.sec {
+		vcc_trace_print('${@LOCATION} declinit.0')
 		tcc_debug_line(tcc_state)
 		tcc_tcov_check_line(tcc_state, 1)
 	}
@@ -6796,6 +6888,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 		if flags & 2 && !p.sec {
 			nocode_wanted++
 		}
+		vcc_trace_print('${@LOCATION} declinit.1')
 		parse_init_elem(if !p.sec { 2 } else { 1 })
 		nocode_wanted = ncw_prev
 		flags |= 4
@@ -6808,6 +6901,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 		}
 		s = type_.ref
 		n = s.c
+		vcc_trace_print('${@LOCATION} declinit.2')
 		t1 = pointed_type(type_)
 		size1 = type_size(t1, &align1)
 		if (tok == 201 && (t1.t & 15) == 3) || (tok == 200 && (t1.t & 15) == 1) {
@@ -6832,6 +6926,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				}
 				len--
 				cstr_cat(&initstr, tokc.str.data, tokc.str.size)
+				vcc_trace_print('${@LOCATION} declinit.3')
 				next()
 			}
 			if tok != `)` && tok != `}` && tok != `,` && tok != `;` && tok != (-1) {
@@ -6840,6 +6935,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				tokc.str.data = initstr.data
 				goto do_init_array // id: 0x7fffed520228
 			}
+			vcc_trace_print('${@LOCATION} declinit.4')
 			decl_design_flex(p, s, len)
 			if !(flags & 2) {
 				nb := n
@@ -6852,6 +6948,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 					_tcc_warning('initializer-string for array is too long')
 				}
 				if p.sec && size1 == 1 {
+					vcc_trace_print('${@LOCATION} declinit.5')
 					init_assert(p, c + nb)
 					if !(nocode_wanted > 0) {
 						C.memcpy(p.sec.data + c, initstr.data, nb)
@@ -6872,6 +6969,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 						} else { // 3
 							ch = (&Nwchar_t(initstr.data))[i]
 						}
+						vcc_trace_print('${@LOCATION} declinit.6')
 						vpushi(ch)
 						init_putv(p, t1, c + i * size1)
 					}
@@ -6889,8 +6987,10 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				flags |= 8
 			}
 			len = 0
+			vcc_trace_print('${@LOCATION} declinit.7')
 			decl_design_flex(p, s, len)
 			for tok != `}` || flags & 4 {
+				vcc_trace_print('${@LOCATION} declinit.8')
 				len = decl_designator(p, type_, c, &f, flags, len)
 				flags &= ~4
 				if type_.t & 64 {
@@ -6935,11 +7035,13 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 			skip(`;`)
 		}
 		next()
+		vcc_trace_print('${@LOCATION} declinit.9')
 		decl_initializer(p, type_, c, flags & ~4)
 		skip(`}`)
 	} else { // 3
 		one_elem:
 		if (flags & dif_size_only) {
+			vcc_trace_print('${@LOCATION} declinit.10')
 			if (flags & dif_have_elem) {
 				vpop()
 			} else {
@@ -6950,17 +7052,21 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				if (tok != tok_str && tok != tok_lstr) {
 					expect(c'string constant')
 				}
+				vcc_trace_print('${@LOCATION} declinit.12')
 				parse_init_elem(if !p.sec { expr_any } else { expr_const })
 			}
 			if (p.sec == unsafe { nil } && (flags & dif_clear) != 0
 				&& (vtop.r & (vt_valmask | vt_lval | vt_sym)) == vt_const && vtop.c.i == 0
 				&& btype_size(type_.t & vt_btype)) {
+					vcc_trace_print('${@LOCATION} declinit.13')
 				vpop()
 			} else {
+				vcc_trace_print('${@LOCATION} declinit.14')
 				init_putv(p, type_, c)
 			}
 		}
 	}
+	vcc_trace_print('${@LOCATION} declinit.end')
 }
 
 fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v int, global int) {
@@ -7132,6 +7238,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 			vtop.r |= r
 		}
 		if bcheck {
+			vcc_trace_print('${@LOCATION} bcheck')
 			bounds_ptr := &Elf64_Addr(0)
 			greloca(tcc_state.bounds_section, sym, tcc_state.bounds_section.data_offset,
 				1, 0)
@@ -7218,58 +7325,90 @@ fn gen_function(sym &Sym) {
 		prev: 0
 	}
 
-	cur_scope = &f
-	root_scope = cur_scope
+	vcc_trace_print('${@LOCATION}')
+
+	root_scope = &Scope(&f)
+	cur_scope = &Scope(root_scope)
 	nocode_wanted = 0
 	ind = tcc_state.cur_text_section.data_offset
 	if sym.a.aligned {
-		newoff := section_add(tcc_state.cur_text_section, 0, 1 << (sym.a.aligned - 1))
-		mut a := int(newoff)
-		a -= ind
-		gen_fill_nops(a)
+		vcc_trace_print('${@LOCATION} gen_fun.0')
+		newoff := u64(section_add(tcc_state.cur_text_section, 0, 1 << (sym.a.aligned - 1)))
+		gen_fill_nops(newoff - u64(ind))
 	}
 	funcname = get_tok_str(sym.v, unsafe { nil })
 	vcc_trace('${@LOCATION} ${funcname.vstring()}')
 	func_ind = ind
 	func_vt = sym.type_.ref.type_
-	func_var = sym.type_.ref.f.func_type == 3
+	func_var = sym.type_.ref.f.func_type == func_ellipsis
+	
+	vcc_trace_print('${@LOCATION} gen_fun.1')
 	put_extern_sym(sym, tcc_state.cur_text_section, ind, 0)
+
 	if sym.type_.ref.f.func_ctor {
+		vcc_trace_print('${@LOCATION} gen_fun.2')
 		add_array(tcc_state, c'.init_array', sym.c)
 	}
 	if sym.type_.ref.f.func_dtor {
+		vcc_trace_print('${@LOCATION} gen_fun.3')
 		add_array(tcc_state, c'.fini_array', sym.c)
 	}
+	vcc_trace_print('${@LOCATION} gen_fun.4')
 	tcc_debug_funcstart(tcc_state, sym)
+
+	vcc_trace_print('${@LOCATION} gen_fun.5')
 	sym_push2(&local_stack, sym_field, 0, 0)
 	local_scope = 1
+	vcc_trace_print('${@LOCATION} gen_fun.6')
 	gfunc_prolog(sym)
+	vcc_trace_print('${@LOCATION} gen_fun.7')
 	tcc_debug_prolog_epilog(tcc_state, 0)
+
 	local_scope = 0
 	rsym = 0
+	vcc_trace_print('${@LOCATION} gen_fun.8')
 	clear_temp_local_var_list()
+	vcc_trace_print('${@LOCATION} gen_fun.9')
 	func_vla_arg(sym)
+	vcc_trace_print('${@LOCATION} gen_fun.10')
 	block(0)
+	vcc_trace_print('${@LOCATION} gen_fun.11')
 	gsym(rsym)
+	
 	nocode_wanted = 0
+
+	vcc_trace_print('${@LOCATION} gen_fun.12')
 	pop_local_syms(unsafe { nil }, 0)
+	vcc_trace_print('${@LOCATION} gen_fun.13')
 	tcc_debug_prolog_epilog(tcc_state, 1)
+	vcc_trace_print('${@LOCATION} gen_fun.14')
 	gfunc_epilog()
+	
+	vcc_trace_print('${@LOCATION} gen_fun.15')
 	tcc_debug_funcend(tcc_state, ind - func_ind)
+
 	elfsym(sym).st_size = ind - func_ind
+
+	vcc_trace_print('${@LOCATION} gen_fun.16')
 	tcc_state.cur_text_section.data_offset = ind
 	local_scope = 0
+	vcc_trace_print('${@LOCATION} gen_fun.17')
 	label_pop(&global_label_stack, unsafe { nil }, 0)
+	vcc_trace_print('${@LOCATION} gen_fun.18')
 	sym_pop(&all_cleanups, unsafe { nil }, 0)
+
 	tcc_state.cur_text_section = unsafe { nil }
 	funcname = c''
-	func_vt.t = 0
+	func_vt.t = vt_void
 	func_var = 0
 	ind = 0
 	func_ind = -1
 	nocode_wanted = data_only_wanted
 	check_vstack()
+	vcc_trace_print('${@LOCATION} gen_fun.19')
 	next()
+
+	vcc_trace('${@LOCATION} end')
 }
 
 fn gen_inline_functions(s &TCCState) {
@@ -7387,7 +7526,6 @@ fn decl(l int) int {
 			if (btype.t & vt_btype) == vt_struct {
 				vcc_trace('${@LOCATION} ${rune(tok)}')
 				v = btype.ref.v
-				vcc_trace_print('> ${v}')
 				if !(v & sym_field) && (v & ~sym_struct) >= sym_first_anom {
 					_tcc_warning('unnamed struct/union that defines no instances')
 				}

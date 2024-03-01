@@ -131,8 +131,8 @@ pub struct Sym {
 	next          &Sym
 	cleanupstate  &Sym
 	asm_label     int
-	prev          &Sym
-	prev_tok      &Sym
+	prev          &Sym = unsafe { nil }
+	prev_tok      &Sym = unsafe { nil }
 }
 
 pub struct Section {
