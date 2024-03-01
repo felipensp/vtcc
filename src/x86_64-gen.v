@@ -1297,7 +1297,7 @@ fn gen_opl(op int) {
 fn vpush_const(t int, v int) {
 	ctype := CType{
 		t: t | 256
-		ref: 0
+		ref: unsafe { nil }
 	}
 
 	vpushsym(&ctype, external_global_sym(v, &ctype))

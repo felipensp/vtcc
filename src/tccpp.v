@@ -268,7 +268,7 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 	// RRRREG tail_call id=0x7fffd886f110
 	tail_call:
 	// vcc_trace('${@LOCATION}')
-	is_own = (al.buffer <= p && p < al.buffer + al.size)
+	is_own = (al.buffer <= &u8(p) && &u8(p) < al.buffer + al.size)
 	if (!p || is_own) && size <= al.limit {
 		// vcc_trace('${@LOCATION}')
 		if al.p - al.buffer + adj_size + sizeof(Tal_header_t) < al.size {
@@ -1437,7 +1437,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 		pstrcat(buf, sizeof(buf), name)
 		e = search_cached_include(s1, buf, 0)
 		vcc_trace('${@LOCATION}')
-		if e != unsafe { nil } && (define_find(e.ifndef_macro) || e.once != unsafe { nil }) {
+		if e != unsafe { nil } && (define_find(e.ifndef_macro) != unsafe { nil } || e.once) {
 			vcc_trace('${@LOCATION}')
 			return 1
 		}
@@ -1942,7 +1942,7 @@ fn preprocess(is_bof int) {
 			// RRRREG do_if id=0x7fffd88c7850
 			do_if:
 			vcc_trace('${@LOCATION}')
-			if &s1.ifdef_stack_ptr[0] >= &char(&s1.ifdef_stack[0] + 64) {
+			if s1.ifdef_stack_ptr >= unsafe { &s1.ifdef_stack[0] + 64 } {
 				vcc_trace('${@LOCATION}')
 				_tcc_error('memory full (ifdef)')
 			}
@@ -2132,7 +2132,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 
 	p := &u8(0)
 	p = buf
-	for ; true; {
+	for {
 		c = *p
 		if c == `\x00` {
 			break
@@ -2239,43 +2239,43 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 					}
 				}
 			}
-		} else if is_long && c >= 128 {
+		} else if is_long && c >= 0x80 {
 			cont := 0
 			skip := 0
 			i = 0
-			if c < 194 {
+			if c < 0xC2 {
 				skip = 1
 				goto invalid_utf8_sequence // id: 0x7fffd88d0150
-			} else if c <= 223 {
+			} else if c <= 0xDF {
 				cont = 1
-				n = c & 31
-			} else if c <= 239 {
+				n = c & 0x1f
+			} else if c <= 0xEF {
 				cont = 2
-				n = c & 15
-			} else if c <= 244 {
+				n = c & 0xf
+			} else if c <= 0xF4 {
 				cont = 3
-				n = c & 7
+				n = c & 0x7
 			} else {
 				skip = 1
 				goto invalid_utf8_sequence // id: 0x7fffd88d0150
 			}
 			for i = 1; i <= cont; i++ {
-				l := 128
-				h := 191
+				l := 0x80
+				h := 0xBF
 
 				if i == 1 {
 					match c {
 						224 { // case comp body kind=BinaryOperator is_enum=false
-							l = 160
+							l = 0xA0
 						}
 						237 { // case comp body kind=BinaryOperator is_enum=false
-							h = 159
+							h = 0x9F
 						}
 						240 { // case comp body kind=BinaryOperator is_enum=false
-							l = 144
+							l = 0x90
 						}
 						244 { // case comp body kind=BinaryOperator is_enum=false
-							h = 143
+							h = 0x8F
 						}
 						else {}
 					}
@@ -2291,7 +2291,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 			goto add_char_nonext // id: 0x7fffd88ce020
 			invalid_utf8_sequence:
 			_tcc_warning("ill-formed UTF-8 subsequence starting with: '\\x${c}'")
-			c = 65533
+			c = 0xFFFD
 			p += skip
 			goto add_char_nonext // id: 0x7fffd88ce020
 		}
@@ -2338,6 +2338,7 @@ fn parse_string(s &char, len int) {
 	if p != buf {
 		tcc_free(p)
 	}
+	mut tokcstrlen := tokcstr.len
 	if sep == `'` {
 		char_size := 0
 		i := 0
@@ -2350,8 +2351,10 @@ fn parse_string(s &char, len int) {
 		} else { // 3
 			tok = 193
 			char_size = sizeof(Nwchar_t)
+			tokcstrlen *= char_size
 		}
-		n = tokcstr.len / char_size - 1
+		n = tokcstrlen / char_size - 1
+		vcc_trace_print('${@LOCATION} is_long=${is_long} toklen=${tokcstrlen} n=${n} char_size=${char_size}')
 		if n < 1 {
 			_tcc_error('empty character constant')
 		}
@@ -2369,7 +2372,7 @@ fn parse_string(s &char, len int) {
 		}
 		tokc.i = c
 	} else {
-		tokc.str.size = tokcstr.len
+		tokc.str.size = tokcstrlen
 		tokc.str.data = tokcstr.data
 		if !is_long {
 			tok = 200
@@ -4219,7 +4222,7 @@ fn tccpp_new(s &TCCState) {
 				if isnum(i) { is_num } else { 0 }
 			}
 		}
-		vcc_trace_print('isisdnum_table[${i}]=${val}')
+		vcc_trace('isisdnum_table[${i}]=${val}')
 		set_idnum(i, val)
 	}
 	vcc_trace('${@LOCATION}')

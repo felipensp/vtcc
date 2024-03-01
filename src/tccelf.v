@@ -134,7 +134,9 @@ fn tccelf_end_file(s1 &TCCState) {
 	nb_syms = s.data_offset / sizeof(Elf64_Sym) - first_sym
 	vcc_trace('${@LOCATION}')
 	s.data_offset = s.sh_offset
-	vcc_trace('${@LOCATION} ${s.link == unsafe { nil }} ${(&char(s.name)).vstring()}')
+	unsafe { 
+	vcc_trace('${@LOCATION} ${s.link == nil} ${(&char(s.name)).vstring()}')
+	}
 	s.link.data_offset = s.link.sh_offset
 	vcc_trace('${@LOCATION}')
 	s.hash = s.reloc
@@ -155,16 +157,19 @@ fn tccelf_end_file(s1 &TCCState) {
 			sym.st_info = ((sym_bind << 4) + (sym_type & 15))
 		}
 		vcc_trace('${@LOCATION}')
+		unsafe {
 		tr[i] = set_elf_sym(s, sym.st_value, sym.st_size, sym.st_info, sym.st_other, sym.st_shndx,
 			&char(s.link.data) + sym.st_name)
+		}
 	}
 	vcc_trace('${@LOCATION}')
 	for i = 1; i < s1.nb_sections; i++ {
 		sr := s1.sections[i]
 		if sr.sh_type == 4 && voidptr(sr.link) == voidptr(s) {
-			rel := &Elf64_Rela((sr.data + sr.sh_offset))
-			rel_end := &Elf64_Rela((sr.data + sr.data_offset))
 			unsafe {
+				rel :=  &Elf64_Rela(sr.data + sr.sh_offset) 			
+				rel_end := &Elf64_Rela((sr.data + sr.data_offset))
+						
 				for ; voidptr(rel) < voidptr(rel_end); rel++ {
 					n := rel.r_info >> 32
 					n -= first_sym
@@ -223,7 +228,9 @@ fn new_symtab(s1 &TCCState, symtab_name &char, sh_type int, sh_flags int, strtab
 	ptr := &int(0)
 	nb_buckets := 0
 
+	unsafe {
 	vcc_trace('${@LOCATION} symtab_name=${symtab_name.vstring()}')
+	}
 
 	symtab = new_section(s1, symtab_name, sh_type, sh_flags)
 	symtab.sh_entsize = sizeof(Elf64_Sym)
@@ -448,15 +455,21 @@ fn find_elf_sym(s &Section, name &char) int {
 	}
 	vcc_trace('${@LOCATION}')
 	nbuckets = unsafe { &int(hs.data)[0] }
+	unsafe {
 	vcc_trace('${@LOCATION} ${name.vstring()} ${nbuckets}')
+	}
 	h = elf_hash(name) % nbuckets
 	sym_index = unsafe { &int(hs.data)[2 + h] }
+	unsafe {
 	vcc_trace('${@LOCATION} ${name.vstring()} ${nbuckets} sym_index=${sym_index}')
+	}
 	for sym_index != 0 {
 		sym = unsafe { &(&Elf64_Sym(s.data))[sym_index] }
 		vcc_trace('${@LOCATION} ${sym.st_name} ${s.link.data != unsafe { nil }}')
 		name1 = unsafe { &char(s.link.data) + sym.st_name }
+		unsafe {
 		vcc_trace('${@LOCATION} ${name.vstring()} | ${name1.vstring()}')
+		}
 		if unsafe { !C.strcmp(name, name1) } {
 			vcc_trace('${@LOCATION} - found')
 			return sym_index
@@ -464,7 +477,9 @@ fn find_elf_sym(s &Section, name &char) int {
 		sym_index = unsafe { &int(hs.data)[2 + nbuckets + sym_index] }
 		vcc_trace('${@LOCATION} ${sym_index}')
 	}
-	vcc_trace('${@LOCATION} - sym ${name.vstring()} not found - ${(&char(s.name)).vstring()}')
+	unsafe {
+	vcc_trace('${@LOCATION} - sym ${name.vstring()} not found - ${(&char(&s.name[0])).vstring()}')
+	}
 	return 0
 }
 
@@ -481,7 +496,9 @@ fn get_sym_addr(s1 &TCCState, name &char, err int, forc int) Elf64_Addr {
 	sym = &(&Elf64_Sym(s1.symtab.data))[sym_index]
 	if !sym_index || sym.st_shndx == 0 {
 		if err {
+			unsafe {
 			_tcc_error_noabort(s1, '${name.vstring()} not defined')
+			}
 		}
 		return -1
 	}
@@ -662,7 +679,7 @@ fn set_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shnd
 	sym_type = (info & 15)
 	sym_vis = (other & 3)
 	if sym_bind != 0 {
-		vcc_trace('${@LOCATION} ${name.vstring()}')
+		unsafe { vcc_trace('${@LOCATION} ${name.vstring()}') }
 		sym_index = find_elf_sym(s, name)
 		vcc_trace('${@LOCATION}')
 		if !sym_index {
@@ -2477,7 +2494,7 @@ fn elf_output_file(s1 &TCCState, filename &char) int {
 	sec_order := &int(0)
 
 	dyninf := Dyn_inf{
-		dynamic: 0
+		dynamic: unsafe { nil }
 	}
 
 	interp := &Section(0)

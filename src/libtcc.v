@@ -778,7 +778,7 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &char, flags int) int {
 	fd := 0
 	ret := -1
 
-	if s1.output_type == 5 && flags & 64 {
+	if s1.output_type == 5 && (flags & 64) {
 		return 0
 	}
 	vcc_trace('${@LOCATION}')
@@ -849,9 +849,9 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &char, flags int) int {
 	} else {
 		vcc_trace('${@LOCATION}')
 		dynarray_add(&s1.target_deps, &s1.nb_target_deps, tcc_strdup(filename))
-		vcc_trace_print('${@LOCATION}')
+		vcc_trace('${@LOCATION}')
 		ret = tcc_compile(s1, flags, filename, fd)
-		vcc_trace_print('${@LOCATION}')
+		vcc_trace('${@LOCATION}')
 	}
 	vcc_trace('${@LOCATION}')
 	s1.current_filename = unsafe { nil }
@@ -1583,7 +1583,7 @@ fn set_flag(s &TCCState, flags &FlagDef, name &char) int {
 	r = name
 	value = !strstart(c'no-', &r)
 	mask = 0
-	if flags.flags & 1 && strstart(c'error=', &r) {
+	if (flags.flags & 1) && strstart(c'error=', &r) {
 		value = if value { 1 | 2 } else { 4 }
 		mask = 1
 	}

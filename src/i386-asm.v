@@ -4854,7 +4854,7 @@ fn skip_constraint_modifiers(p &rune) &rune {
 fn asm_parse_regvar(t int) int {
 	s := &rune(0)
 	op := Operand{}
-	if t < 256 || t & 536870912 {
+	if t < 256 || (t & 536870912) {
 		return -1
 	}
 	s = table_ident[t - 256].str
@@ -4888,7 +4888,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	str := &rune(0)
 	regs_allocated := [16]u8{}
 	for i = 0; i < nb_operands; i++ {
-		op = &ASMOperand(unsafe { &operands + i })
+		op = &ASMOperand(unsafe { &operands[0] + i })
 		op.input_index = -1
 		op.ref_index = -1
 		op.reg = -1
@@ -4896,12 +4896,12 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 		op.is_rw = 0
 	}
 	for i = 0; i < nb_operands; i++ {
-		op = &ASMOperand(unsafe { &operands + i })
+		op = &ASMOperand(unsafe { &operands[0] + i })
 		str = op.constraint
 		str = skip_constraint_modifiers(str)
 		if isnum(*str) || *str == `[` {
 			k = find_constraint(unsafe { &operands[0] }, nb_operands, str, (unsafe { nil }))
-			op_k := unsafe { &operands + k }
+			op_k := unsafe { &operands[0] + k }
 			if u32(k) >= i || i < nb_outputs {
 				_tcc_error("invalid reference in constraint ${i} ('${str}')")
 			}
@@ -4911,7 +4911,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 			}
 			op_k.input_index = i
 			op.priority = 5
-		} else if (op.vt.r & 63) == 50 && op.vt.sym && op.vt.sym.r & 63 < 48 {
+		} else if (op.vt.r & 63) == 50 && op.vt.sym && (op.vt.sym.r & 63) < 48 {
 			reg = op.vt.sym.r & 63
 			op.priority = 1
 			op.reg = reg
@@ -4924,8 +4924,8 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	}
 	for i = 0; i < nb_operands - 1; i++ {
 		for j = i + 1; j < nb_operands; j++ {
-			op1 := unsafe { &operands + sorted_op[i] }
-			op2 := unsafe { &operands + sorted_op[j] }
+			op1 := unsafe { &operands[0] + sorted_op[i] }
+			op2 := unsafe { &operands[0] + sorted_op[j] }
 			p1 = op1.priority
 			p2 = op2.priority
 			if p2 < p1 {
@@ -4946,7 +4946,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	regs_allocated[5] = 2 | 1
 	for i = 0; i < nb_operands; i++ {
 		j = sorted_op[i]
-		op = unsafe { &operands + j }
+		op = unsafe { &operands[0] + j }
 		str = op.constraint
 		if op.ref_index >= 0 {
 			continue
@@ -5074,14 +5074,14 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 			}
 		}
 		if op.input_index >= 0 {
-			op1 := unsafe { &operands + op.input_index }
+			op1 := unsafe { &operands[0] + op.input_index }
 			op1.reg = op.reg
 			op1.is_llong = op.is_llong
 		}
 	}
 	*pout_reg = -1
 	for i = 0; i < nb_operands; i++ {
-		op = unsafe { &operands + i }
+		op = unsafe { &operands[0] + i }
 		if op.reg >= 0 && (op.vt.r & 63) == 49 && !op.is_memory {
 			for reg = 0; reg < 8; reg++ {
 				if !(regs_allocated[reg] & 1) {
@@ -5212,7 +5212,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 
 	C.memcpy(regs_allocated, clobber_regs, sizeof(regs_allocated))
 	for i = 0; i < nb_operands; i++ {
-		op = unsafe { &operands + i }
+		op = unsafe { &operands[0] + i }
 		if op.reg >= 0 {
 			regs_allocated[op.reg] = 1
 		}
@@ -5229,7 +5229,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 			}
 		}
 		for i = 0; i < nb_operands; i++ {
-			op = unsafe { &operands + i }
+			op = unsafe { &operands[0] + i }
 			if op.reg >= 0 {
 				if (op.vt.r & 63) == 49 && op.is_memory {
 					sv := SValue{}
@@ -5250,7 +5250,7 @@ fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output
 		}
 	} else {
 		for i = 0; i < nb_outputs; i++ {
-			op = unsafe { &operands + i }
+			op = unsafe { &operands[0] + i }
 			if op.reg >= 0 {
 				if (op.vt.r & 63) == 49 {
 					if !op.is_memory {

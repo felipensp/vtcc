@@ -3,7 +3,12 @@ module main
 
 import strings
 
+#include <setjmp.h>
 #include <semaphore.h>
+
+@[typedef]
+struct C.jmp_buf {
+}
 
 __global int_type = CType{}
 __global func_old_type = CType{}
@@ -14,7 +19,7 @@ __global rsym = int(0)
 __global anon_sym = int(0)
 __global ind = int(0)
 __global loc = int(0)
-__global debug_modes = c''
+__global debug_modes = char(0)
 
 __global tcc_compile_sem = TCCSem{}
 
@@ -63,7 +68,7 @@ pub struct CType {
 	ref &Sym
 }
 
-const LDOUBLE_SIZE = 16
+pub const ldouble_size = 16
 
 pub union CValue {
 	ld  f64
@@ -75,7 +80,7 @@ pub union CValue {
 		size int
 	}
 
-	tab [LDOUBLE_SIZE / 4]int
+	tab [ldouble_size / 4]int
 }
 
 pub struct SValue {
@@ -255,7 +260,7 @@ struct TCCState {
 	cmdline_incl CString
 	// error handling
 	error_opaque          voidptr
-	error_func            fn (voidptr, &char)
+	error_func            fn (voidptr, &char) = unsafe { nil }
 	error_set_jmp_enabled int
 	error_jmp_buf         C.jmp_buf
 	nb_errors             int

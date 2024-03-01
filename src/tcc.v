@@ -173,7 +173,7 @@ fn main() {
 	tcc_set_output_type(s, s.output_type)
 	vcc_trace('${@LOCATION}')
 	s.ppfp = ppfp
-	if (s.output_type == 1 || s.output_type == 5) && s.dflag & 16 {
+	if (s.output_type == 1 || s.output_type == 5) && (s.dflag & 16) {
 		if t {
 			s.dflag |= 32
 		}
@@ -205,10 +205,12 @@ fn main() {
 			}
 			if !first_file {
 				vcc_trace('${@LOCATION} ${f.name}')
-				first_file = &char(f.name)
+				first_file = &char(&f.name[0])
+				unsafe {
 				vcc_trace('${@LOCATION} ${first_file.vstring()}')
+				}
 			}
-			vcc_trace_print('${@LOCATION}')
+			vcc_trace('${@LOCATION}')
 			if tcc_add_file(s, f.name) < 0 {
 				ret = 1
 			}

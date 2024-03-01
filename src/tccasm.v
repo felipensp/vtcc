@@ -1021,11 +1021,11 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 	astr := &char(0)
 	if tok != `:` {
 		nb_operands = *nb_operands_ptr
-		for ; true; {
+		for {
 			if nb_operands >= 30 {
 				_tcc_error('too many asm operands')
 			}
-			op = unsafe { &operands + nb_operands++ }
+			op = unsafe { &operands[0] + nb_operands++ }
 			op.id = 0
 			if tok == `[` {
 				next()

@@ -365,7 +365,7 @@ fn tccgen_compile(s1 &TCCState) int {
 	anon_sym = sym_first_anom
 	nocode_wanted = data_only_wanted
 	local_scope = 0
-	debug_modes = (if s1.do_debug { 1 } else { 0 }) | s1.test_coverage << 1
+	debug_modes = char((if s1.do_debug { 1 } else { 0 }) | (s1.test_coverage << 1))
 	vcc_trace('${@LOCATION}')
 	tcc_debug_start(s1)
 	vcc_trace('${@LOCATION}')
@@ -482,7 +482,7 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 		}
 		if tcc_state.leading_underscore && can_add_underscore {
 			buf1[0] = `_`
-			pstrcpy(buf1 + 1, sizeof(buf1) - 1, name)
+			pstrcpy(&buf1[0] + 1, sizeof(buf1) - 1, name)
 			name = buf1
 		}
 		info = ((sym_bind << 4) + (sym_type & 15))
@@ -5492,7 +5492,7 @@ fn init_prec() {
 	i := 0
 	for i = 0; i < 256; i++ {
 		prec[i] = precedence(i)
-		vcc_trace_print('${@LOCATION} [${i}]=${prec[i]}')
+		// vcc_trace_print('${@LOCATION} [${i}]=${prec[i]}')
 	}
 }
 
@@ -6125,10 +6125,10 @@ fn block(flags int) {
 	}
 	next()
 	if debug_modes {
-		vcc_trace_print('${@LOCATION} debug_modes=${debug_modes}')
+		vcc_trace_print('${@LOCATION} debug_modes=${int(debug_modes)}')
 		tcc_tcov_check_line(tcc_state, 0)
 		tcc_tcov_block_begin(tcc_state)
-		vcc_trace_print('${@LOCATION} debug_modes=${debug_modes} end')
+		vcc_trace_print('${@LOCATION} debug_modes=${int(debug_modes)} end')
 	}
 	if t == Tcc_token.tok_if {
 		vcc_trace_print('${@LOCATION} if')
@@ -6604,7 +6604,7 @@ fn decl_design_delrels(sec &Section, c int, size int) {
 	rel = &Elf64_Rela(sec.reloc.data)
 	rel2 = rel
 	rel_end = &Elf64_Rela((sec.reloc.data + sec.reloc.data_offset))
-	for voidptr(rel) < rel_end {
+	for voidptr(rel) < voidptr(rel_end) {
 		if rel.r_offset >= c && rel.r_offset < c + size {
 			sec.reloc.data_offset -= sizeof(*rel)
 		} else {
@@ -6766,7 +6766,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 
 fn init_putv(p &Init_params, type_ &CType, c u32) {
 	bt := 0
-	ptr := &voidptr(0)
+	ptr := voidptr(0)
 	dtype := CType{}
 	size := 0
 	align := 0
@@ -6774,20 +6774,20 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 	sec := p.sec
 	val := u64(0)
 	dtype = *type_
-	dtype.t &= ~256
+	dtype.t &= ~vt_constant
 	size = type_size(type_, &align)
-	if type_.t & 128 {
+	if type_.t & vt_bitfield {
 		size = ((((type_.t) >> 20) & 63) + (((type_.t) >> (20 + 6)) & 63) + 7) / 8
 	}
 	init_assert(p, c + size)
 	if sec {
 		gen_assign_cast(&dtype)
-		bt = type_.t & 15
-		if vtop.r & 512 && bt != 5 && (bt != (if 8 == 8 {
-			4
+		bt = type_.t & vt_btype
+		if vtop.r & vt_sym && bt != vt_ptr && (bt != (if ptr_size == 8 {
+			vt_llong
 		} else {
-			3
-		}) || type_.t & 128) && !(vtop.r & 48 && vtop.sym.v >= 268435456) {
+			vt_int
+		}) || type_.t & vt_bitfield) && !(vtop.r & vt_const && vtop.sym.v >= sym_first_anom) {
 			_tcc_error('initializer element is not computable at load time')
 		}
 		if (nocode_wanted > 0) {
@@ -6796,8 +6796,8 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 		}
 		ptr = sec.data + c
 		val = vtop.c.i
-		if (vtop.r & (512 | 48)) == (512 | 48) && vtop.sym.v >= 268435456
-			&& (vtop.type_.t & 15) != 5 {
+		if (vtop.r & (512 | 48)) == (512 | 48) && vtop.sym.v >= sym_first_anom
+			&& (vtop.type_.t & vt_btype) != vt_ptr {
 			ssec := &Section(0)
 			esym := &Elf64_Sym(0)
 			rel := &Elf64_Rela(0)
@@ -6820,7 +6820,7 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 				}
 			}
 		} else {
-			if type_.t & 128 {
+			if type_.t & vt_bitfield {
 				bit_pos := 0
 				bit_size := 0
 				bits := 0
@@ -6849,11 +6849,49 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 					unsafe { p2++ }
 				}
 			} else { // 3
+				match bt {
+					vt_bool {
+						*&char(ptr) = val != 0
+					}
+					vt_byte {
+						*&char(ptr) = val
+					}
+					vt_short {
+						write16le(ptr, val)
+					}
+					vt_float {
+						write32le(ptr, val)
+					}
+					vt_double {
+						write64le(ptr, val)
+					}
+					vt_ldouble {
+						if sizeof(f64) == ldouble_size {
+							C.memcpy(ptr, &vtop.c.ld, ldouble_size)
+						} else if sizeof(f64) == ldouble_size {
+							*&f64(ptr) = f64(vtop.c.ld)
+						} else if 0 == C.memcmp(ptr, &vtop.c.ld, ldouble_size) {
+							// nothing to do for 0.0
+						} else {
+						}
+					}
+					vt_llong, vt_ptr {
+						if vtop.r & vt_sym {
+							greloca(sec, vtop.sym, c, r_data_ptr, val)
+						} else {
+							write64le(ptr, val)
+						}
+					}
+					vt_int {
+						write32le(ptr, val)
+					}
+					else {}
+				}
 			}
 		}
 		unsafe { vtop-- }
 	} else {
-		vset(&dtype, 50 | 256, c)
+		vset(&dtype, vt_local | vt_lval, c)
 		vswap()
 		vstore()
 		vpop()
@@ -7081,7 +7119,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 	saved_nocode_wanted := nocode_wanted
 	bcheck := tcc_state.do_bounds_check && !(nocode_wanted > 0)
 	p := Init_params{
-		sec: 0
+		sec: unsafe { nil }
 	}
 
 	if v && (r & vt_valmask) == vt_const {
@@ -7322,7 +7360,7 @@ fn func_vla_arg(sym &Sym) {
 
 fn gen_function(sym &Sym) {
 	mut f := Scope{
-		prev: 0
+		prev: unsafe { nil }
 	}
 
 	vcc_trace_print('${@LOCATION}')

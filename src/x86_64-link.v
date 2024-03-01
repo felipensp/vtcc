@@ -1,6 +1,9 @@
 @[translated]
 module main
 
+pub const r_x86_64_64	=	1 // Direct 64 bit 
+pub const r_data_ptr = r_x86_64_64
+
 fn code_reloc(reloc_type int) int {
 	match reloc_type {
 		10, 11, 1, 26, 29, 9, 41, 42, 22, 3, 27, 6, 5, 8, 25, 19, 20, 21, 23, 17, 18 {
