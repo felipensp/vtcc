@@ -187,6 +187,7 @@ pub fn tcc_load_text(fd int) &char {
 	return buf
 }
 
+@[markused]
 fn default_reallocator(ptr voidptr, size usize) voidptr {
 	ptr1 := unsafe { nil }
 	if size == 0 {
@@ -219,6 +220,7 @@ fn libc_free(ptr voidptr) {
 
 pub type TCCReallocFunc = fn (voidptr, usize) voidptr
 
+@[markused]
 __global reallocator = TCCReallocFunc(default_reallocator)
 
 pub fn tcc_set_realloc(realloc TCCReallocFunc) {
