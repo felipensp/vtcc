@@ -1401,8 +1401,8 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 			pstrcat(name, sizeof(name), get_tok_str(tok, &tokc))
 		}
 		c = p[0]
-		C.memmove(p, p + 1, i - 1), 0
-		p[i - 1] = C.memmove(p, p + 1, i - 1)
+		C.memmove(p, p + 1, i - 1)
+		p[i - 1] = 0
 	}
 	i = if do_next { file.include_next_index } else { -1 }
 	for {

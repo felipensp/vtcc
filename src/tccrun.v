@@ -3,6 +3,7 @@ module main
 
 #include <signal.h>
 #include <setjmp.h>
+#include <sys/mman.h>
 
 const REG_RIP = 16
 
@@ -73,7 +74,7 @@ const FILE_TABLE_SIZE = 512
 struct C.va_list {}
 
 fn C._setjmp(&C.jmp_buf) int
-fn C.mprotect(voidptr, usize, int)
+fn C.mprotect(voidptr, usize, int) int
 fn C.vprintf(&char, C.va_list) int
 fn C.vfprintf(&C.FILE, &char) int
 fn C.strstr(&char, &char) &char
@@ -151,12 +152,12 @@ type prog_main_fn = fn (int, &&char, &&char) int
 
 type bound_start_fn = fn (voidptr, int)
 
-pub fn tcc_run(s1 &TCCState, argc int, argv &&u8) int {
+pub fn tcc_run(s1 &TCCState, argc int, argv &&char) int {
 	prog_main := &prog_main_fn(0)
 	ret := 0
 
 	rc := &g_rtctxt
-	envp := C.environ
+	envp := &&char(C.environ)
 	s1.runtime_main = if s1.nostdlib { c'_start' } else { c'main' }
 	vcc_trace('${@LOCATION} ${s1.runtime_main.vstring()}')
 	if s1.dflag & 16 && -1 == get_sym_addr(s1, s1.runtime_main, 0, 1) {
@@ -372,7 +373,7 @@ fn rt_printf(msg string) int {
 fn rt_elfsym(rc &Rt_context, wanted_pc Elf64_Addr, func_addr &Elf64_Addr) &char {
 	esym := &Elf64_Sym(0)
 	unsafe {
-		for esym = rc.esym_start + 1; esym < voidptr(rc.esym_end); esym++ {
+		for esym = rc.esym_start + 1; voidptr(esym) < voidptr(rc.esym_end); esym++ {
 			type_ := ((esym.st_info) & 15)
 			if (type_ == 2 || type_ == 10) && wanted_pc >= esym.st_value
 				&& wanted_pc < esym.st_value + esym.st_size {
@@ -410,7 +411,7 @@ fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf
 	last_line_num = 1
 	last_incl_index = 0
 	unsafe {
-		for sym = rc.stab_sym + 1; sym < voidptr(rc.stab_sym_end); sym++ {
+		for sym = rc.stab_sym + 1; voidptr(sym) < voidptr(rc.stab_sym_end); sym++ {
 			str = rc.stab_str + sym.n_strx
 			pc = sym.n_value
 			match Stab_debug_code(sym.n_type) {
@@ -946,7 +947,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 
 fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 	rc := &g_rtctxt
-	pc := 0
+	pc := Elf64_Addr(0)
 	skip := [100]char{}
 	i := 0
 	level := 0
@@ -969,8 +970,8 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 	a = fmt + 1
 	b = C.strchr(a, fmt[0])
 	if fmt[0] == `^` && b {
-		C.memcpy(skip, a, b - a), 0
-		skip[b - a] = C.memcpy(skip, a, b - a)
+		C.memcpy(skip, a, b - a)
+		skip[b - a] = 0
 		fmt = b + 1
 	}
 	one = 0

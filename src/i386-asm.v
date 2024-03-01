@@ -4900,7 +4900,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 		str = op.constraint
 		str = skip_constraint_modifiers(str)
 		if isnum(*str) || *str == `[` {
-			k = find_constraint(unsafe { &operands + 0 }, nb_operands, str, (unsafe { nil }))
+			k = find_constraint(unsafe { &operands[0] }, nb_operands, str, (unsafe { nil }))
 			op_k := unsafe { &operands + k }
 			if u32(k) >= i || i < nb_outputs {
 				_tcc_error("invalid reference in constraint ${i} ('${str}')")

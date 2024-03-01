@@ -1896,7 +1896,7 @@ fn tcc_debug_typedef(s1 &TCCState, sym &Sym) {
 
 fn tcc_tcov_block_begin(s1 &TCCState) {
 	sv := SValue{}
-	ptr := &voidptr(0)
+	ptr := unsafe { nil }
 	last_offset := s1.dState.tcov_data.offset
 	tcc_tcov_block_end(tcc_state, 0)
 	if s1.test_coverage == 0 || nocode_wanted {

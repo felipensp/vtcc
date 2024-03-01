@@ -1123,7 +1123,7 @@ fn gjmp_addr(a int) {
 }
 
 fn gjmp_append(n int, t int) int {
-	p := &voidptr(0)
+	p := unsafe { nil }
 	if n {
 		n1 := n
 		n2 := u32(0)

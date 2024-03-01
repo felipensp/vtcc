@@ -1060,7 +1060,7 @@ fn skip_linker_arg(str &&char) &char {
 	return s2
 }
 
-fn copy_linker_arg(pp &&u8, s &char, sep int) {
+fn copy_linker_arg(pp &&char, s &char, sep int) {
 	q := s
 	p := *pp
 	l := 0
@@ -1087,8 +1087,8 @@ fn args_parser_add_file(s &TCCState, filename &char, filetype int) {
 pub fn tcc_set_linker(s &TCCState, option &char) int {
 	s1 := s
 	for *option {
-		p := (unsafe { nil })
-		end := (unsafe { nil })
+		p := &char(unsafe { nil })
+		end := &char(unsafe { nil })
 		ignoring := 0
 		if link_option(option, c'Bsymbolic', &p) {
 			s.symbolic = 1
@@ -1745,7 +1745,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 			} // id: 0x7fffbf5aa788
 		}
 		vcc_trace('>> ${@LOCATION} ${optind} ${r.vstring()} ${run}')
-		popt = &tcc_options
+		popt = &tcc_options[0]
 		for {
 			p1 := &char(popt.name)
 			r1 := r + 1

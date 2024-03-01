@@ -987,11 +987,11 @@ fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, s
 				|| *str == `k` || *str == `q` || *str == `l` || *str == `P` {
 				modifier = unsafe { *str++ }
 			}
-			index = find_constraint(unsafe { &operands + 0 }, nb_operands, str, &str)
+			index = find_constraint(unsafe { &operands[0] }, nb_operands, str, &str)
 			if index < 0 {
 				_tcc_error('invalid operand reference after %%')
 			}
-			op = unsafe { &operands + index }
+			op = unsafe { &operands[0] + index }
 			if modifier == `l` {
 				cstr_cat(out_str, get_tok_str(op.is_label, (unsafe { nil })), -1)
 			} else {
