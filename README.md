@@ -1,7 +1,5 @@
 # vcc
-TCC compiler rewritten in V lang
-
-Very hard job, any help is welcome. :)
+TCC compiler translated to V lang (thanks to `vlang/c2v`)
 
 Official TCC repo: https://repo.or.cz/tinycc.git
 
