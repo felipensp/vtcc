@@ -2033,19 +2033,26 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 	base = addr
 	addr = addr + (file_offset & (s_align - 1))
 	n = 0
+	vcc_trace_print('${@LOCATION}')
 	for i = 1; i < s1.nb_sections; i++ {
-		s = s1.sections[sec_order[i]]
-		f = sec_order[i + s1.nb_sections]
+		vcc_trace_print('${@LOCATION}')
+		s = unsafe { s1.sections[sec_order[i]] }
+		vcc_trace_print('${@LOCATION} s=${s.sh_offset}')
+		f = unsafe { sec_order[i + s1.nb_sections] }
+		vcc_trace_print('${@LOCATION} f=${f}')
 		align = s.sh_addralign - 1
 		if f == 0 {
+			vcc_trace_print('${@LOCATION}')
 			file_offset = (file_offset + align) & ~align
 			s.sh_offset = file_offset
 			if s.sh_type != 8 {
 				file_offset += s.sh_size
 			}
+			vcc_trace_print('${@LOCATION} continue')
 			continue
 		}
-		if f & 1 << 8 && n {
+		vcc_trace_print('${@LOCATION}')
+		if f & (1 << 8) && n {
 			if s1.output_format == 0 {
 				if (addr & (s_align - 1)) != 0 {
 					addr += s_align
@@ -2056,11 +2063,14 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 		}
 		tmp = addr
 		addr = (addr + align) & ~align
+		vcc_trace_print('${@LOCATION}  [${i}] addr=${addr} align=${align} tmp=${tmp}')
 		file_offset += int((addr - tmp))
 		s.sh_offset = file_offset
 		s.sh_addr = addr
-		if f & 1 << 8 {
-			ph = &d.phdr[phfill + n]
+		vcc_trace_print('${@LOCATION}')
+		if f & (1 << 8) {
+			vcc_trace_print('${@LOCATION} set ph')
+			ph = unsafe { &d.phdr[0] + phfill + n }
 			ph.p_type = 1
 			ph.p_align = s_align
 			ph.p_flags = (1 << 2)
@@ -2083,41 +2093,56 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 			ph.p_paddr = ph.p_vaddr
 			n++
 		}
-		if f & 1 << 4 {
+		vcc_trace_print('${@LOCATION}')
+		if f & (1 << 4) {
+			vcc_trace_print('${@LOCATION}')
 			roinf := &d._roinf
 			if roinf.sh_size == 0 {
 				roinf.sh_offset = s.sh_offset
 				roinf.sh_addr = s.sh_addr
 				roinf.sh_addralign = 1
 			}
+			vcc_trace_print('${@LOCATION}')
 			roinf.sh_size = (addr - roinf.sh_addr) + s.sh_size
 		}
 		addr += s.sh_size
 		if s.sh_type != 8 {
+			vcc_trace_print('${@LOCATION}')
 			file_offset += s.sh_size
 		}
+		vcc_trace_print('${@LOCATION}')
 		ph.p_filesz = file_offset - ph.p_offset
+		vcc_trace_print('${@LOCATION}')
 		ph.p_memsz = addr - ph.p_vaddr
+		vcc_trace_print('${@LOCATION}')
 	}
+	vcc_trace_print('${@LOCATION}')
 	if d.note {
+		vcc_trace_print('${@LOCATION}')
 		fill_phdr(unsafe { ph++ + 1 }, 4, d.note)
 	}
 	if d.dynamic {
+		vcc_trace_print('${@LOCATION}')
 		fill_phdr(unsafe { ph++ + 1 }, 2, d.dynamic).p_flags |= (1 << 1)
 	}
 	if d.roinf {
+		vcc_trace_print('${@LOCATION}')
 		fill_phdr(unsafe { ph++ + 1 }, 1685382482, d.roinf).p_flags |= (1 << 1)
 	}
 	if d.interp {
+		vcc_trace_print('${@LOCATION}')
 		fill_phdr(&d.phdr[1], 3, d.interp)
 	}
+	vcc_trace_print('${@LOCATION}')
 	if phfill {
+		vcc_trace_print('${@LOCATION}')
 		ph = &d.phdr[0]
 		ph.p_offset = sizeof(Elf64_Ehdr)
 		ph.p_vaddr = base + ph.p_offset
 		ph.p_filesz = phnum * sizeof(Elf64_Phdr)
 		ph.p_align = 4
-		fill_phdr(ph, 6, (unsafe { nil }))
+		vcc_trace_print('${@LOCATION}')
+		fill_phdr(ph, 6, unsafe { nil })
 	}
 	return file_offset
 }
@@ -2245,11 +2270,14 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 			ehdr.e_type = 2
 		}
 		if s1.elf_entryname {
+			vcc_trace_print('${@LOCATION} entry.1')
 			ehdr.e_entry = get_sym_addr(s1, s1.elf_entryname, 1, 0)
 		} else { // 3
+			vcc_trace_print('${@LOCATION} entry.2')
 			ehdr.e_entry = get_sym_addr(s1, c'_start', !!(file_type & 2), 0)
 		}
 		if ehdr.e_entry == Elf64_Addr(-1) {
+			vcc_trace_print('${@LOCATION} entry.3')
 			ehdr.e_entry = s1.text_section.sh_addr
 		}
 		if s1.nb_errors {
@@ -2310,6 +2338,8 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 			sh.sh_addr = s.sh_addr
 			sh.sh_offset = s.sh_offset
 			sh.sh_size = s.sh_size
+
+			vcc_trace_print('${@LOCATION} sh_name=${s.sh_name} sh_addr=${s.sh_addr}')
 		}
 		C.fwrite(sh, 1, sizeof(Elf64_Shdr), f)
 	}

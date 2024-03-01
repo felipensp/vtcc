@@ -1,2 +1,4 @@
 vcc
 **.o
+log
+**.out

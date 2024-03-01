@@ -13,7 +13,9 @@ pub fn vcc_trace(msg string) {
 }
 
 pub fn vcc_trace_print(msg string) {
-	eprintln(msg)
+	$if tracedebug ? {
+		eprintln(msg)
+	}
 }
 
 pub fn vcc_disable_trace() {
