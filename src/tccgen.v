@@ -321,7 +321,7 @@ fn rc2_type(t int, rc int) int {
 
 fn ieee_finite(d f64) int { // ok
 	p := [4]int{}
-	C.memcpy(p, &d, sizeof(f64))
+	unsafe { C.memcpy(p, &d, sizeof(f64)) }
 	return (u32(((p[1] | 2148532223) + 1))) >> 31
 }
 
@@ -372,7 +372,7 @@ fn tccgen_compile(s1 &TCCState) int {
 	tcc_tcov_start(s1)
 	vcc_trace('${@LOCATION}')
 	parse_flags = parse_flag_preprocess | parse_flag_tok_num | parse_flag_tok_str
-	vcc_trace('${@LOCATION} - ${file.truefilename.vstring()}')
+	unsafe { vcc_trace('${@LOCATION} - ${file.truefilename.vstring()}') }
 	next()
 	vcc_trace('${@LOCATION}')
 	// vcc_disable_trace()
@@ -482,7 +482,7 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 		}
 		if tcc_state.leading_underscore && can_add_underscore {
 			buf1[0] = `_`
-			pstrcpy(&buf1[0] + 1, sizeof(buf1) - 1, name)
+			unsafe { pstrcpy(&buf1[0] + 1, sizeof(buf1) - 1, name) }
 			name = buf1
 		}
 		info = ((sym_bind << 4) + (sym_type & 15))
@@ -572,7 +572,7 @@ fn sym_free(sym &Sym) { // ok
 fn sym_push2(ps &&Sym, v int, t int, c int) &Sym { // ok
 	s := &Sym(sym_malloc())
 
-	C.memset(s, 0, sizeof(Sym))
+	unsafe { C.memset(s, 0, sizeof(Sym)) }
 	s.v = v
 	s.type_.t = t
 	s.c = c
@@ -651,9 +651,9 @@ fn sym_push(v int, type_ &CType, r int, c int) &Sym {
 			vcc_trace_print('${@LOCATION} has prev_tok')
 		}
 		if s.prev_tok != unsafe { nil } && sym_scope(s.prev_tok) == s.sym_scope {
-			_tcc_error("redeclaration of '${get_tok_str(v & ~sym_struct, (unsafe { nil })).vstring()}'")
+			unsafe { _tcc_error("redeclaration of '${get_tok_str(v & ~sym_struct, nil).vstring()}'") }
 		} else {
-			vcc_trace_print('${@LOCATION} ok ${get_tok_str(v & ~sym_struct, (unsafe { nil })).vstring()}')
+			unsafe { vcc_trace_print('${@LOCATION} ok ${get_tok_str(v & ~sym_struct, nil).vstring()}') }
 		}
 	}
 	return s
@@ -921,7 +921,7 @@ fn gvtst_set(inv int, t int) {
 		vpushi(0)
 		gen_op(149)
 		if vtop.r != vt_cmp {
-			vset_vt_cmp(vtop.c.i != 0)
+			unsafe { vset_vt_cmp(vtop.c.i != 0) }
 		}
 	}
 	p = if inv { &vtop.jfalse } else { &vtop.jtrue }
@@ -1436,7 +1436,7 @@ fn gen_bounded_ptr_deref() {
 	if !sym.c {
 		put_extern_sym(sym, (unsafe { nil }), 0, 0)
 	}
-	rel = &Elf64_Rela((tcc_state.cur_text_section.reloc.data + vtop.c.i))
+	rel = unsafe { &Elf64_Rela((tcc_state.cur_text_section.reloc.data + vtop.c.i)) }
 	rel.r_info = (((Elf64_Xword(u64(sym.c))) << 32) + ((rel.r_info) & 4294967295))
 }
 
@@ -1731,11 +1731,13 @@ fn gv(rc int) int {
 				load_type := if (bt == 14) { 9 } else { (2048 | 4) }
 				original_type := vtop.type_.t
 				if (vtop.r & (63 | 256)) == vt_const {
-					ll := u64(vtop.c.i)
-					vtop.c.i = ll
-					load(r, vtop)
-					vtop.r = r
-					vpushi(ll >> 32)
+					unsafe {
+						ll := u64(vtop.c.i)
+						vtop.c.i = ll
+						load(r, vtop)
+						vtop.r = r
+						vpushi(ll >> 32)
+					}
 				} else if vtop.r & 256 {
 					save_reg_upstack(vtop.r, 1)
 					vtop.type_.t = load_type
@@ -1748,7 +1750,9 @@ fn gv(rc int) int {
 						load(r, vtop)
 					}
 					if r2_ok && vtop.r2 < 48 {
-						goto done // id: 0x7fffed4395d8
+						unsafe {
+							goto done
+						}
 					}
 					vdup()
 					vtop[-1].r = r
@@ -1825,8 +1829,8 @@ fn gen_opic(op int) {
 	t2 := v2.type_.t & vt_btype
 	c1 := (v1.r & (63 | 256 | 512)) == vt_const
 	c2 := (v2.r & (63 | 256 | 512)) == vt_const
-	l1 := if c1 { v1.c.i } else { 0 }
-	l2 := if c2 { v2.c.i } else { 0 }
+	l1 := unsafe { if c1 { v1.c.i } else { 0 } }
+	l2 := unsafe { if c2 { v2.c.i } else { 0 } }
 	shm := u64(if (t1 == vt_llong) { 63 } else { 31 })
 	r := 0
 
@@ -2033,18 +2037,22 @@ fn gen_opif(op int) {
 	c1 = (v1.r & (63 | 256 | 512)) == 48
 	c2 = (v2.r & (63 | 256 | 512)) == 48
 	if c1 && c2 {
-		if bt == 8 {
-			f1 = v1.c.f
-			f2 = v2.c.f
-		} else if bt == 9 {
-			f1 = v1.c.d
-			f2 = v2.c.d
-		} else {
-			f1 = v1.c.ld
-			f2 = v2.c.ld
+		unsafe {
+			if bt == 8 {
+				f1 = v1.c.f
+				f2 = v2.c.f
+			} else if bt == 9 {
+				f1 = v1.c.d
+				f2 = v2.c.d
+			} else {
+				f1 = v1.c.ld
+				f2 = v2.c.ld
+			}
 		}
 		if !(ieee_finite(f1) || !ieee_finite(f2)) && !(nocode_wanted & CONST_WANTED_MASK) {
-			goto general_case // id: 0x7fffed447ea8
+			unsafe {
+				goto general_case
+			}
 		}
 		match rune(op) {
 			`+` { // case comp body kind=CompoundAssignOperator is_enum=false
@@ -2062,23 +2070,30 @@ fn gen_opif(op int) {
 					x2 := Gen_opif_union{}
 					y := Gen_opif_union{}
 					if !(nocode_wanted & CONST_WANTED_MASK) {
-						goto general_case // id: 0x7fffed447ea8
+						unsafe {
+							goto general_case
+						} // id: 0x7fffed447ea8
 					}
 					x1.f = f1
 					x2.f = f2
-					if f1 == 0 {
-						y.u = 0x7fc00000 // nan
-					} else { // 3
-						y.u = 0x7f800000 // infinity
+					unsafe {
+						if f1 == 0 {
+							y.u = 0x7fc00000 // nan
+						} else { // 3
+							y.u = 0x7f800000 // infinity
+						}
+
+						y.u |= (x1.u ^ x2.u) & 0x80000000 // set sign
+						f1 = y.f
 					}
-					y.u |= (x1.u ^ x2.u) & 0x80000000 // set sign
-					f1 = y.f
 				}
 				f1 /= f2
 			}
 			129 { // case comp body kind=BinaryOperator is_enum=false
 				f1 = -f1
-				goto unary_result // id: 0x7fffed449028
+				unsafe {
+					goto unary_result
+				} // id: 0x7fffed449028
 			}
 			148 { // case comp body kind=BinaryOperator is_enum=false
 				i = f1 == f2
@@ -2090,26 +2105,38 @@ fn gen_opif(op int) {
 			}
 			149 { // case comp body kind=BinaryOperator is_enum=false
 				i = f1 != f2
-				goto make_int // id: 0x7fffed449230
+				unsafe {
+					goto make_int
+				} // id: 0x7fffed449230
 			}
 			156 { // case comp body kind=BinaryOperator is_enum=false
 				i = f1 < f2
-				goto make_int // id: 0x7fffed449230
+				unsafe {
+					goto make_int
+				} // id: 0x7fffed449230
 			}
 			157 { // case comp body kind=BinaryOperator is_enum=false
 				i = f1 >= f2
-				goto make_int // id: 0x7fffed449230
+				unsafe {
+					goto make_int
+				} // id: 0x7fffed449230
 			}
 			158 { // case comp body kind=BinaryOperator is_enum=false
 				i = f1 <= f2
-				goto make_int // id: 0x7fffed449230
+				unsafe {
+					goto make_int
+				} // id: 0x7fffed449230
 			}
 			159 { // case comp body kind=BinaryOperator is_enum=false
 				i = f1 > f2
-				goto make_int // id: 0x7fffed449230
+				unsafe {
+					goto make_int
+				} // id: 0x7fffed449230
 			}
 			else {
-				goto general_case // id: 0x7fffed447ea8
+				unsafe {
+					goto general_case
+				} // id: 0x7fffed447ea8
 			}
 		}
 		unsafe { vtop-- }
@@ -2170,28 +2197,40 @@ fn type_to_str(buf &char, buf_size int, type_ &CType, varstr &char) {
 		&& !((t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20))) {
 		pstrcat(buf, buf_size, if (t & 16) { c'unsigned ' } else { c'signed ' })
 	}
-	buf_size -= C.strlen(buf)
-	buf += C.strlen(buf)
+	unsafe {
+		buf_size -= C.strlen(buf)
+		buf += C.strlen(buf)
+	}
 	match bt {
 		0 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'void'
-			goto add_tstr // id: 0x7fffed44c8d8
+			unsafe {
+				goto add_tstr
+			} // id: 0x7fffed44c8d8
 		}
 		11 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'_Bool'
-			goto add_tstr // id: 0x7fffed44c8d8
+			unsafe {
+				goto add_tstr
+			} // id: 0x7fffed44c8d8
 		}
 		1 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'char'
-			goto add_tstr // id: 0x7fffed44c8d8
+			unsafe {
+				goto add_tstr
+			} // id: 0x7fffed44c8d8
 		}
 		2 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'short'
-			goto add_tstr // id: 0x7fffed44c8d8
+			unsafe {
+				goto add_tstr
+			} // id: 0x7fffed44c8d8
 		}
 		3 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'int'
-			goto maybe_long // id: 0x7fffed44cd80
+			unsafe {
+				goto maybe_long
+			} // id: 0x7fffed44cd80
 		}
 		4 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'long long'
@@ -2201,19 +2240,27 @@ fn type_to_str(buf &char, buf_size int, type_ &CType, varstr &char) {
 				tstr = c'long'
 			}
 			if !((t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20)) {
-				goto add_tstr // id: 0x7fffed44c8d8
+				unsafe {
+					goto add_tstr
+				} // id: 0x7fffed44c8d8
 			}
 			tstr = c'enum '
-			goto tstruct // id: 0x7fffed44d480
+			unsafe {
+				goto tstruct
+			} // id: 0x7fffed44d480
 		}
 		8 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'float'
-			goto add_tstr // id: 0x7fffed44c8d8
+			unsafe {
+				goto add_tstr
+			} // id: 0x7fffed44c8d8
 		}
 		9 { // case comp body kind=BinaryOperator is_enum=false
 			tstr = c'double'
 			if !(t & 2048) {
-				goto add_tstr // id: 0x7fffed44c8d8
+				unsafe {
+					goto add_tstr
+				} // id: 0x7fffed44c8d8
 			}
 		}
 		10 { // case comp body kind=BinaryOperator is_enum=false
@@ -2261,19 +2308,24 @@ fn type_to_str(buf &char, buf_size int, type_ &CType, varstr &char) {
 			}
 			pstrcat(buf1, sizeof(buf1), c')')
 			type_to_str(buf, buf_size, &s.type_, buf1)
-			goto no_var // id: 0x7fffed450020
+			unsafe {
+				goto no_var
+			} // id: 0x7fffed450020
 		}
 		5 { // case comp body kind=BinaryOperator is_enum=false
 			s = type_.ref
 			if t & (64 | 1024) {
-				if varstr && `*` == *varstr {
-					C.snprintf(buf1, sizeof(buf1), c'(%s)[%d]', varstr, s.c)
-				} else { // 3
-					C.snprintf(buf1, sizeof(buf1), c'%s[%d]', if varstr { varstr } else { c'' },
-						s.c)
+				unsafe {
+					if varstr && `*` == *varstr {
+						C.snprintf(buf1, sizeof(buf1), c'(%s)[%d]', varstr, s.c)
+					} else { // 3
+						C.snprintf(buf1, sizeof(buf1), c'%s[%d]', if varstr { varstr } else { c'' },
+							s.c)
+					}
+
+					type_to_str(buf, buf_size, &s.type_, buf1)
+					goto no_var // id: 0x7fffed450020
 				}
-				type_to_str(buf, buf_size, &s.type_, buf1)
-				goto no_var // id: 0x7fffed450020
 			}
 			pstrcpy(buf1, sizeof(buf1), c'*')
 			if t & 256 {
@@ -2286,7 +2338,9 @@ fn type_to_str(buf &char, buf_size int, type_ &CType, varstr &char) {
 				pstrcat(buf1, sizeof(buf1), varstr)
 			}
 			type_to_str(buf, buf_size, &s.type_, buf1)
-			goto no_var // id: 0x7fffed450020
+			unsafe {
+				goto no_var
+			} // id: 0x7fffed450020
 		}
 		else {}
 	}
@@ -2326,11 +2380,13 @@ fn is_null_pointer(p &SValue) bool {
 	if (p.r & (63 | 256 | 512 | 4096)) != 48 {
 		return false
 	}
-	return ((p.type_.t & 15) == 3 && u32(p.c.i) == 0) || ((p.type_.t & 15) == 4 && p.c.i == 0) || ((p.type_.t & 15) == 5 && (if 8 == 4 {
-		u32(p.c.i) == 0
-	} else {
-		p.c.i == 0
-	}) && (pointed_type(&p.type_).t & 15) == 0 && 0 == (pointed_type(&p.type_).t & (256 | 512)))
+	return unsafe {
+		((p.type_.t & 15) == 3 && u32(p.c.i) == 0) || ((p.type_.t & 15) == 4 && p.c.i == 0) || ((p.type_.t & 15) == 5 && (if 8 == 4 {
+			u32(p.c.i) == 0
+		} else {
+			p.c.i == 0
+		}) && (pointed_type(&p.type_).t & 15) == 0 && 0 == (pointed_type(&p.type_).t & (256 | 512)))
+	}
 }
 
 fn is_compatible_func(type1 &CType, type2 &CType) bool {
@@ -2546,13 +2602,17 @@ fn gen_op(op int) {
 			gaddrof()
 			vswap()
 		}
-		goto redo // id: 0x7fffed462e40
+		unsafe {
+			goto redo
+		} // id: 0x7fffed462e40
 	} else if !combine_types(&combtype, unsafe { vtop - 1 }, vtop, op) {
 		_tcc_error('invalid operand types for binary operation')
 	} else if bt1 == vt_ptr || bt2 == vt_ptr {
 		align := 0
 		if (op >= 144 && op <= 159) {
-			goto std_op // id: 0x7fffed463d50
+			unsafe {
+				goto std_op
+			} // id: 0x7fffed463d50
 		}
 		if bt1 == vt_ptr && bt2 == vt_ptr {
 			if op != `-` {
@@ -2737,7 +2797,9 @@ fn gen_cast(type_ &CType) {
 		dbt_bt = dbt & 15
 		sbt_bt = sbt & 15
 		if dbt_bt == vt_void {
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			} // id: 0x7fffed46b878
 		}
 		if sbt_bt == vt_void {
 			// RRRREG error id=0x7fffed46baf8
@@ -2747,68 +2809,88 @@ fn gen_cast(type_ &CType) {
 		}
 		c = (vtop.r & (63 | 256 | 512)) == 48
 		if c {
-			if sbt == 8 {
-				vtop.c.ld = vtop.c.f
-			} else if sbt == 9 {
-				vtop.c.ld = vtop.c.d
+			unsafe {
+				if sbt == 8 {
+					vtop.c.ld = vtop.c.f
+				} else if sbt == 9 {
+					vtop.c.ld = vtop.c.d
+				}
 			}
 			if df {
 				if sbt_bt == 4 {
-					if sbt & 16 || !(vtop.c.i >> 63) {
-						vtop.c.ld = vtop.c.i
-					} else { // 3
-						vtop.c.ld = -f64(-vtop.c.i)
+					unsafe {
+						if sbt & 16 || !(vtop.c.i >> 63) {
+							vtop.c.ld = vtop.c.i
+						} else { // 3
+							vtop.c.ld = -f64(-vtop.c.i)
+						}
 					}
 				} else if !sf {
-					if sbt & 16 || !(vtop.c.i >> 31) {
-						vtop.c.ld = u32(vtop.c.i)
-					} else { // 3
-						vtop.c.ld = -f64(-u32(vtop.c.i))
+					unsafe {
+						if sbt & 16 || !(vtop.c.i >> 31) {
+							vtop.c.ld = u32(vtop.c.i)
+						} else { // 3
+							vtop.c.ld = -f64(-u32(vtop.c.i))
+						}
 					}
 				}
-				if dbt == 8 {
-					vtop.c.f = f32(vtop.c.ld)
-				} else if dbt == 9 {
-					vtop.c.d = f64(vtop.c.ld)
+				unsafe {
+					if dbt == 8 {
+						vtop.c.f = f32(vtop.c.ld)
+					} else if dbt == 9 {
+						vtop.c.d = f64(vtop.c.ld)
+					}
 				}
 			} else if sf && dbt == 11 {
-				vtop.c.i = (vtop.c.ld != 0)
-			} else {
-				if sf {
-					vtop.c.i = vtop.c.ld
-				} else if sbt_bt == 4 || (8 == 8 && sbt == 5) {
-				} else if sbt & 16 {
-					vtop.c.i = u32(vtop.c.i)
-				} else { // 3
-					vtop.c.i = (u32(vtop.c.i) | -(vtop.c.i & 2147483648))
+				unsafe {
+					vtop.c.i = (vtop.c.ld != 0)
 				}
-				if dbt_bt == 4 || (8 == 8 && dbt == 5) {
-				} else if dbt == 11 {
-					vtop.c.i = (vtop.c.i != 0)
-				} else {
-					m := u32(if dbt_bt == 1 {
-						0xff
+			} else {
+				unsafe {
+					if sf {
+						vtop.c.i = vtop.c.ld
+					} else if sbt_bt == 4 || (8 == 8 && sbt == 5) {
+					} else if sbt & 16 {
+						vtop.c.i = u32(vtop.c.i)
+					} else { // 3
+						vtop.c.i = (u32(vtop.c.i) | -(vtop.c.i & 2147483648))
+					}
+					if dbt_bt == 4 || (8 == 8 && dbt == 5) {
+					} else if dbt == 11 {
+						vtop.c.i = (vtop.c.i != 0)
 					} else {
-						if dbt_bt == 2 { 0xffff } else { u32(0xffffffff) }
-					})
-					vtop.c.i &= m
-					if !(dbt & 16) {
-						vtop.c.i |= -(vtop.c.i & ((m >> 1) + 1))
+						m := u32(if dbt_bt == 1 {
+							0xff
+						} else {
+							if dbt_bt == 2 { 0xffff } else { u32(0xffffffff) }
+						})
+						vtop.c.i &= m
+						if !(dbt & 16) {
+							vtop.c.i |= -(vtop.c.i & ((m >> 1) + 1))
+						}
 					}
 				}
 			}
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			} // id: 0x7fffed46b878
 		} else if dbt == 11 && (vtop.r & (63 | 256 | 512)) == (48 | 512) {
 			vtop.r = vt_const
 			vtop.c.i = 1
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			} // id: 0x7fffed46b878
 		}
 		if nocode_wanted & data_only_wanted {
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			} // id: 0x7fffed46b878
 		}
 		if dbt == vt_bool {
 			gen_test_zero(149)
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			} // id: 0x7fffed46b878
 		}
 		if sf || df {
 			vcc_trace_print('${@LOCATION} cast.2')
@@ -2841,7 +2923,9 @@ fn gen_cast(type_ &CType) {
 			_tcc_error('cast to incomplete type')
 		}
 		if ds == ss && ds >= 4 {
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			} // id: 0x7fffed46b878
 		}
 		if dbt_bt == 5 || sbt_bt == 5 {
 			_tcc_warning('cast between pointer and integer of different size')
@@ -2850,23 +2934,27 @@ fn gen_cast(type_ &CType) {
 			}
 		}
 		if 1 && vtop.r & 256 {
-			if ds <= ss {
-				goto done // id: 0x7fffed46b878
-			}
-			if ds <= 4 && !(dbt == (2 | 16) && sbt == 1) {
-				gv(1)
-				goto done // id: 0x7fffed46b878
+			unsafe {
+				if ds <= ss {
+					goto done // id: 0x7fffed46b878
+				}
+				if ds <= 4 && !(dbt == (2 | 16) && sbt == 1) {
+					gv(1)
+					goto done // id: 0x7fffed46b878
+				}
 			}
 		}
 		vcc_trace_print('${@LOCATION} cast.3')
 		gv(1)
 		trunc = 0
 		if ds == 8 {
-			if sbt & vt_unsigned {
-				goto done // id: 0x7fffed46b878
-			} else {
-				gen_cvt_sxtw()
-				goto done // id: 0x7fffed46b878
+			unsafe {
+				if sbt & vt_unsigned {
+					goto done // id: 0x7fffed46b878
+				} else {
+					gen_cvt_sxtw()
+					goto done // id: 0x7fffed46b878
+				}
 			}
 			ss = ds
 			ds = 4
@@ -2877,11 +2965,15 @@ fn gen_cast(type_ &CType) {
 			ss = 4
 		}
 		if ds >= ss {
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			}
 		}
 		if ss == 4 {
 			gen_cvt_csti(dbt)
-			goto done // id: 0x7fffed46b878
+			unsafe {
+				goto done
+			}
 		}
 		vcc_trace_print('${@LOCATION} cast.4')
 		bits = (ss - ds) * 8
@@ -3017,7 +3109,9 @@ fn verify_assign_cast(dt &CType) {
 			} else if sbt == 6 {
 				type2 = st
 			} else { // 3
-				goto error // id: 0x7fffed477eb8
+				unsafe {
+					goto error
+				}
 			}
 			if is_compatible_types(type1, type2) {
 				return
@@ -3053,7 +3147,9 @@ fn verify_assign_cast(dt &CType) {
 			if sbt == vt_ptr || sbt == vt_func {
 				_tcc_warning('assignment makes integer from pointer without a cast')
 			} else if sbt == vt_struct {
-				goto case_VT_STRUCT // id: 0x7fffed47a4c8
+				unsafe {
+					goto case_VT_STRUCT
+				}
 			}
 		}
 		7 { // case comp body kind=LabelStmt is_enum=false
@@ -3177,12 +3273,14 @@ fn vstore() {
 		}
 		if (vtop[-1].r & 63) == 49 {
 			sv := SValue{}
-			r = get_reg(1)
-			sv.type_.t = (2048 | 4)
-			sv.r = 50 | 256
-			sv.c.i = vtop[-1].c.i
-			load(r, &sv)
-			vtop[-1].r = r | 256
+			unsafe {
+				r = get_reg(1)
+				sv.type_.t = (2048 | 4)
+				sv.r = 50 | 256
+				sv.c.i = vtop[-1].c.i
+				load(r, &sv)
+				vtop[-1].r = r | 256
+			}
 		}
 		r = vtop.r & 63
 		if (r2_ret(dbt) != 48) {
@@ -3223,7 +3321,7 @@ fn parse_mult_str(msg &char) &strings.Builder {
 	}
 	cstr_reset(&initstr)
 	for tok == 200 {
-		cstr_cat(&initstr, tokc.str.data, -1)
+		unsafe { cstr_cat(&initstr, tokc.str.data, -1) }
 		next()
 	}
 	cstr_ccat(&initstr, `\x00`)
@@ -3421,7 +3519,9 @@ fn parse_attribute(ad &AttributeDef) {
 	}
 	skip(`)`)
 	skip(`)`)
-	goto redo // id: 0x7fffed482e00
+	unsafe {
+		goto redo
+	} // id: 0x7fffed482e00
 }
 
 fn find_field(type_ &CType, v int, cumofs &int) &Sym {
@@ -3562,12 +3662,16 @@ fn struct_layout(type_ &CType, ad &AttributeDef) {
 					c = (c + ((bit_pos + 7) >> 3) + align - 1) & -align
 					bit_pos = 0
 				} else if f.a.aligned {
-					goto new_field // id: 0x7fffed48fd90
+					unsafe {
+						goto new_field
+					} // id: 0x7fffed48fd90
 				} else if !packed {
 					a8 := align * 8
 					ofs := ((c * 8 + bit_pos) % a8 + bit_size + a8 - 1) / a8
 					if ofs > size / align {
-						goto new_field // id: 0x7fffed48fd90
+						unsafe {
+							goto new_field
+						} // id: 0x7fffed48fd90
 					}
 				}
 				if size == 8 && bit_size <= 32 {
@@ -3702,7 +3806,7 @@ fn struct_decl(type_ &CType, u int) {
 	type1 := CType{}
 	btype := CType{}
 
-	C.memset(&ad, 0, sizeof(ad))
+	unsafe { C.memset(&ad, 0, sizeof(ad)) }
 	vcc_trace_print('${@LOCATION} struct_decl.1 tok=${tok}')
 	next()
 	vcc_trace_print('${@LOCATION} struct_decl.2 tok=${tok}')
@@ -3717,10 +3821,14 @@ fn struct_decl(type_ &CType, u int) {
 		s = struct_find(v)
 		if s && (s.sym_scope == local_scope || tok != `{`) {
 			if u == s.type_.t {
-				goto do_decl // id: 0x7fffed4970e8
+				unsafe {
+					goto do_decl
+				}
 			}
 			if u == (2 << 20) && (s.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20) {
-				goto do_decl // id: 0x7fffed4970e8
+				unsafe {
+					goto do_decl
+				}
 			}
 			_tcc_error("redefinition of '${get_tok_str(v, (unsafe { nil }))}'")
 		}
@@ -3949,13 +4057,15 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 
 	s := &Sym(0)
 	type1 := CType{}
-	C.memset(ad, 0, sizeof(AttributeDef))
+	unsafe { C.memset(ad, 0, sizeof(AttributeDef)) }
 	t = vt_int
 	bt = -1
 	st = -1
 	type_.ref = unsafe { nil }
 	for {
-		vcc_trace_print('${@LOCATION} ${tok} ${file.truefilename.vstring()}')
+		unsafe {
+			vcc_trace_print('${@LOCATION} ${tok} ${file.truefilename.vstring()}')
+		}
 		match Tcc_token(tok) {
 			.tok_extension { // case comp body kind=CallExpr is_enum=true
 				vcc_trace('${@LOCATION} ${tok}')
@@ -3977,7 +4087,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 				} else {
 					if bt != -1 || (st != -1 && u != vt_int) {
 						vcc_trace('${@LOCATION} ${tok}')
-						goto tmbt // id: 0x7fffed4a2690
+						unsafe {
+							goto tmbt
+						} // id: 0x7fffed4a2690
 					}
 					bt = u
 				}
@@ -3989,17 +4101,23 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 			.tok_void { // case comp body kind=BinaryOperator is_enum=true
 				u = vt_void
 				vcc_trace('${@LOCATION} ${tok}')
-				goto basic_type // id: 0x7fffed4a2258
+				unsafe {
+					goto basic_type
+				}
 			}
 			.tok_short { // case comp body kind=BinaryOperator is_enum=true
 				u = vt_short
 				vcc_trace('${@LOCATION} ${tok}')
-				goto basic_type // id: 0x7fffed4a2258
+				unsafe {
+					goto basic_type
+				}
 			}
 			.tok_int { // case comp body kind=BinaryOperator is_enum=true
 				u = vt_int
 				vcc_trace('${@LOCATION} ${tok}')
-				goto basic_type // id: 0x7fffed4a2258
+				unsafe {
+					goto basic_type
+				}
 			}
 			.tok_alignas {
 				// case comp stmt
@@ -4010,7 +4128,7 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 				vcc_trace('${@LOCATION} ${tok}')
 				skip(`(`)
 				vcc_trace('${@LOCATION} ${tok}')
-				C.memset(&ad1, 0, sizeof(AttributeDef))
+				unsafe { C.memset(&ad1, 0, sizeof(AttributeDef)) }
 				vcc_trace('${@LOCATION}')
 				if parse_btype(&type1, &ad1, 0) {
 					vcc_trace('${@LOCATION} ${tok}')
@@ -4042,14 +4160,18 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 					t = (t & ~(vt_btype | vt_long)) | vt_llong
 				} else {
 					u = vt_long
-					goto basic_type // id: 0x7fffed4a2258
+					unsafe {
+						goto basic_type
+					} // id: 0x7fffed4a2258
 				}
 				next()
 			}
 			.tok_bool { // case comp body kind=BinaryOperator is_enum=true
 				vcc_trace('${@LOCATION} ${tok}')
 				u = vt_bool
-				goto basic_type // id: 0x7fffed4a2258
+				unsafe {
+					goto basic_type
+				} // id: 0x7fffed4a2258
 			}
 			.tok_complex { // case comp body kind=CallExpr is_enum=true
 				vcc_trace('${@LOCATION} ${tok}')
@@ -4058,7 +4180,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 			.tok_float { // case comp body kind=BinaryOperator is_enum=
 				vcc_trace('${@LOCATION} ${tok}')
 				u = vt_float
-				goto basic_type // id: 0x7fffed4a2258
+				unsafe {
+					goto basic_type
+				} // id: 0x7fffed4a2258
 			}
 			.tok_double { // case comp body kind=IfStmt is_enum=true
 				vcc_trace('${@LOCATION} ${tok}')
@@ -4066,7 +4190,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 					t = (t & ~(vt_btype | vt_long)) | vt_ldouble
 				} else {
 					u = vt_double
-					goto basic_type // id: 0x7fffed4a2258
+					unsafe {
+						goto basic_type
+					} // id: 0x7fffed4a2258
 				}
 				next()
 			}
@@ -4077,17 +4203,23 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 				vcc_trace('${@LOCATION} ${tok}')
 				u = type1.t
 				type_.ref = type1.ref
-				goto basic_type1 // id: 0x7fffed4a2ab0
+				unsafe {
+					goto basic_type1
+				}
 			}
 			.tok_struct { // case comp body kind=CallExpr is_enum=true
 				vcc_trace_print('${@LOCATION} struct tok=${tok}')
 				struct_decl(&type1, vt_struct)
-				goto basic_type2 // id: 0x7fffed4a4fc8
+				unsafe {
+					goto basic_type2
+				}
 			}
 			.tok_union { // case comp body kind=CallExpr is_enum=true
 				vcc_trace_print('${@LOCATION} union tok=${tok}')
 				struct_decl(&type1, vt_union)
-				goto basic_type2 // id: 0x7fffed4a4fc8
+				unsafe {
+					goto basic_type2
+				}
 			}
 			.tok__atomic { // case comp body kind=CallExpr is_enum=true
 				vcc_trace('${@LOCATION} ${tok}')
@@ -4107,7 +4239,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 						sym_to_attr(ad, type1.ref)
 					}
 					vcc_trace('${@LOCATION} ${tok}')
-					goto basic_type2 // id: 0x7fffed4a4fc8
+					unsafe {
+						goto basic_type2
+					}
 				}
 			}
 			.tok_const1, .tok_const2, .tok_const3 {
@@ -4150,17 +4284,23 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 			.tok_extern { // case comp body kind=BinaryOperator is_enum=true
 				g = vt_extern
 				vcc_trace('${@LOCATION} ${tok}')
-				goto storage // id: 0x7fffed4a8020
+				unsafe {
+					goto storage
+				} // id: 0x7fffed4a8020
 			}
 			.tok_static { // case comp body kind=BinaryOperator is_enum=true
 				g = vt_static
 				vcc_trace('${@LOCATION} ${tok}')
-				goto storage // id: 0x7fffed4a8020
+				unsafe {
+					goto storage
+				} // id: 0x7fffed4a8020
 			}
 			.tok_typedef { // case comp body kind=BinaryOperator is_enum=true
 				g = vt_typedef
 				vcc_trace('${@LOCATION} ${tok}')
-				goto storage // id: 0x7fffed4a8020
+				unsafe {
+					goto storage
+				} // id: 0x7fffed4a8020
 				// RRRREG storage id=0x7fffed4a8020
 				storage:
 				vcc_trace('${@LOCATION} ${tok}')
@@ -4204,7 +4344,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 					sym_to_attr(ad, type1.ref)
 					vcc_trace('${@LOCATION} ${tok}')
 				}
-				goto basic_type2 // id: 0x7fffed4a4fc8
+				unsafe {
+					goto basic_type2
+				} // id: 0x7fffed4a4fc8
 			}
 			.tok_thread_local { // case comp body kind=CallExpr is_enum=true
 				_tcc_error('_Thread_local is not implemented')
@@ -4213,7 +4355,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 				vcc_trace_print('${@LOCATION} - default ${tok}')
 				if typespec_found {
 					vcc_trace_print('${@LOCATION} typespec_found')
-					goto the_end // id: 0x7fffed4a9550
+					unsafe {
+						goto the_end
+					} // id: 0x7fffed4a9550
 				}
 				vcc_trace('${@LOCATION} ${rune(tok)}')
 				s = sym_find(tok)
@@ -4231,7 +4375,9 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 				if (tok == `:` && ignore_label) {
 					// ignore if it's a label
 					unget_tok(n)
-					goto the_end
+					unsafe {
+						goto the_end
+					}
 				}
 
 				t &= ~(vt_btype | vt_long)
@@ -4431,7 +4577,9 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 					gexpr()
 					end_macro()
 					next()
-					goto check // id: 0x7fffed4b0ba0
+					unsafe {
+						goto check
+					}
 				}
 				break
 			}
@@ -4446,7 +4594,9 @@ fn post_type(type_ &CType, ad &AttributeDef, storage int, td int) int {
 			// RRRREG check id=0x7fffed4b0ba0
 			check:
 			if (vtop.r & (63 | 256 | 512)) == 48 {
-				n = vtop.c.i
+				unsafe {
+					n = vtop.c.i
+				}
 				if n < 0 {
 					_tcc_error('invalid array size')
 				}
@@ -4521,18 +4671,26 @@ fn type_decl(type_ &CType, ad &AttributeDef, v &int, td int) &CType {
 		match Tcc_token(tok) {
 			.tok__atomic { // case comp body kind=CompoundAssignOperator is_enum=true
 				qualifiers |= vt_atomic
-				goto redo // id: 0x7fffed4b4180
+				unsafe {
+					goto redo
+				} // id: 0x7fffed4b4180
 			}
 			.tok_const1, .tok_const2, .tok_const3 {
 				qualifiers |= vt_constant
-				goto redo // id: 0x7fffed4b4180
+				unsafe {
+					goto redo
+				} // id: 0x7fffed4b4180
 			}
 			.tok_volatile1, .tok_volatile2, .tok_volatile3 {
 				qualifiers |= vt_volatile
-				goto redo // id: 0x7fffed4b4180
+				unsafe {
+					goto redo
+				} // id: 0x7fffed4b4180
 			}
 			.tok_restrict1, .tok_restrict2, .tok_restrict3 {
-				goto redo // id: 0x7fffed4b4180
+				unsafe {
+					goto redo
+				} // id: 0x7fffed4b4180
 			}
 			.tok_attribute1, .tok_attribute2 {
 				parse_attribute(ad)
@@ -4552,7 +4710,9 @@ fn type_decl(type_ &CType, ad &AttributeDef, v &int, td int) &CType {
 			post = type_decl(type_, ad, v, td)
 			skip(`)`)
 		} else { // 3
-			goto abstract // id: 0x7fffed4b5160
+			unsafe {
+				goto abstract
+			} // id: 0x7fffed4b5160
 		}
 	} else if tok >= 256 && td & 2 {
 		*v = tok
@@ -4840,7 +5000,9 @@ fn unary() {
 	match tok {
 		int(Tcc_token.tok_extension) { // case comp body kind=CallExpr is_enum=true
 			next()
-			goto tok_next // id: 0x7fffed4bf938
+			unsafe {
+				goto tok_next
+			} // id: 0x7fffed4bf938
 		}
 		193, 194, 192 {
 			t = 3
@@ -4853,53 +5015,77 @@ fn unary() {
 		}
 		195 { // case comp body kind=BinaryOperator is_enum=true
 			t = 3 | 16
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		196 { // case comp body kind=BinaryOperator is_enum=true
 			t = 4
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		197 { // case comp body kind=BinaryOperator is_enum=true
 			t = 4 | 16
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		202 { // case comp body kind=BinaryOperator is_enum=true
 			t = 8
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		203 { // case comp body kind=BinaryOperator is_enum=true
 			t = 9
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		204 { // case comp body kind=BinaryOperator is_enum=true
 			t = 10
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		198 { // case comp body kind=BinaryOperator is_enum=true
 			t = (if 8 == 8 { vt_llong } else { vt_int }) | vt_long
 			vcc_trace_print('${@LOCATION} unary.3 t=${t}')
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		199 { // case comp body kind=BinaryOperator is_enum=true
 			t = (if 8 == 8 { 4 } else { 3 }) | 2048 | 16
-			goto push_tokc // id: 0x7fffed4bfbc8
+			unsafe {
+				goto push_tokc
+			}
 		}
 		int(Tcc_token.tok___function__) { // case comp body kind=IfStmt is_enum=true
 			if !tcc_state.gnu_ext {
-				goto tok_identifier // id: 0x7fffed4c0830
+				unsafe {
+					goto tok_identifier
+				}
 			}
 		}
 		int(Tcc_token.tok___func__) { // case comp body kind=BinaryOperator is_enum=true
 			tok = 200
 			cstr_reset(&tokcstr)
 			cstr_cat(&tokcstr, funcname, 0)
-			tokc.str.size = tokcstr.len
-			tokc.str.data = tokcstr.data
-			goto case_TOK_STR // id: 0x7fffed4c0d38
+			unsafe {
+				tokc.str.size = tokcstr.len
+				tokc.str.data = tokcstr.data
+			}
+			unsafe {
+				goto case_TOK_STR
+			}
 		}
 		201 { // case comp body kind=BinaryOperator is_enum=true
 			t = 3
-			goto str_init // id: 0x7fffed4c0e60
+			unsafe {
+				goto str_init
+			}
 		}
 		200 { // case comp body kind=LabelStmt is_enum=true
 			// RRRREG case_TOK_STR id=0x7fffed4c0d38
@@ -5239,11 +5425,15 @@ fn unary() {
 		}
 		int(Tcc_token.tok___snan__) { // case comp body kind=BinaryOperator is_enum=true
 			n = 2139095041
-			goto special_math_val // id: 0x7fffed4cbd30
+			unsafe {
+				goto special_math_val
+			}
 		}
 		int(Tcc_token.tok___inf__) { // case comp body kind=BinaryOperator is_enum=true
 			n = 2139095040
-			goto special_math_val // id: 0x7fffed4cbd30
+			unsafe {
+				goto special_math_val
+			}
 		}
 		else {
 			tok_identifier:
@@ -5320,20 +5510,21 @@ fn unary() {
 			ret_align := 0
 			regsize := 0
 			variadic := 0
-
-			if (vtop.type_.t & vt_btype) != vt_func {
-				if (vtop.type_.t & (vt_btype | vt_array)) == vt_ptr {
-					vtop.type_ = *pointed_type(&vtop.type_)
-					if (vtop.type_.t & vt_btype) != vt_func {
-						goto error_func // id: 0x7fffed4d17c0
+			unsafe {
+				if (vtop.type_.t & vt_btype) != vt_func {
+					if (vtop.type_.t & (vt_btype | vt_array)) == vt_ptr {
+						vtop.type_ = *pointed_type(&vtop.type_)
+						if (vtop.type_.t & vt_btype) != vt_func {
+							goto error_func // id: 0x7fffed4d17c0
+						}
+					} else {
+						// RRRREG error_func id=0x7fffed4d17c0
+						error_func:
+						expect(c'function pointer')
 					}
 				} else {
-					// RRRREG error_func id=0x7fffed4d17c0
-					error_func:
-					expect(c'function pointer')
+					vtop.r &= ~vt_lval
 				}
-			} else {
-				vtop.r &= ~vt_lval
 			}
 			s = vtop.type_.ref
 			next()
@@ -5531,15 +5722,17 @@ fn expr_infix(p int) {
 
 fn condition_3way() int {
 	c := -1
-	if (vtop.r & (vt_valmask | vt_lval)) == vt_const && (!(vtop.r & 512) || !vtop.sym.a.weak) {
-		vcc_trace_print('${@LOCATION} cond3way.0 c=${c}')
-		vdup()
-		vcc_trace_print('${@LOCATION} cond3way.1 c=${c}')
-		gen_cast_s(vt_bool)
-		vcc_trace_print('${@LOCATION} cond3way.2 c=${c}')
-		c = vtop.c.i
-		vcc_trace_print('${@LOCATION} cond3way.3 c=${c}')
-		vpop()
+	unsafe {
+		if (vtop.r & (vt_valmask | vt_lval)) == vt_const && (!(vtop.r & 512) || !vtop.sym.a.weak) {
+			vcc_trace_print('${@LOCATION} cond3way.0 c=${c}')
+			vdup()
+			vcc_trace_print('${@LOCATION} cond3way.1 c=${c}')
+			gen_cast_s(vt_bool)
+			vcc_trace_print('${@LOCATION} cond3way.2 c=${c}')
+			c = vtop.c.i
+			vcc_trace_print('${@LOCATION} cond3way.3 c=${c}')
+			vpop()
+		}
 	}
 	return c
 }
@@ -5585,13 +5778,15 @@ fn expr_landor(op int) {
 }
 
 fn is_cond_bool(sv &SValue) bool {
-	if (sv.r & (63 | 256 | 512)) == 48 && (sv.type_.t & 15) == 3 {
-		return u32(sv.c.i) < 2
+	unsafe {
+		if (sv.r & (63 | 256 | 512)) == 48 && (sv.type_.t & 15) == 3 {
+			return u32(sv.c.i) < 2
+		}
+		if sv.r == 51 {
+			return true
+		}
+		return false
 	}
-	if sv.r == 51 {
-		return true
-	}
-	return false
 }
 
 fn expr_cond() {
@@ -5787,7 +5982,9 @@ fn expr_const64() i64 {
 	if (vtop.r & (63 | 256 | 512 | 4096)) != vt_const {
 		expect(c'constant expression')
 	}
-	c = vtop.c.i
+	unsafe {
+		c = vtop.c.i
+	}
 	vcc_trace_print('${@LOCATION} vtop.c.i=${c}')
 	vpop()
 	return c
@@ -5829,15 +6026,17 @@ fn gfunc_return(func_type &CType) {
 			n := 0
 
 			size = type_size(func_type, &align)
-			if align & (ret_align - 1) && ((vtop.r & 63) < 48 || vtop.c.i & (ret_align - 1)) {
-				loc = (loc - size) & -ret_align
-				addr = loc
-				type_ = *func_type
-				vset(&type_, vt_local | 256, addr)
-				vswap()
-				vstore()
-				vpop()
-				vset(&ret_type, vt_local | 256, addr)
+			unsafe {
+				if align & (ret_align - 1) && ((vtop.r & 63) < 48 || vtop.c.i & (ret_align - 1)) {
+					loc = (loc - size) & -ret_align
+					addr = loc
+					type_ = *func_type
+					vset(&type_, vt_local | 256, addr)
+					vswap()
+					vstore()
+					vpop()
+					vset(&ret_type, vt_local | 256, addr)
+				}
 			}
 			vtop.type_ = ret_type
 			rc = rc_ret(ret_type.t)
@@ -5866,7 +6065,9 @@ fn check_func_return() {
 		gen_assign_cast(&func_vt)
 		gfunc_return(&func_vt)
 	} else {
-		_tcc_warning("function might return no value: '${funcname.vstring()}'")
+		unsafe {
+			_tcc_warning("function might return no value: '${funcname.vstring()}'")
+		}
 	}
 }
 
@@ -5998,7 +6199,9 @@ fn block_cleanup(o &Scope) {
 			try_call_scope_cleanup(o.cl.s)
 			pcl.jnext = gjmp_acs(0)
 			if !o.cl.n {
-				goto remove_pending // id: 0x7fffed4ea588
+				unsafe {
+					goto remove_pending
+				}
 			}
 			g.c = o.cl.n
 			pg = &g.prev
@@ -6121,7 +6324,9 @@ fn block(flags int) {
 	t = tok
 	if (t >= 192 && t <= 207) {
 		vcc_trace_print('${@LOCATION} goto ${tok}')
-		goto expr // id: 0x7fffed4f0d10
+		unsafe {
+			goto expr
+		}
 	}
 	next()
 	if debug_modes {
@@ -6332,7 +6537,9 @@ fn block(flags int) {
 		gsym(b)
 		prev_scope_s(&o)
 		if sw.nocode_wanted {
-			goto skip_switch // id: 0x7fffed4f7850
+			unsafe {
+				goto skip_switch
+			}
 		}
 		if sw.sv.type_.t & 16 {
 			C.qsort(sw.p, sw.n, sizeof(voidptr), case_cmpu)
@@ -6384,7 +6591,9 @@ fn block(flags int) {
 		}
 		dynarray_add(&cur_switch.p, &cur_switch.n, cr)
 		skip(`:`)
-		goto block_after_label // id: 0x7fffed4fa5a0
+		unsafe {
+			goto block_after_label
+		}
 	} else if t == Tcc_token.tok_default {
 		vcc_trace_print('${@LOCATION} default')
 		if !cur_switch {
@@ -6395,7 +6604,9 @@ fn block(flags int) {
 		}
 		cur_switch.def_sym = if cur_switch.nocode_wanted { 1 } else { gind() }
 		skip(`:`)
-		goto block_after_label // id: 0x7fffed4fa5a0
+		unsafe {
+			goto block_after_label
+		}
 	} else if t == Tcc_token.tok_goto {
 		vcc_trace_print('${@LOCATION} goto')
 		vla_restore(cur_scope.vla.locorig)
@@ -6477,7 +6688,9 @@ fn block(flags int) {
 			vla_restore(cur_scope.vla.loc)
 			if tok != `}` {
 				if 0 == (flags & 2) {
-					goto again // id: 0x7fffed4f0b70
+					unsafe {
+						goto again
+					}
 				}
 			} else {
 				tcc_state.warn_num = __offsetof(TCCState, warn_all) - __offsetof(TCCState, warn_none)
@@ -6603,7 +6816,7 @@ fn decl_design_delrels(sec &Section, c int, size int) {
 	}
 	rel = &Elf64_Rela(sec.reloc.data)
 	rel2 = rel
-	rel_end = &Elf64_Rela((sec.reloc.data + sec.reloc.data_offset))
+	rel_end = unsafe { &Elf64_Rela((sec.reloc.data + sec.reloc.data_offset)) }
 	for voidptr(rel) < voidptr(rel_end) {
 		if rel.r_offset >= c && rel.r_offset < c + size {
 			sec.reloc.data_offset -= sizeof(*rel)
@@ -6642,13 +6855,17 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 	elem_size = 0
 	nb_elems = 1
 	if flags & 4 {
-		goto no_designator // id: 0x7fffed508320
+		unsafe {
+			goto no_designator
+		}
 	}
 	if tcc_state.gnu_ext && tok >= Tcc_token.tok_define {
 		l = tok
 		next()
 		if tok == `:` {
-			goto struct_field // id: 0x7fffed508638
+			unsafe {
+				goto struct_field
+			}
 		}
 		unget_tok(l)
 	}
@@ -6766,7 +6983,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 
 fn init_putv(p &Init_params, type_ &CType, c u32) {
 	bt := 0
-	ptr := voidptr(0)
+	ptr := unsafe { nil }
 	dtype := CType{}
 	size := 0
 	align := 0
@@ -6794,8 +7011,10 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 			unsafe { vtop-- }
 			return
 		}
-		ptr = sec.data + c
-		val = vtop.c.i
+		unsafe {
+			ptr = sec.data + c
+			val = vtop.c.i
+		}
 		if (vtop.r & (512 | 48)) == (512 | 48) && vtop.sym.v >= sym_first_anom
 			&& (vtop.type_.t & vt_btype) != vt_ptr {
 			ssec := &Section(0)
@@ -6803,12 +7022,12 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 			rel := &Elf64_Rela(0)
 			esym = elfsym(vtop.sym)
 			ssec = tcc_state.sections[esym.st_shndx]
-			C.memmove(ptr, ssec.data + esym.st_value + int(vtop.c.i), size)
+			unsafe { C.memmove(ptr, ssec.data + esym.st_value + int(vtop.c.i), size) }
 			if ssec.reloc {
 				relofs := ssec.reloc.data_offset
 				for relofs >= sizeof(*rel) {
 					relofs -= sizeof(*rel)
-					rel = &Elf64_Rela((ssec.reloc.data + relofs))
+					rel = unsafe { &Elf64_Rela((ssec.reloc.data + relofs)) }
 					if rel.r_offset >= esym.st_value + size {
 						continue
 					}
@@ -6832,7 +7051,7 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 
 				bit_pos = (((vtop.type_.t) >> 20) & 63)
 				bit_size = (((vtop.type_.t) >> (20 + 6)) & 63)
-				p2 = &u8(ptr) + (bit_pos >> 3)
+				p2 = unsafe { &u8(ptr) + (bit_pos >> 3) }
 				bit_pos &= 7
 				bits = 0
 				for bit_size {
@@ -6866,13 +7085,14 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 						write64le(ptr, val)
 					}
 					vt_ldouble {
-						if sizeof(f64) == ldouble_size {
-							C.memcpy(ptr, &vtop.c.ld, ldouble_size)
-						} else if sizeof(f64) == ldouble_size {
-							*&f64(ptr) = f64(vtop.c.ld)
-						} else if 0 == C.memcmp(ptr, &vtop.c.ld, ldouble_size) {
-							// nothing to do for 0.0
-						} else {
+						unsafe {
+							if sizeof(f64) == ldouble_size {
+								C.memcpy(ptr, &vtop.c.ld, ldouble_size)
+							} else if sizeof(f64) == ldouble_size {
+								*&f64(ptr) = f64(vtop.c.ld)
+							} else if 0 == C.memcmp(ptr, &vtop.c.ld, ldouble_size) {
+								// nothing to do for 0.0
+							}
 						}
 					}
 					vt_llong, vt_ptr {
@@ -6960,10 +7180,14 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				if tok == 200 {
 					len += tokc.str.size
 				} else { // 3
-					len += tokc.str.size / sizeof(Nwchar_t)
+					unsafe {
+						len += tokc.str.size / sizeof(Nwchar_t)
+					}
 				}
 				len--
-				cstr_cat(&initstr, tokc.str.data, tokc.str.size)
+				unsafe {
+					cstr_cat(&initstr, tokc.str.data, tokc.str.size)
+				}
 				vcc_trace_print('${@LOCATION} declinit.3')
 				next()
 			}

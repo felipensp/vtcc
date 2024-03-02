@@ -1504,7 +1504,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 			if last_pos != -1 {
 				tcc_debug_check_anon(s1, e, last_pos)
 				unsafe {
-				write32le(s1.dwarf_info_section.data + last_pos, i - s1.dState.dwarf_info.start)
+					write32le(s1.dwarf_info_section.data + last_pos, i - s1.dState.dwarf_info.start)
 				}
 			}
 			last_pos = s1.dwarf_info_section.data_offset

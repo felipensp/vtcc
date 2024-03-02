@@ -11,7 +11,7 @@ const help = "Tiny C Compiler 0.9.28rc - Copyright (C) 2001-2006 Fabrice Bellard
 
 const help2 = "Tiny C Compiler 0.9.28rc - More Options\nSpecial options:\n  -P -P1                        with -E: no/alternative #line output\n  -dD -dM                       with -E: output #define directives\n  -pthread                      same as -D_REENTRANT and -lpthread\n  -On                           same as -D__OPTIMIZE__ for n > 0\n  -Wp,-opt                      same as -opt\n  -include file                 include 'file' above each input file\n  -isystem dir                  add 'dir' to system include path\n  -static                       link to static libraries (not recommended)\n  -dumpversion                  print version\n  -print-search-dirs            print search paths\n  -dt                           with -run/-E: auto-define 'test_...' macros\nIgnored options:\n  -arch -C --param -pedantic -pipe -s -traditional\n-W[no-]... warnings:\n  all                           turn on some (*) warnings\n  error[=warning]               stop after warning (any or specified)\n  write-strings                 strings are const\n  unsupported                   warn about ignored options, pragmas, etc.\n  implicit-function-declaration warn for missing prototype (*)\n  discarded-qualifiers          warn when const is dropped (*)\n-f[no-]... flags:\n  unsigned-char                 default char is unsigned\n  signed-char                   default char is signed\n  common                        use common section instead of bss\n  leading-underscore            decorate extern symbols\n  ms-extensions                 allow anonymous struct in struct\n  dollars-in-identifiers        allow '$' in C symbols\n  test-coverage                 create code coverage code\n-m... target specific options:\n  ms-bitfields                  use MSVC bitfield layout\n  no-sse                        disable floats on x86_64\n-Wl,... linker options:\n  -nostdlib                     do not link with standard crt/libs\n  -[no-]whole-archive           load lib(s) fully/only as needed\n  -export-all-symbols           same as -rdynamic\n  -export-dynamic               same as -rdynamic\n  -image-base= -Ttext=          set base address of executable\n  -section-alignment=           set section alignment in executable\n  -rpath=                       set dynamic library search path\n  -enable-new-dtags             set DT_RUNPATH instead of DT_RPATH\n  -soname=                      set DT_SONAME elf tag\n  -Bsymbolic                    set DT_SYMBOLIC elf tag\n  -oformat=[elf32/64-* binary]  set executable output format\n  -init= -fini= -Map= -as-needed -O   (ignored)\nPredefined macros:\n  tcc -E -dM - < /dev/null\nSee also the manual for more details.\n"
 
-const version = 'tcc version 0.9.28rc (x86_64 Linux)\n'
+const tcc_version = 'tcc version 0.9.28rc (x86_64 Linux)\n'
 
 fn print_dirs(msg &char, paths &&char, nb_paths int) {
 	i := 0
@@ -120,7 +120,7 @@ fn main() {
 			return
 		}
 		if s.verbose {
-			C.printf(c'%s', version)
+			C.printf(c'%s', tcc_version)
 		}
 		if opt == 5 {
 			return
@@ -173,7 +173,7 @@ fn main() {
 	tcc_set_output_type(s, s.output_type)
 	vcc_trace('${@LOCATION}')
 	s.ppfp = ppfp
-	if (s.output_type == 1 || s.output_type == 5) && (s.dflag & 16) {
+	if (s.output_type == 1 || s.output_type == 5) && s.dflag & 16 {
 		if t {
 			s.dflag |= 32
 		}
@@ -207,7 +207,7 @@ fn main() {
 				vcc_trace('${@LOCATION} ${f.name}')
 				first_file = &char(&f.name[0])
 				unsafe {
-				vcc_trace('${@LOCATION} ${first_file.vstring()}')
+					vcc_trace('${@LOCATION} ${first_file.vstring()}')
 				}
 			}
 			vcc_trace('${@LOCATION}')

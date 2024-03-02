@@ -1,7 +1,7 @@
 @[translated]
 module main
 
-pub const r_x86_64_64	=	1 // Direct 64 bit 
+pub const r_x86_64_64 = 1 // Direct 64 bit
 pub const r_data_ptr = r_x86_64_64
 
 fn code_reloc(reloc_type int) int {

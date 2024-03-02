@@ -4854,7 +4854,7 @@ fn skip_constraint_modifiers(p &rune) &rune {
 fn asm_parse_regvar(t int) int {
 	s := &rune(0)
 	op := Operand{}
-	if t < 256 || (t & 536870912) {
+	if t < 256 || t & 536870912 {
 		return -1
 	}
 	s = table_ident[t - 256].str
