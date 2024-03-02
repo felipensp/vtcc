@@ -1598,7 +1598,7 @@ fn expr_preprocess(s1 &TCCState) int {
 
 	str := &TokenString(tok_str_alloc())
 	pp_expr = 1
-	vcc_trace_print('${@LOCATION} - start - ${tok}')
+	vcc_trace_print('${@LOCATION} - ${tok} - ${file.truefilename.vstring()}')
 	for tok != 10 && tok != tok_eof {
 		next()
 		// RRRREG redo id=0x7fffd88bbd88
@@ -1814,7 +1814,7 @@ fn search_cached_include(s1 &TCCState, filename &char, add int) &CachedInclude {
 	}
 	h &= (32 - 1)
 	i = s1.cached_includes_hash[h]
-	for ; true; {
+	for {
 		if i == 0 {
 			break
 		}

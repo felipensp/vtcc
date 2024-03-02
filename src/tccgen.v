@@ -55,7 +55,7 @@ const vt_qlong = 13 //  128-bit integer. Only used for x86-64 ABI
 const vt_qfloat = 14 //  128-bit float. Only used for x86-64 ABI
 
 const vt_struct_shift = 20
-const vt_union = (1 << vt_struct_shift | vt_struct)
+const vt_union = ((1 << vt_struct_shift) | vt_struct)
 const vt_enum = (2 << vt_struct_shift)
 
 const vt_atomic = vt_volatile
@@ -2033,9 +2033,9 @@ fn gen_opif(op int) {
 	if op == 129 {
 		v1 = v2
 	}
-	bt = v1.type_.t & 15
-	c1 = (v1.r & (63 | 256 | 512)) == 48
-	c2 = (v2.r & (63 | 256 | 512)) == 48
+	bt = v1.type_.t & vt_btype
+	c1 = (v1.r & (63 | 256 | 512)) == vt_const
+	c2 = (v2.r & (63 | 256 | 512)) == vt_const
 	if c1 && c2 {
 		unsafe {
 			if bt == 8 {
@@ -3825,7 +3825,7 @@ fn struct_decl(type_ &CType, u int) {
 					goto do_decl
 				}
 			}
-			if u == (2 << 20) && (s.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (2 << 20) {
+			if u == (2 << 20) && (s.type_.t & ((((1 << (6 + 6)) - 1) << 20) | 128)) == (2 << 20) {
 				unsafe {
 					goto do_decl
 				}
@@ -3992,7 +3992,7 @@ fn struct_decl(type_ &CType, u int) {
 						} else if bit_size == 64 {
 							_tcc_error('field width 64 not implemented')
 						} else {
-							type1.t = (type1.t & ~(((1 << (6 + 6)) - 1) << 20 | 128)) | 128 | (bit_size << (
+							type1.t = (type1.t & ~((((1 << (6 + 6)) - 1) << 20) | 128)) | 128 | (bit_size << (
 								20 + 6))
 						}
 					}
@@ -4057,6 +4057,8 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 
 	s := &Sym(0)
 	type1 := CType{}
+
+	vcc_trace('${@LOCATION} ${ignore_label}')
 	unsafe { C.memset(ad, 0, sizeof(AttributeDef)) }
 	t = vt_int
 	bt = -1

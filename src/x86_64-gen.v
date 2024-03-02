@@ -1305,6 +1305,7 @@ fn vpush_const(t int, v int) {
 }
 
 fn gen_opf(op int) {
+	vcc_trace_print('${@LOCATION} ${op} ${file.truefilename.vstring()}')
 	a := 0
 	ft := 0
 	fc := 0
@@ -1328,25 +1329,25 @@ fn gen_opf(op int) {
 		}
 		return
 	}
-	if (vtop[-1].r & (63 | 256)) == 48 {
+	if (vtop[-1].r & (vt_valmask | vt_lval)) == vt_const {
 		vswap()
 		gv(float_type)
 		vswap()
 	}
-	if (vtop[0].r & (63 | 256)) == 48 {
+	if (vtop[0].r & (vt_valmask | vt_lval)) == vt_const {
 		gv(float_type)
 	}
-	if vtop[-1].r & 256 && vtop[0].r & 256 {
+	if vtop[-1].r & vt_lval && vtop[0].r & vt_lval {
 		vswap()
 		gv(float_type)
 		vswap()
 	}
 	swapped = 0
-	if vtop[-1].r & 256 {
+	if vtop[-1].r & vt_lval {
 		vswap()
 		swapped = 1
 	}
-	if (vtop.type_.t & 15) == 10 {
+	if (vtop.type_.t & vt_btype) == vt_ldouble {
 		if op >= 146 && op <= 159 {
 			load(treg_st0, vtop)
 			save_reg(treg_rax)
@@ -1417,12 +1418,12 @@ fn gen_opf(op int) {
 			if (r & 63) == 49 {
 				v1 := SValue{}
 				r = get_reg(1)
-				v1.type_.t = 5
-				v1.r = 50 | 256
+				v1.type_.t = vt_ptr
+				v1.r = vt_local | vt_lval
 				v1.c.i = fc
 				load(r, &v1)
 				fc = 0
-				r = r | 256
+				r = r | vt_lval
 				vtop.r = r
 			}
 			if op == 148 || op == 149 {
@@ -1459,7 +1460,7 @@ fn gen_opf(op int) {
 			vset_vt_cmp(op | 256)
 			vtop.cmp_r = op
 		} else {
-			assert (vtop.type_.t & 15) != 10
+			assert (vtop.type_.t & vt_btype) != vt_ldouble
 			match rune(op) {
 				`-` { // case comp body kind=BinaryOperator is_enum=false
 					a = 4
@@ -1477,22 +1478,22 @@ fn gen_opf(op int) {
 			}
 			ft = vtop.type_.t
 			fc = vtop.c.i
-			assert (ft & 15) != 10
+			assert (ft & vt_btype) != vt_ldouble
 			r = vtop.r
-			if (vtop.r & 63) == 49 {
+			if (vtop.r & vt_valmask) == vt_llocal {
 				v1 := SValue{}
 				r = get_reg(1)
-				v1.type_.t = 5
-				v1.r = 50 | 256
+				v1.type_.t = vt_ptr
+				v1.r = vt_local | vt_lval
 				v1.c.i = fc
 				load(r, &v1)
 				fc = 0
-				r = r | 256
+				r = r | vt_lval
 				vtop.r = r
 			}
-			assert !bool(vtop[-1].r & 256)
+			assert !bool(vtop[-1].r & vt_lval)
 			if swapped {
-				assert bool(vtop.r & 256)
+				assert bool(vtop.r & vt_lval)
 				gv(2)
 				vswap()
 				fc = vtop.c.i
