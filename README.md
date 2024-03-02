@@ -7,11 +7,11 @@ TCC commit reference: _76d605192dae84c172722c3d73bf546a064b7e1c_
 
 *Currently it is x86-64 only.*
 
-### Building vtcc (or _-cc gcc|tcc|clang_)
+### Building vtcc
 
 `v -w .`
 
-(warnings are being fixed yet)
+(warnings are being fixed yet, but you can use `-cc gcc|tcc|clang_`)
 
 ### How to use
 
