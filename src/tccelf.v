@@ -488,7 +488,7 @@ fn get_sym_addr(s1 &TCCState, name &char, err int, forc int) Elf64_Addr {
 	buf := [256]char{}
 	if forc && s1.leading_underscore {
 		buf[0] = `_`
-		pstrcpy(buf + 1, sizeof(buf) - 1, name)
+		pstrcpy(&buf[0] + 1, sizeof(buf) - 1, name)
 		name = buf
 	}
 	sym_index = find_elf_sym(s1.symtab, name)

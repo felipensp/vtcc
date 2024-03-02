@@ -155,7 +155,7 @@ fn pstrcat(buf &char, buf_size usize, s &char) &char {
 	len := usize(0)
 	len = C.strlen(buf)
 	if len < buf_size {
-		pstrcpy(buf + len, buf_size - len, s)
+		pstrcpy(&buf[0] + len, buf_size - len, s)
 	}
 	return buf
 }
@@ -978,7 +978,7 @@ pub fn tcc_add_symbol(s1 &TCCState, name &char, val voidptr) int {
 	buf := [256]char{}
 	if s1.leading_underscore {
 		buf[0] = `_`
-		pstrcpy(buf + 1, sizeof(buf) - 1, name)
+		pstrcpy(&buf[0] + 1, sizeof(buf) - 1, name)
 		name = buf
 	}
 	set_global_sym(s1, name, (unsafe { nil }), Elf64_Addr(uintptr_t(val)))

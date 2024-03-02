@@ -1063,27 +1063,27 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 	str := strings.new_builder(100)
 	for ; true; {
 		type_ = t.type_.t & ~((4096 | 8192 | 16384 | 32768) | 256 | 512 | 1024)
-		if (type_ & 15) != 1 {
-			type_ &= ~32
+		if (type_ & vt_btype) != vt_byte {
+			type_ &= ~vt_defsign
 		}
-		if type_ == 5 || type_ == (5 | 64) {
-			n++, t.type_.ref
-			t = n++
+		if type_ == vt_ptr || type_ == (vt_ptr | vt_array) {
+			n++
+			t = t.type_.ref
 		} else { // 3
 			break
 		}
 	}
-	if (type_ & 15) == 7 {
+	if (type_ & vt_btype) == vt_struct {
 		e := t
 		t = t.type_.ref
 		debug_type = tcc_debug_find(s1, t, 0)
 		if debug_type == -1 {
 			debug_type = tcc_debug_add(s1, t, 0)
 			cstr_new(&str)
-			a1 := if (t.v & ~1073741824) >= 268435456 {
+			a1 := if (t.v & ~sym_struct) >= sym_first_anom {
 				c''
 			} else {
-				get_tok_str(t.v & ~1073741824, (unsafe { nil }))
+				get_tok_str(t.v & ~sym_struct, (unsafe { nil }))
 			}
 			a2 := if ((t.type_.t & ((((1 << (6 + 6)) - 1) << 20 | 128) | 15)) == (1 << 20 | 7)) {
 				`u`
