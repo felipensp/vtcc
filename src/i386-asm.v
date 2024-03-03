@@ -4844,20 +4844,20 @@ fn constraint_priority(str &char) int {
 	return priority
 }
 
-fn skip_constraint_modifiers(p &rune) &rune {
+fn skip_constraint_modifiers(p &char) &char {
 	for *p == `=` || *p == `&` || *p == `+` || *p == `%` {
-		p++
+		unsafe { p++ }
 	}
 	return p
 }
 
 fn asm_parse_regvar(t int) int {
-	s := &rune(0)
+	s := &char(0)
 	op := Operand{}
-	if t < 256 || t & 536870912 {
+	if t < TOK_IDENT || t & sym_field {
 		return -1
 	}
-	s = table_ident[t - 256].str
+	s = table_ident[t - TOK_IDENT].str
 	if s[0] != `%` {
 		return -1
 	}
@@ -4885,7 +4885,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 	c := 0
 	reg_mask := 0
 
-	str := &rune(0)
+	str := &char(0)
 	regs_allocated := [16]u8{}
 	for i = 0; i < nb_operands; i++ {
 		op = &ASMOperand(unsafe { &operands[0] + i })
@@ -4967,7 +4967,7 @@ fn asm_compute_constraints(operands &ASMOperand, nb_operands int, nb_outputs int
 		}
 		// RRRREG try_next id=0x7fffe2396c68
 		try_next:
-		c = *str++
+		c = unsafe { *str++ }
 		match rune(c) {
 			`=` { // case comp body kind=GotoStmt is_enum=false
 				goto try_next // id: 0x7fffe2396c68

@@ -1978,8 +1978,8 @@ fn tcc_tcov_block_end(s1 &TCCState, line int) {
 	}
 	if s1.dState.tcov_data.offset {
 		ptr := unsafe { s1.tcov_section.data + s1.dState.tcov_data.offset }
-		nline := if line { line } else { file.line_num }
-		mut val := (read64le(ptr) & 68719476735)
+		nline := u64(if line { line } else { file.line_num })
+		mut val := (read64le(ptr) & u64(0xfffffffff))
 		val |= (nline << 36)
 		write64le(ptr, val)
 		s1.dState.tcov_data.offset = 0

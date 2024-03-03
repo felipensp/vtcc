@@ -504,13 +504,10 @@ fn get_sym_addr(s1 &TCCState, name &char, err int, forc int) Elf64_Addr {
 
 fn tcc_get_symbol(s &TCCState, name &char) voidptr {
 	addr := get_sym_addr(s, name, 0, 1)
-	return unsafe {
-		voidptr(if addr == -1 {
-			nil
-		} else {
-			uintptr_t(addr)
-		})
+	if addr == -1 {
+		return unsafe { nil }
 	}
+	return voidptr(uintptr_t(addr))
 }
 
 fn list_elf_symbols(s &TCCState, ctx voidptr, symbol_cb fn (voidptr, &char, voidptr)) {
@@ -806,7 +803,8 @@ fn modify_reloctions_old_to_new(s1 &TCCState, s &Section, old_to_new_syms &int) 
 		sr = s1.sections[i]
 		if sr.sh_type == 4 && voidptr(sr.link) == voidptr(s) {
 			unsafe {
-				for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+				for rel = &Elf64_Rela(sr.data); voidptr(rel) < voidptr(&Elf64_Rela((sr.data +
+					sr.data_offset))); rel++ {
 					sym_index = ((rel.r_info) >> 32)
 					type_ = ((rel.r_info) & 4294967295)
 					sym_index = old_to_new_syms[sym_index]
@@ -1053,8 +1051,8 @@ fn relocate_syms(s1 &TCCState, symtab &Section, do_resolve int) {
 
 	name := &char(0)
 	unsafe {
-		for sym = &Elf64_Sym(symtab.data) + 1; voidptr(sym) < &Elf64_Sym((symtab.data +
-			symtab.data_offset)); sym++ {
+		for sym = &Elf64_Sym(symtab.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((symtab.data +
+			symtab.data_offset))); sym++ {
 			sh_num = sym.st_shndx
 			if sh_num == 0 {
 				if do_resolve == 2 {
@@ -1102,9 +1100,9 @@ fn relocate_section(s1 &TCCState, s &Section, sr &Section) {
 	addr := Elf64_Addr(0)
 
 	is_dwarf := s.sh_num >= s1.dwlo && s.sh_num < s1.dwhi
-	s1.qrel = &Elf64_Rela(sr.data)
+	s1.qrel = &Elf64_Rel(sr.data)
 	unsafe {
-		for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+		for rel = &Elf64_Rela(sr.data); voidptr(rel) < voidptr(&Elf64_Rela((sr.data + sr.data_offset))); rel++ {
 			ptr = s.data + rel.r_offset
 			sym_index = ((rel.r_info) >> 32)
 			sym = &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
@@ -1149,7 +1147,8 @@ fn relocate_sections(s1 &TCCState) {
 		if sr.sh_flags & (1 << 1) {
 			rel := &Elf64_Rela(0)
 			unsafe {
-				for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+				for rel = &Elf64_Rela(sr.data); voidptr(rel) < voidptr(&Elf64_Rela((sr.data +
+					sr.data_offset))); rel++ {
 					rel.r_offset += s.sh_addr
 				}
 			}
@@ -1161,7 +1160,7 @@ fn prepare_dynamic_rel(s1 &TCCState, sr &Section) int {
 	count := 0
 	rel := &Elf64_Rela(0)
 	unsafe {
-		for rel = &Elf64_Rela(sr.data); voidptr(rel) < &Elf64_Rela((sr.data + sr.data_offset)); rel++ {
+		for rel = &Elf64_Rela(sr.data); voidptr(rel) < voidptr(&Elf64_Rela((sr.data + sr.data_offset))); rel++ {
 			sym_index := ((rel.r_info) >> 32)
 			type_ := ((rel.r_info) & 4294967295)
 			match type_ {
@@ -1281,7 +1280,8 @@ fn build_got_entries(s1 &TCCState, got_sym int) {
 			continue
 		}
 		unsafe {
-			for rel = &Elf64_Rela(s.data); voidptr(rel) < &Elf64_Rela((s.data + s.data_offset)); rel++ {
+			for rel = &Elf64_Rela(s.data); voidptr(rel) < voidptr(&Elf64_Rela((s.data +
+				s.data_offset))); rel++ {
 				type_ = ((rel.r_info) & 4294967295)
 				gotplt_entry = gotplt_entry_type(type_)
 				if gotplt_entry == -1 {
@@ -1625,8 +1625,8 @@ fn resolve_common_syms(s1 &TCCState) {
 	sym := &Elf64_Sym(0)
 	unsafe {
 		vcc_trace('${@LOCATION}')
-		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
-			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
 			vcc_trace('${@LOCATION}')
 			if sym.st_shndx == 65522 {
 				vcc_trace('${@LOCATION}')
@@ -1668,7 +1668,8 @@ fn fill_got(s1 &TCCState) {
 			continue
 		}
 		unsafe {
-			for rel = &Elf64_Rela(s.data); voidptr(rel) < &Elf64_Rela((s.data + s.data_offset)); rel++ {
+			for rel = &Elf64_Rela(s.data); voidptr(rel) < voidptr(&Elf64_Rela((s.data +
+				s.data_offset))); rel++ {
 				match ((rel.r_info) & 4294967295) {
 					3, 9, 41, 42, 4 {
 						fill_got_entry(s1, rel)
@@ -1686,8 +1687,8 @@ fn fill_local_got_entries(s1 &TCCState) {
 		return
 	}
 	unsafe {
-		for rel = &Elf64_Rela(s1.got.reloc.data); voidptr(rel) < &Elf64_Rela((s1.got.reloc.data +
-			s1.got.reloc.data_offset)); rel++ {
+		for rel = &Elf64_Rela(s1.got.reloc.data); voidptr(rel) < voidptr(&Elf64_Rela((
+			s1.got.reloc.data + s1.got.reloc.data_offset))); rel++ {
 			if ((rel.r_info) & 4294967295) == 8 {
 				sym_index := ((rel.r_info) >> 32)
 				sym := &(&Elf64_Sym(s1.symtab_section.data))[sym_index]
@@ -1713,8 +1714,8 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 
 	type_ := 0
 	unsafe {
-		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
-			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
 			if sym.st_shndx == 0 {
 				name = &char(s1.symtab_section.link.data) + sym.st_name
 				sym_index = find_elf_sym(s1.dynsymtab_section, name)
@@ -1741,8 +1742,8 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 							0, s1.bss_section.sh_num, name)
 						vcc_trace('${@LOCATION} ${name.vstring()}')
 						if ((u8((esym.st_info))) >> 4) == 2 {
-							for dynsym = &Elf64_Sym(s1.dynsymtab_section.data) + 1; voidptr(dynsym) < &Elf64_Sym((
-								s1.dynsymtab_section.data + s1.dynsymtab_section.data_offset)); dynsym++ {
+							for dynsym = &Elf64_Sym(s1.dynsymtab_section.data) + 1; voidptr(dynsym) < voidptr(&Elf64_Sym((
+								s1.dynsymtab_section.data + s1.dynsymtab_section.data_offset))); dynsym++ {
 								if dynsym.st_value == esym.st_value
 									&& ((u8((dynsym.st_info))) >> 4) == 1 {
 									dynname := &char(s1.dynsymtab_section.link.data) +
@@ -1777,8 +1778,8 @@ fn bind_libs_dynsyms(s1 &TCCState) {
 	esym := &Elf64_Sym(0)
 
 	unsafe {
-		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
-			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
 			name = &char(s1.symtab_section.link.data) + sym.st_name
 			dynsym_index = find_elf_sym(s1.dynsymtab_section, name)
 			if sym.st_shndx != 0 {
@@ -1815,7 +1816,7 @@ fn export_global_syms(s1 &TCCState) {
 	name := &char(0)
 	sym := &Elf64_Sym(0)
 	unsafe {
-		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; sym < voidptr(&Elf64_Sym((
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((
 			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
 			if ((u8((sym.st_info))) >> 4) != 0 {
 				name = &char(s1.symtab_section.link.data) + sym.st_name
@@ -2456,8 +2457,8 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 		}
 	}
 	unsafe {
-		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < &Elf64_Sym((
-			s1.symtab_section.data + s1.symtab_section.data_offset)); sym++ {
+		for sym = &Elf64_Sym(s1.symtab_section.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((
+			s1.symtab_section.data + s1.symtab_section.data_offset))); sym++ {
 			if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 				sym.st_shndx = backmap[sym.st_shndx]
 			}
@@ -2465,8 +2466,8 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 	}
 	if !s1.static_link {
 		unsafe {
-			for sym = &Elf64_Sym(s1.dynsym.data) + 1; voidptr(sym) < &Elf64_Sym((s1.dynsym.data +
-				s1.dynsym.data_offset)); sym++ {
+			for sym = &Elf64_Sym(s1.dynsym.data) + 1; voidptr(sym) < voidptr(&Elf64_Sym((
+				s1.dynsym.data + s1.dynsym.data_offset))); sym++ {
 				if sym.st_shndx != 0 && sym.st_shndx < 65280 {
 					sym.st_shndx = backmap[sym.st_shndx]
 				}
@@ -2826,9 +2827,9 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 	sm_table = tcc_mallocz(sizeof(SectionMergeInfo) * ehdr.e_shnum)
 	sh = &shdr[ehdr.e_shstrndx]
 	strsec = load_data(fd, file_offset + sh.sh_offset, sh.sh_size)
-	old_to_new_syms = (unsafe { nil })
-	symtab = (unsafe { nil })
-	strtab = (unsafe { nil })
+	old_to_new_syms = unsafe { nil }
+	symtab = unsafe { nil }
+	strtab = unsafe { nil }
 	nb_syms = 0
 	seencompressed = 0
 	stab_index = 0
@@ -2939,7 +2940,7 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 			b = &Stab_Sym((s.data + s.data_offset))
 			o = sm_table[stabstr_index].offset
 
-			for voidptr(a) < b {
+			for voidptr(a) < voidptr(b) {
 				if a.n_strx {
 					a.n_strx += o
 				}
@@ -3001,8 +3002,8 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 			4 { // case comp body kind=BinaryOperator is_enum=false
 				offseti = sm_table[sh.sh_info].offset
 				unsafe {
-					for rel = &Elf64_Rela(s.data) + (offset / sizeof(*rel)); voidptr(rel) <
-						&Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel)); rel++ {
+					for rel = &Elf64_Rela(s.data) + (offset / sizeof(*rel)); voidptr(rel) < voidptr(
+						&Elf64_Rela(s.data) + ((offset + size) / sizeof(*rel))); rel++ {
 						type_ := 0
 						sym_index = u32(0)
 						type_ = ((rel.r_info) & 4294967295)

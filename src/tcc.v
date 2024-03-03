@@ -91,13 +91,13 @@ fn main() {
 	ppfp := &C.FILE(C.stdout)
 	// RRRREG redo id=0x7ffff0d74558
 	redo:
-	argc := os.args.len
-	argv := os.args
+	argc := g_main_argc
+	argv := &&char(g_main_argv)
 
 	s = tcc_new()
 	s1 = s
 	vcc_trace('${@LOCATION} ${argv}')
-	opt = tcc_parse_args(s, argc, argv, 1)
+	opt = tcc_parse_args(s, &argc, &argv, 1)
 	if opt < 0 {
 		return
 	}

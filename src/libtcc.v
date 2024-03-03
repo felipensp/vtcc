@@ -411,11 +411,11 @@ fn error1(mode int, message string) {
 	vcc_trace('${@LOCATION}')
 	cstr_new(&cs)
 	vcc_trace('${@LOCATION}')
-	f = &char(unsafe { nil })
+	f = &BufferedFile(unsafe { nil })
 	if s1.error_set_jmp_enabled {
-		f = &char(file)
+		f = &BufferedFile(file)
 		for f && f.filename[0] == `:` {
-			f = &char(f.prev)
+			f = &BufferedFile(f.prev)
 		}
 	}
 	if f != unsafe { nil } {
@@ -1075,7 +1075,7 @@ fn copy_linker_arg(pp &&char, s &char, sep int) {
 	unsafe {
 		*pp = tcc_realloc(p, q - s + l + 1)
 	}
-	unsafe { pstrncpy(l + pp, s, q - s) }
+	unsafe { pstrncpy(l + *pp, s, q - s) }
 }
 
 fn args_parser_add_file(s &TCCState, filename &char, filetype int) {
@@ -1624,7 +1624,7 @@ fn set_flag(s &TCCState, flags &FlagDef, name &char) int {
 
 const dumpmachine_str = 'x86_64-pc-linux-gnu'
 
-fn args_parser_make_argv(r &rune, argc &int, argv &&&char) int {
+fn args_parser_make_argv(r &char, argc &int, argv &&&char) int {
 	ret := 0
 	q := 0
 	c := 0
@@ -1674,7 +1674,7 @@ fn args_parser_listfile(s &TCCState, filename &char, optind int, pargc &int, par
 
 	p := &char(0)
 	argc := 0
-	argv := (unsafe { nil })
+	argv := &&char(unsafe { nil })
 	fd = C.open(filename, 0 | 0)
 	if fd < 0 {
 		return _tcc_error_noabort(s1, unsafe { "listfile '${filename.vstring()}' not found" })
@@ -1696,7 +1696,7 @@ fn args_parser_listfile(s &TCCState, filename &char, optind int, pargc &int, par
 	return 0
 }
 
-pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
+pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&char, optind int) int {
 	vcc_trace('>> ${@LOCATION}')
 	s1 := s
 	popt := &TCCOption(0)
@@ -1709,12 +1709,12 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 	arg_start := 0
 	noaction := optind
 
-	argv := pargv
-	argc := pargc
+	argv := &&char(*pargv)
+	argc := int(*pargc)
 	vcc_trace('>> ${@LOCATION}')
 	cstr_reset(&s.linker_arg)
 	for optind < argc {
-		r = argv[optind].str
+		r = argv[optind]
 		unsafe {
 			vcc_trace('>> ${@LOCATION} ${optind} ${argv} ${r.vstring()}')
 		}
@@ -1788,7 +1788,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 						arg_err:
 						return _tcc_error_noabort(s1, unsafe { "argument to '${r.vstring()}' is missing" })
 					}
-					optarg = argv[optind++].str
+					optarg = argv[optind++]
 				}
 			} else if *r1 != `\x00` {
 				unsafe { popt++ }
@@ -2101,8 +2101,8 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 	}
 	vcc_trace('>> ${@LOCATION}')
 	unsafe {
-		*pargc = *argc - arg_start
-		pargv = argv[arg_start..]
+		*pargc = argc - arg_start
+		*pargv = argv + arg_start
 	}
 	if tool {
 		return tool
@@ -2120,7 +2120,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 }
 
 pub fn tcc_set_options(s &TCCState, r &char) int {
-	argv := []string{}
+	argv := &&char(unsafe { nil })
 	argc := 0
 	ret := 0
 

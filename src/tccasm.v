@@ -842,7 +842,7 @@ fn tcc_assemble_internal(s1 &TCCState, do_preprocess int, global int) int {
 	if do_preprocess {
 		parse_flags |= 1
 	}
-	for ; true; {
+	for {
 		next()
 		if tok == (-1) {
 			break
@@ -860,7 +860,7 @@ fn tcc_assemble_internal(s1 &TCCState, do_preprocess int, global int) int {
 			p := &char(0)
 			n := 0
 			p = unsafe { tokc.str.data }
-			n = C.strtoul(p, &char(&p), 10)
+			n = C.strtoul(p, &&char(&p), 10)
 			if *p != `\x00` {
 				expect(c"':'")
 			}
@@ -923,7 +923,7 @@ fn tcc_assemble_inline(s1 &TCCState, str &char, len int, global int) {
 	macro_ptr = saved_macro_ptr
 }
 
-fn find_constraint(operands &ASMOperand, nb_operands int, name &char, pp &&u8) int {
+fn find_constraint(operands &ASMOperand, nb_operands int, name &char, pp &&char) int {
 	index := 0
 	ts := &TokenSym(0)
 	p := &char(0)
@@ -964,14 +964,14 @@ fn find_constraint(operands &ASMOperand, nb_operands int, name &char, pp &&u8) i
 	return index
 }
 
-fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, str &rune) {
+fn subst_asm_operands(operands &ASMOperand, nb_operands int, out_str &CString, str &char) {
 	c := 0
 	index := 0
 	modifier := 0
 
 	op := &ASMOperand(0)
 	sv := SValue{}
-	for ; true; {
+	for {
 		c = unsafe { *str++ }
 		if c == `%` {
 			if *str == `%` {

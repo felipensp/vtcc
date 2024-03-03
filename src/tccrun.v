@@ -153,7 +153,7 @@ type prog_main_fn = fn (int, &&char, &&char) int
 type bound_start_fn = fn (voidptr, int)
 
 pub fn tcc_run(s1 &TCCState, argc int, argv &&char) int {
-	prog_main := &prog_main_fn(0)
+	prog_main := prog_main_fn(0)
 	ret := 0
 
 	rc := &g_rtctxt
