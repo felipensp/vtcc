@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 fn C.strncpy(&char, &char, u32) &char
 fn C.getcwd(&char, usize) &char
 
@@ -1060,8 +1058,8 @@ fn tcc_get_debug_info(s1 &TCCState, s &Sym, result &CString) {
 	n := 0
 	debug_type := -1
 	t := s
-	str := strings.new_builder(100)
-	for ; true; {
+	str := CString{}
+	for {
 		type_ = t.type_.t & ~((4096 | 8192 | 16384 | 32768) | 256 | 512 | 1024)
 		if (type_ & vt_btype) != vt_byte {
 			type_ &= ~vt_defsign
@@ -1658,7 +1656,7 @@ fn tcc_debug_finish(s1 &TCCState, cur &debug_info) {
 }
 
 fn tcc_add_debug_info(s1 &TCCState, param int, s &Sym, e &Sym) {
-	debug_str := strings.new_builder(100)
+	debug_str := CString{}
 	if !(s1.do_debug & 2) {
 		return
 	}
@@ -1693,7 +1691,7 @@ fn tcc_add_debug_info(s1 &TCCState, param int, s &Sym, e &Sym) {
 }
 
 fn tcc_debug_funcstart(s1 &TCCState, sym &Sym) {
-	debug_str := strings.new_builder(100)
+	debug_str := CString{}
 	f := &BufferedFile(0)
 	if !s1.do_debug {
 		return
@@ -1837,7 +1835,7 @@ fn tcc_debug_extern_sym(s1 &TCCState, sym &Sym, sh_num int, sym_bind int, sym_ty
 		write64le(section_ptr_add((s1.dwarf_info_section), 8), (0))
 	} else {
 		s := if sh_num == 65522 { s1.common_section } else { s1.sections[sh_num] }
-		str := strings.new_builder(100)
+		str := CString{}
 		cstr_new(&str)
 		t := if sym_bind == 1 {
 			`G`
@@ -1881,7 +1879,7 @@ fn tcc_debug_typedef(s1 &TCCState, sym &Sym) {
 			write32le(section_ptr_add((s1.dwarf_info_section), 4), (debug_type - s1.dState.dwarf_info.start))
 		}
 	} else {
-		str := strings.new_builder(100)
+		str := CString{}
 		cstr_new(&str)
 		tmp := if (sym.v & ~536870912) >= 268435456 {
 			c''
@@ -1907,7 +1905,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 	if s1.dState.tcov_data.last_file_name == 0
 		|| unsafe { C.strcmp(&char((s1.tcov_section.data + s1.dState.tcov_data.last_file_name)), file.truefilename) != 0 } {
 		wd := [1024]char{}
-		cstr := strings.new_builder(100)
+		cstr := CString{}
 		if s1.dState.tcov_data.last_func_name {
 			section_ptr_add(s1.tcov_section, 1)
 		}
@@ -1925,7 +1923,7 @@ fn tcc_tcov_block_begin(s1 &TCCState) {
 				unsafe { C.strlen(wd) } + 1
 			cstr_printf(&cstr, '${wd}/${file.truefilename}')
 		}
-		ptr = section_ptr_add(s1.tcov_section, cstr.len + 1)
+		ptr = section_ptr_add(s1.tcov_section, cstr.size + 1)
 		unsafe { C.strcpy(&char(ptr), cstr.data) }
 		cstr_free(&cstr)
 	}

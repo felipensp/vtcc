@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 #include <math.h>
 #include <time.h>
 
@@ -30,7 +28,7 @@ __global tokstr_alloc = &TinyAlloc(0)
 
 __global tokstr_buf = TokenString{}
 
-__global cstr_buf = strings.new_builder(100)
+__global cstr_buf = CString{}
 
 __global hash_ident = &[TOK_HASH_SIZE]TokenSym{}
 __global token_buf = [STRING_MAX_SIZE + 1]char{}
@@ -349,27 +347,26 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 }
 
 fn cstr_realloc(cstr &CString, new_size int) {
-	// size := 0
-	// size = cstr.size_allocated
-	// if size < 8 {
-	// 	size = 8
-	// }
-	// for size < new_size {
-	// 	size = size * 2
-	// }
-	// cstr.data = tcc_realloc(cstr.data, size)
-	// cstr.size_allocated = size
+	size := 0
+	size = cstr.size_allocated
+	if size < 8 {
+		size = 8
+	}
+	for size < new_size {
+		size = size * 2
+	}
+	cstr.data = tcc_realloc(cstr.data, size)
+	cstr.size_allocated = size
 }
 
-fn cstr_ccat(cstr &strings.Builder, ch u8) {
-	// size := 0
-	// size = cstr.size + 1
-	// if size > cstr.size_allocated {
-	// 	cstr_realloc(cstr, size)
-	// }
-	cstr.write_byte(ch)
-	//(&u8(cstr.data))[size - 1] = ch
-	// cstr.size = size
+fn cstr_ccat(cstr &CString, ch u8) {
+	size := 0
+	size = cstr.size + 1
+	if size > cstr.size_allocated {
+		cstr_realloc(cstr, size)
+	}
+	(&u8(cstr.data))[size - 1] = ch
+	cstr.size = size
 }
 
 fn unicode_to_utf8(b &char, uc u32) &char {
@@ -417,77 +414,63 @@ fn cstr_u8cat(cstr &CString, ch int) {
 	}
 }
 
-fn cstr_cat(cstr &strings.Builder, str &u8, len int) {
-	// size := 0
-	// if len <= 0 {
-	// 	len = C.strlen(str) + 1 + len
-	// }
-	// size = cstr.size + len
-	// if size > cstr.size_allocated {
-	// 	cstr_realloc(cstr, size)
-	// }
-	unsafe {
-		if len <= 0 {
-			cstr.write_ptr(str, C.strlen(str))
-		} else {
-			cstr.write_ptr(str, len)
-		}
+fn cstr_cat(cstr &CString, str &u8, len int) {
+	size := 0
+	if len <= 0 {
+		len = C.strlen(str) + 1 + len
 	}
-	// C.memmove((&u8(cstr.data)) + cstr.size, str, len)
-	// cstr.size = size
+	size = cstr.size + len
+	if size > cstr.size_allocated {
+		cstr_realloc(cstr, size)
+	}
+	unsafe {
+		C.memmove(&u8(cstr.data) + cstr.size, str, len)
+	}
+	cstr.size = size
 }
 
-fn cstr_wccat(cstr &strings.Builder, ch u8) {
-	// size := 0
-	// size = cstr.size + sizeof(Nwchar_t)
-	// if size > cstr.size_allocated {
-	// 	cstr_realloc(cstr, size)
-	// }
-	cstr.write_byte(ch)
-	// *&Nwchar_t(((&u8(cstr.data)) + size - sizeof(Nwchar_t))) = ch
-	// cstr.size = size
+fn cstr_wccat(cstr &CString, ch int) {
+	size := 0
+	size = cstr.size + sizeof(Nwchar_t)
+	if size > cstr.size_allocated {
+		cstr_realloc(cstr, size)
+	}
+	unsafe {
+		*&Nwchar_t(((&u8(cstr.data)) + size - sizeof(Nwchar_t))) = ch
+	}
+	cstr.size = size
 }
 
-fn cstr_new(cstr &strings.Builder) {
-	// C.memset(cstr, 0, sizeof(CString))
-	cstr.clear()
+fn cstr_new(cstr &CString) {
+	unsafe {
+		C.memset(cstr, 0, sizeof(CString))
+	}
 }
 
 fn cstr_free(cstr &CString) {
-	// tcc_free(cstr.data)
-	cstr.clear()
+	tcc_free(cstr.data)
 }
 
 fn cstr_reset(cstr &CString) {
-	// cstr.size = 0
-	cstr.clear()
+	cstr.size = 0
 }
 
-fn cstr_vprintf(cstr &strings.Builder, msg string) int {
-	// len := 0
-	// size := 80
+fn cstr_vprintf(cstr &CString, msg string) int {
+	len := 0
+	size := 80
 
-	// for ; true; {
-	// 	size += cstr.size
-	// 	if size > cstr.size_allocated {
-	// 		cstr_realloc(cstr, size)
-	// 	}
-	// 	size = cstr.size_allocated - cstr.size
-
-	cstr.write_string(msg)
-	// 	len = C.vsnprintf(&i8(cstr.data) + cstr.size, size, msg)
-	// 	if len >= 0 && len < size {
-	// 		break
-	// 	}
-	// 	size *= 2
-	// }
-	// cstr.size += len
-	return msg.len
+	size += cstr.size
+	if size > cstr.size_allocated {
+		cstr_realloc(cstr, size)
+	}
+	size = cstr.size_allocated - cstr.size
+	len = C.snprintf(&u8(cstr.data) + cstr.size, size, c'%s', msg.str)
+	cstr.size += len
+	return len
 }
 
 fn cstr_printf(cstr &CString, msg string) int {
-	len := cstr_vprintf(cstr, msg)
-	return len
+	return cstr_vprintf(cstr, msg)
 }
 
 fn add_char(cstr &CString, c int) {
@@ -1485,7 +1468,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 	if c == `<` || c == `"` {
 		cstr_reset(&tokcstr)
 		file.buf_ptr = parse_pp_string(file.buf_ptr, if c == `<` { `>` } else { c }, &tokcstr)
-		i = tokcstr.len
+		i = tokcstr.size
 		pstrncpy(name, tokcstr.data, if i >= sizeof(name) { sizeof(name) - 1 } else { i })
 		next_nomacro()
 	} else {
@@ -2448,7 +2431,6 @@ fn parse_string(s &char, len int) {
 	if p != buf {
 		tcc_free(p)
 	}
-	mut tokcstrlen := tokcstr.len
 	if sep == `'` {
 		char_size := 0
 		i := 0
@@ -2461,10 +2443,9 @@ fn parse_string(s &char, len int) {
 		} else { // 3
 			tok = 193
 			char_size = sizeof(Nwchar_t)
-			tokcstrlen *= char_size
 		}
-		n = tokcstrlen / char_size - 1
-		vcc_trace_print('${@LOCATION} is_long=${is_long} toklen=${tokcstrlen} n=${n} char_size=${char_size}')
+		n = tokcstr.size / char_size - 1
+		vcc_trace_print('${@LOCATION} is_long=${is_long} toklen=${tokcstr.size} n=${n} char_size=${char_size}')
 		if n < 1 {
 			_tcc_error('empty character constant')
 		}
@@ -2482,7 +2463,7 @@ fn parse_string(s &char, len int) {
 		}
 		tokc.i = c
 	} else {
-		tokc.str.size = tokcstrlen
+		tokc.str.size = tokcstr.size
 		tokc.str.data = tokcstr.data
 		if !is_long {
 			tok = 200
@@ -3061,7 +3042,7 @@ fn next_nomacro1() {
 						}
 					}
 				}
-				ts = tok_alloc(tokcstr.data, tokcstr.len)
+				ts = tok_alloc(tokcstr.data, tokcstr.size)
 			}
 			tok = ts.tok
 			// vcc_trace('${@LOCATION}')
@@ -3125,7 +3106,7 @@ fn next_nomacro1() {
 				}
 			}
 			cstr_ccat(&tokcstr, `\x00`)
-			tokc.str.size = tokcstr.len
+			tokc.str.size = tokcstr.size
 			tokc.str.data = tokcstr.data
 			tok = 205
 		}
@@ -3178,7 +3159,7 @@ fn next_nomacro1() {
 			p = parse_pp_string(p, c, &tokcstr)
 			cstr_ccat(&tokcstr, c)
 			cstr_ccat(&tokcstr, `\x00`)
-			tokc.str.size = tokcstr.len
+			tokc.str.size = tokcstr.size
 			tokc.str.data = tokcstr.data
 			tok = 206
 		}
@@ -3500,10 +3481,10 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 					}
 				}
 				vcc_trace('${@LOCATION} -= spc')
-				tokcstr.go_back(spc)
+				tokcstr.size -= spc
 				cstr_ccat(&tokcstr, `"`)
 				cstr_ccat(&tokcstr, `\x00`)
-				cval.str.size = tokcstr.len
+				cval.str.size = tokcstr.size
 				cval.str.data = tokcstr.data
 				vcc_trace('${@LOCATION}')
 				tok_str_add2(&str, 206, &cval)
@@ -3583,13 +3564,13 @@ fn paste_tokens(t1 int, v1 &CValue, t2 int, v2 &CValue) int {
 	if t1 != 164 {
 		cstr_cat(&tokcstr, get_tok_str(t1, v1), -1)
 	}
-	n = tokcstr.len
+	n = tokcstr.size
 	if t2 != 164 {
 		cstr_cat(&tokcstr, get_tok_str(t2, v2), -1)
 	}
 	cstr_ccat(&tokcstr, `\x00`)
-	tcc_open_bf(tcc_state, c':paste:', tokcstr.len)
-	C.memcpy(file.buffer, tokcstr.data, tokcstr.len)
+	tcc_open_bf(tcc_state, c':paste:', tokcstr.size)
+	C.memcpy(file.buffer, tokcstr.data, tokcstr.size)
 	tok_flags = 0
 	for {
 		next_nomacro1()
@@ -3825,7 +3806,7 @@ fn macro_subst_tok(tok_str &TokenString, nested_list &&Sym, s &Sym) int {
 		add_cstr1:
 		cstr_reset(&tokcstr)
 		cstr_cat(&tokcstr, cstrval, 0)
-		cval.str.size = tokcstr.len
+		cval.str.size = tokcstr.size
 		cval.str.data = tokcstr.data
 		tok_str_add2(tok_str, t1, &cval)
 	} else if s.d {
@@ -4181,10 +4162,10 @@ fn unget_tok(last_tok int) {
 
 const target_os_defs = ['__linux__', '__linux', '__unix__', '__unix']
 
-fn putdef(cs &strings.Builder, p string) {
+fn putdef(cs &CString, p string) {
 	vcc_trace('${@LOCATION} - #define ${p}')
 	// cs.write_string('#define ${p}${' 1'[int(!!C.strchr(p.str, ` `)) * 2]}\n')
-	cs.write_string('#define ${p} 1\n')
+	cstr_printf(cs, '#define ${p} 1\n')
 }
 
 fn putdefs(cs &CString, strs []string) {
@@ -4263,19 +4244,19 @@ fn preprocess_start(s1 &TCCState, filetype int) {
 	vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 	if !(filetype & 2) {
 		vcc_trace('${@LOCATION} - ${s1.nb_sections}')
-		cstr := strings.new_builder(100)
+		cstr := CString{}
 		cstr_new(&cstr)
 		vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 		tcc_predefs(s1, &cstr, is_asm)
 		vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 		// vcc_trace('${@LOCATION} ${(&char(cstr.data)).vstring()}')
-		if s1.cmdline_defs.len {
+		if s1.cmdline_defs.size {
 			vcc_trace('${@LOCATION} - ${s1.nb_sections}')
-			cstr_cat(&cstr, s1.cmdline_defs.data, s1.cmdline_defs.len)
+			cstr_cat(&cstr, s1.cmdline_defs.data, s1.cmdline_defs.size)
 		}
-		if s1.cmdline_incl.len {
+		if s1.cmdline_incl.size {
 			vcc_trace('${@LOCATION} - ${s1.nb_sections}')
-			cstr_cat(&cstr, s1.cmdline_incl.data, s1.cmdline_incl.len)
+			cstr_cat(&cstr, s1.cmdline_incl.data, s1.cmdline_incl.size)
 		}
 		vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 		unsafe {
@@ -4284,8 +4265,8 @@ fn preprocess_start(s1 &TCCState, filetype int) {
 			vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 		}
 		vcc_trace('${@LOCATION} - ${s1.nb_sections}')
-		tcc_open_bf(s1, c'<command line>', cstr.len)
-		C.memcpy(file.buffer, cstr.data, cstr.len)
+		tcc_open_bf(s1, c'<command line>', cstr.size)
+		C.memcpy(file.buffer, cstr.data, cstr.size)
 		cstr_free(&cstr)
 		vcc_trace('${@LOCATION} - ${s1.nb_sections}')
 	}

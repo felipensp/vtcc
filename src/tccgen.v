@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 pub const TOK_IDENT = 256
 
 const dif_first = 1
@@ -128,7 +126,7 @@ __global pending_gotos = &Sym(0)
 __global local_scope = int(0)
 
 __global _vstack = [1 + VSTACK_SIZE]SValue{}
-__global initstr = strings.new_builder(100)
+__global initstr = CString{}
 
 __global cur_switch = &Switch_t(0)
 
@@ -198,6 +196,7 @@ const NOEVAL_MASK = 0x0000FFFF
 
 fn gsym(t int) { // ok
 	if t {
+		vcc_trace_print('${@LOCATION} ${ind}')
 		gsym_addr(t, ind)
 		nocode_wanted &= ~code_off_bit
 	}
@@ -803,14 +802,17 @@ fn vswap() {
 	tmp = vtop[0]
 	vtop[0] = vtop[-1]
 	vtop[-1] = tmp
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vpop() {
 	v := 0
 	v = vtop.r & vt_valmask
+	// for x86, we need to pop the FP stack
 	if v == treg_st0 {
-		o(55517)
+		o(0xd8dd) // fstp %st(0)
 	} else if v == vt_cmp {
+		// need to put correct jump if && or || without test
 		gsym(vtop.jtrue)
 		gsym(vtop.jfalse)
 	}
@@ -819,6 +821,7 @@ fn vpop() {
 
 fn vpush(type_ &CType) {
 	vset(type_, vt_const, 0)
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vpush64(ty int, v i64) {
@@ -828,18 +831,22 @@ fn vpush64(ty int, v i64) {
 	ctype.ref = unsafe { nil }
 	cval.i = v
 	vsetc(&ctype, vt_const, &cval)
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vpushi(v int) {
 	vpush64(vt_int, v)
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vpushs(v Elf64_Addr) {
 	vpush64(vt_size_t, v)
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vpushll(v i64) {
 	vpush64(vt_llong, v)
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vset(type_ &CType, r int, v int) {
@@ -853,6 +860,7 @@ fn vseti(r int, v int) {
 	type_.t = vt_int
 	type_.ref = unsafe { nil }
 	vset(&type_, r, v)
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vpushv(v &SValue) {
@@ -861,15 +869,18 @@ fn vpushv(v &SValue) {
 	}
 	unsafe { vtop++ }
 	*vtop = *v
+	vcc_trace_print('${@LOCATION}')
 }
 
 fn vdup() {
+	vcc_trace_print('${@LOCATION}')
 	vpushv(vtop)
 }
 
 fn vrotb(n int) {
 	i := 0
 	tmp := SValue{}
+	vcc_trace_print('${@LOCATION}')
 	vcheck_cmp()
 	tmp = vtop[-n + 1]
 	for i = -n + 1; i != 0; i++ {
@@ -881,6 +892,7 @@ fn vrotb(n int) {
 fn vrote(e &SValue, n int) {
 	i := 0
 	tmp := SValue{}
+	vcc_trace_print('${@LOCATION}')
 	vcheck_cmp()
 	tmp = *e
 	for i = 0; i < n - 1; i++ {
@@ -890,6 +902,7 @@ fn vrote(e &SValue, n int) {
 }
 
 fn vrott(n int) {
+	vcc_trace_print('${@LOCATION}')
 	vrote(vtop, n)
 }
 
@@ -903,11 +916,13 @@ fn vset_vt_cmp(op int) {
 fn vset_vt_jmp() {
 	op := vtop.cmp_op
 	if vtop.jtrue || vtop.jfalse {
+		vcc_trace_print('${@LOCATION} 1')
 		origt := vtop.type_.t
 		inv := op & (op < 2)
 		vseti(52 + inv, gvtst(inv, 0))
 		vtop.type_.t |= origt & (vt_unsigned | vt_defsign)
 	} else {
+		vcc_trace_print('${@LOCATION} vtop.c.i=${op}')
 		vtop.c.i = op
 		if op < 2 {
 			vtop.r = vt_const
@@ -1249,6 +1264,7 @@ fn save_reg_upstack(r int, n int) {
 					size = type_size(&sv.type_, &align)
 					l = get_temp_local_var(size, align)
 					sv.r = vt_local | vt_lval
+					vcc_trace_print('${@LOCATION} sv.c.i=${l}')
 					sv.c.i = l
 					store(p.r & vt_valmask, &sv)
 					if r == treg_st0 {
@@ -1267,6 +1283,7 @@ fn save_reg_upstack(r int, n int) {
 				p.sym = nil
 				p.r2 = vt_const
 				p.c.i = l
+				vcc_trace_print('${@LOCATION} p.c.i=${l}')
 			}
 		}
 	}
@@ -1370,6 +1387,7 @@ fn move_reg(r int, s int, t int) {
 		sv.r = s
 		sv.c.i = 0
 		load(r, &sv)
+		vcc_trace_print('${@LOCATION} c.i=0')
 	}
 }
 
@@ -1396,6 +1414,7 @@ fn gen_bounded_ptr_add() {
 		return
 	}
 	vtop.c.i = (tcc_state.cur_text_section.reloc.data_offset - sizeof(Elf64_Rela))
+	vcc_trace_print('${@LOCATION} vtop.c.i=${vtop.c.i}')
 }
 
 fn gen_bounded_ptr_deref() {
@@ -1728,17 +1747,19 @@ fn gv(rc int) int {
 				}
 			}
 			if rc2 {
-				load_type := if (bt == 14) { 9 } else { (2048 | 4) }
+				load_type := if (bt == vt_qfloat) { vt_double } else { vt_ptrdiff_t }
 				original_type := vtop.type_.t
-				if (vtop.r & (63 | 256)) == vt_const {
+				if (vtop.r & (vt_valmask | vt_lval)) == vt_const {
 					unsafe {
 						ll := u64(vtop.c.i)
 						vtop.c.i = ll
+						vcc_trace_print('${@LOCATION} longlong vtop.c.i=${ll}')
 						load(r, vtop)
 						vtop.r = r
 						vpushi(ll >> 32)
+						vcc_trace_print('${@LOCATION} vtop.c.i=${ll}')
 					}
-				} else if vtop.r & 256 {
+				} else if vtop.r & vt_lval {
 					save_reg_upstack(vtop.r, 1)
 					vtop.type_.t = load_type
 					load(r, vtop)
@@ -1827,18 +1848,22 @@ fn gen_opic(op int) {
 	v2 := vtop
 	t1 := v1.type_.t & vt_btype
 	t2 := v2.type_.t & vt_btype
-	c1 := (v1.r & (63 | 256 | 512)) == vt_const
-	c2 := (v2.r & (63 | 256 | 512)) == vt_const
-	l1 := unsafe { if c1 { v1.c.i } else { 0 } }
-	l2 := unsafe { if c2 { v2.c.i } else { 0 } }
+	c1 := (v1.r & (vt_valmask | vt_lval | vt_sym)) == vt_const
+	c2 := (v2.r & (vt_valmask | vt_lval | vt_sym)) == vt_const
+	l1 := u64(unsafe { if c1 { v1.c.i } else { 0 } })
+	l2 := u64(unsafe { if c2 { v2.c.i } else { 0 } })
 	shm := u64(if (t1 == vt_llong) { 63 } else { 31 })
 	r := 0
 
-	if t1 != vt_llong && (8 != 8 || t1 != vt_ptr) {
-		l1 = (u32(l1) | (if v1.type_.t & 16 { 0 } else { -(l1 & 0x80000000) }))
+	if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
+		// C.printf(c'%s t1=%d v1.r=%d c1=%d l1.1=%ld\n', C.__FUNCTION__, t1, v1.r, c1, l1)
+		l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & u32(0x80000000)) }))
+		// C.printf(c'%s l1.2=%lu\n', C.__FUNCTION__, l1)
 	}
-	if t2 != vt_llong && (8 != 8 || t2 != vt_ptr) {
-		l2 = (u32(l2) | (if v2.type_.t & 16 { 0 } else { -(l2 & 0x80000000) }))
+	if t2 != vt_llong && (ptr_size != 8 || t2 != vt_ptr) {
+		// C.printf(c'%s t2=%d v2.r=%d c2=%d l2.1=%ld\n', C.__FUNCTION__, t2, v2.r, c2, l2)
+		l2 = (u32(l2) | (if v2.type_.t & vt_unsigned { 0 } else { -(l2 & u32(0x80000000)) }))
+		// C.printf(c'%s l2.2=%ld\n', C.__FUNCTION__, l2)
 	}
 	if c1 && c2 {
 		match rune(op) {
@@ -1935,11 +1960,13 @@ fn gen_opic(op int) {
 				} // id: 0x7fffed43f2b0
 			}
 		}
-		if t1 != 4 && (8 != 8 || t1 != 5) {
-			l1 = (u32(l1) | (if v1.type_.t & 16 { 0 } else { -(l1 & 0x80000000) }))
+		// C.printf(c'%s t1=%d l1=%ld %ld\n', C.__FUNCTION__, t1, l1, -(l1 & 0x80000000))
+		if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
+			l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & 0x80000000) }))
 		}
 		v1.c.i = l1
-		v1.r |= v2.r & 4096
+		v1.r |= v2.r & vt_nonconst
+		vcc_trace_print('${@LOCATION} v1.c.i=${l1}')
 		unsafe { vtop-- }
 	} else {
 		if c1 && (op == `+` || op == `&` || op == `^` || op == `|` || op == `*`
@@ -1955,6 +1982,7 @@ fn gen_opic(op int) {
 			|| (l2 == 1 && (op == `%` || op == 132))) {
 			if l2 == 1 {
 				vtop.c.i = 0
+				vcc_trace_print('${@LOCATION} vtop.c.i=${vtop.c.i}')
 			}
 			vswap()
 			unsafe { vtop-- }
@@ -1970,6 +1998,7 @@ fn gen_opic(op int) {
 					l2 >>= 1
 					n++
 				}
+				vcc_trace_print('${@LOCATION} n=${n}')
 				vtop.c.i = n
 				if op == `*` {
 					op = `<`
@@ -1996,6 +2025,7 @@ fn gen_opic(op int) {
 			}
 			unsafe { vtop-- }
 			vtop.c.i = l2
+			vcc_trace_print('${@LOCATION} l2=${l2}')
 		} else {
 			// RRRREG general_case id=0x7fffed43f2b0
 			general_case:
@@ -2618,6 +2648,7 @@ fn gen_op(op int) {
 			if op != `-` {
 				_tcc_error('cannot use pointers here')
 			}
+			vcc_trace_print('${@LOCATION} ptr t1=${t1}')
 			vpush_type_size(pointed_type(&vtop[-1].type_), &align)
 			vrott(3)
 			gen_opic(op)
@@ -2641,10 +2672,12 @@ fn gen_op(op int) {
 				if op == `-` {
 					vpushi(0)
 					vswap()
+					vcc_trace_print('${@LOCATION} genop- t1=${t1}')
 					gen_op(`-`)
 				}
 				gen_bounded_ptr_add()
 			} else {
+				vcc_trace_print('${@LOCATION} else t1=${t1}')
 				gen_opic(op)
 			}
 			type1.t &= ~(vt_array | vt_vla)
@@ -2661,6 +2694,7 @@ fn gen_op(op int) {
 			}
 			t |= (vt_long & t1)
 			combtype.t = t
+			vcc_trace_print('${@LOCATION} combined t=${t} t1=${t1}')
 		}
 		// RRRREG std_op id=0x7fffed463d50
 		std_op:
@@ -2682,17 +2716,21 @@ fn gen_op(op int) {
 			} else if op == 157 {
 				op = 147
 			}
+			vcc_trace_print('${@LOCATION} gen_op.unsigned')
 		}
 		vswap()
 		gen_cast_s(t)
 		vswap()
 		if op == 139 || op == `>` || op == `<` {
 			t2 = vt_int
+			vcc_trace_print('${@LOCATION} int')
 		}
 		gen_cast_s(t2)
 		if is_float(t) {
+			vcc_trace_print('${@LOCATION} is_float')
 			gen_opif(op)
 		} else { // 3
+			vcc_trace_print('${@LOCATION} is not float')
 			gen_opic(op)
 		}
 		if (op >= 144 && op <= 159) {
@@ -2702,8 +2740,10 @@ fn gen_op(op int) {
 		}
 	}
 	if vtop.r & vt_lval {
+		vcc_trace_print('${@LOCATION} gen_op.float')
 		gv(if is_float(vtop.type_.t & vt_btype) { rc_float } else { rc_int })
 	}
+	vcc_trace_print('${@LOCATION} gen_op.end')
 }
 
 fn gen_cvt_itof1(t int) {
@@ -2784,18 +2824,19 @@ fn gen_cast(type_ &CType) {
 		vcc_trace_print('${@LOCATION} cast.2')
 		gv(1)
 	}
-	dbt = type_.t & (15 | 16)
-	sbt = vtop.type_.t & (15 | 16)
-	if sbt == 6 {
-		sbt = 5
+	dbt = type_.t & (vt_btype | vt_unsigned)
+	sbt = vtop.type_.t & (vt_btype | vt_unsigned)
+	if sbt == vt_func {
+		sbt = vt_ptr
 	}
 	// RRRREG again id=0x7fffed470288
 	again:
+	vcc_trace_print('${@LOCATION} cast.again')
 	if sbt != dbt {
 		sf = is_float(sbt)
 		df = is_float(dbt)
-		dbt_bt = dbt & 15
-		sbt_bt = sbt & 15
+		dbt_bt = dbt & vt_btype
+		sbt_bt = sbt & vt_btype
 		if dbt_bt == vt_void {
 			unsafe {
 				goto done
@@ -2807,88 +2848,103 @@ fn gen_cast(type_ &CType) {
 			vcc_trace_print('${@LOCATION} cast.error')
 			cast_error(&vtop.type_, type_)
 		}
-		c = (vtop.r & (63 | 256 | 512)) == 48
+		c = (vtop.r & (vt_valmask | vt_lval | vt_sym)) == vt_const
 		if c {
 			unsafe {
-				if sbt == 8 {
+				if sbt == vt_float {
 					vtop.c.ld = vtop.c.f
-				} else if sbt == 9 {
+				} else if sbt == vt_double {
 					vtop.c.ld = vtop.c.d
 				}
+				vcc_trace_print('${@LOCATION} long double.0=${vtop.c.ld}')
 			}
 			if df {
-				if sbt_bt == 4 {
+				if sbt_bt == vt_llong {
 					unsafe {
-						if sbt & 16 || !(vtop.c.i >> 63) {
+						if sbt & vt_unsigned || !(vtop.c.i >> 63) {
 							vtop.c.ld = vtop.c.i
+							vcc_trace_print('${@LOCATION} long double.1=${vtop.c.ld}')
 						} else { // 3
 							vtop.c.ld = -f64(-vtop.c.i)
+							vcc_trace_print('${@LOCATION} long double.2=${vtop.c.ld}')
 						}
 					}
 				} else if !sf {
 					unsafe {
-						if sbt & 16 || !(vtop.c.i >> 31) {
+						if sbt & vt_unsigned || !(vtop.c.i >> 31) {
 							vtop.c.ld = u32(vtop.c.i)
 						} else { // 3
 							vtop.c.ld = -f64(-u32(vtop.c.i))
+							vcc_trace_print('${@LOCATION} long double2=${vtop.c.ld}')
 						}
 					}
 				}
 				unsafe {
-					if dbt == 8 {
+					if dbt == vt_float {
 						vtop.c.f = f32(vtop.c.ld)
-					} else if dbt == 9 {
+					} else if dbt == vt_double {
 						vtop.c.d = f64(vtop.c.ld)
 					}
 				}
-			} else if sf && dbt == 11 {
+			} else if sf && dbt == vt_bool {
 				unsafe {
 					vtop.c.i = (vtop.c.ld != 0)
 				}
 			} else {
 				unsafe {
+					vcc_trace_print('${@LOCATION} 0 v.c.i=${vtop.c.i}')
 					if sf {
 						vtop.c.i = vtop.c.ld
-					} else if sbt_bt == 4 || (8 == 8 && sbt == 5) {
-					} else if sbt & 16 {
+					} else if sbt_bt == vt_llong || (ptr_size == 8 && sbt == vt_ptr) {
+					} else if sbt & vt_unsigned {
 						vtop.c.i = u32(vtop.c.i)
+						vcc_trace_print('${@LOCATION} u32.0=${vtop.c.i}')
 					} else { // 3
-						vtop.c.i = (u32(vtop.c.i) | -(vtop.c.i & 2147483648))
+						vtop.c.i = (u32(vtop.c.i) | -(vtop.c.i & u32(0x80000000)))
+						vcc_trace_print('${@LOCATION} u32.1=${vtop.c.i}')
 					}
-					if dbt_bt == 4 || (8 == 8 && dbt == 5) {
-					} else if dbt == 11 {
+					if dbt_bt == vt_llong || (ptr_size == 8 && dbt == vt_ptr) {
+					} else if dbt == vt_bool {
 						vtop.c.i = (vtop.c.i != 0)
 					} else {
-						m := u32(if dbt_bt == 1 {
+						m := u32(if dbt_bt == vt_btype {
 							0xff
 						} else {
-							if dbt_bt == 2 { 0xffff } else { u32(0xffffffff) }
+							if dbt_bt == vt_short { 0xffff } else { u32(0xffffffff) }
 						})
+						vcc_trace_print('${@LOCATION} u32.3=${vtop.c.i} m=${m}')
 						vtop.c.i &= m
-						if !(dbt & 16) {
+						if !(dbt & vt_unsigned) {
 							vtop.c.i |= -(vtop.c.i & ((m >> 1) + 1))
+							vcc_trace_print('${@LOCATION} unisig.6=${vtop.c.i}')
 						}
 					}
+					vcc_trace_print('${@LOCATION} v.c.i=${vtop.c.i}')
 				}
 			}
 			unsafe {
+				vcc_trace_print('${@LOCATION} goto done')
 				goto done
 			} // id: 0x7fffed46b878
-		} else if dbt == 11 && (vtop.r & (63 | 256 | 512)) == (48 | 512) {
+		} else if dbt == vt_bool
+			&& (vtop.r & (vt_valmask | vt_lval | vt_sym)) == (vt_const | vt_sym) {
 			vtop.r = vt_const
 			vtop.c.i = 1
+			vcc_trace_print('${@LOCATION} vtop.c.i=1 fix')
 			unsafe {
 				goto done
 			} // id: 0x7fffed46b878
 		}
 		if nocode_wanted & data_only_wanted {
 			unsafe {
+				vcc_trace_print('${@LOCATION} goto done2')
 				goto done
 			} // id: 0x7fffed46b878
 		}
 		if dbt == vt_bool {
 			gen_test_zero(149)
 			unsafe {
+				vcc_trace_print('${@LOCATION} goto done3')
 				goto done
 			} // id: 0x7fffed46b878
 		}
@@ -2927,18 +2983,18 @@ fn gen_cast(type_ &CType) {
 				goto done
 			} // id: 0x7fffed46b878
 		}
-		if dbt_bt == 5 || sbt_bt == 5 {
+		if dbt_bt == vt_ptr || sbt_bt == vt_ptr {
 			_tcc_warning('cast between pointer and integer of different size')
 			if sbt_bt == 5 {
-				vtop.type_.t = (if 8 == 8 { 4 } else { 3 })
+				vtop.type_.t = (if ptr_size == 8 { 4 } else { 3 })
 			}
 		}
-		if 1 && vtop.r & 256 {
+		if 1 && vtop.r & vt_lval {
 			unsafe {
 				if ds <= ss {
 					goto done // id: 0x7fffed46b878
 				}
-				if ds <= 4 && !(dbt == (2 | 16) && sbt == 1) {
+				if ds <= 4 && !(dbt == (vt_short | vt_unsigned) && sbt == vt_byte) {
 					gv(1)
 					goto done // id: 0x7fffed46b878
 				}
@@ -3271,18 +3327,19 @@ fn vstore() {
 			vtop.r |= (u32(((3072) & ~((3072) << 1))) * (int(sbt == 4) + 1))
 			vtop.type_.t = ft & (~((4096 | 8192 | 16384 | 32768) | (((1 << (6 + 6)) - 1) << 20 | 128)))
 		}
-		if (vtop[-1].r & 63) == 49 {
+		if (vtop[-1].r & vt_valmask) == vt_llocal {
 			sv := SValue{}
 			unsafe {
 				r = get_reg(1)
-				sv.type_.t = (2048 | 4)
-				sv.r = 50 | 256
+				sv.type_.t = vt_ptrdiff_t
+				sv.r = vt_local | vt_lval
 				sv.c.i = vtop[-1].c.i
+				vcc_trace_print('${@LOCATION} c.i=${sv.c.i}')
 				load(r, &sv)
-				vtop[-1].r = r | 256
+				vtop[-1].r = r | vt_lval
 			}
 		}
-		r = vtop.r & 63
+		r = vtop.r & vt_valmask
 		if (r2_ret(dbt) != 48) {
 			load_type := if (dbt == 14) { 9 } else { (2048 | 4) }
 			vtop[-1].type_.t = load_type
@@ -3315,7 +3372,7 @@ fn inc(post int, c int) {
 	}
 }
 
-fn parse_mult_str(msg &char) &strings.Builder {
+fn parse_mult_str(msg &char) &CString {
 	if tok != 200 {
 		expect(msg)
 	}
@@ -4058,7 +4115,7 @@ fn parse_btype(type_ &CType, ad &AttributeDef, ignore_label int) int {
 	s := &Sym(0)
 	type1 := CType{}
 
-	vcc_trace('${@LOCATION} ${ignore_label}')
+	vcc_trace_print('${@LOCATION} ${ignore_label}')
 	unsafe { C.memset(ad, 0, sizeof(AttributeDef)) }
 	t = vt_int
 	bt = -1
@@ -4425,7 +4482,7 @@ fn convert_parameter_type(pt &CType) {
 	}
 }
 
-fn parse_asm_str() &strings.Builder {
+fn parse_asm_str() &CString {
 	skip(`(`)
 	return parse_mult_str(c'string constant')
 }
@@ -5016,37 +5073,37 @@ fn unary() {
 			next()
 		}
 		195 { // case comp body kind=BinaryOperator is_enum=true
-			t = 3 | 16
+			t = vt_int | vt_unsigned
 			unsafe {
 				goto push_tokc
 			}
 		}
 		196 { // case comp body kind=BinaryOperator is_enum=true
-			t = 4
+			t = vt_llong
 			unsafe {
 				goto push_tokc
 			}
 		}
 		197 { // case comp body kind=BinaryOperator is_enum=true
-			t = 4 | 16
+			t = vt_llong | vt_unsigned
 			unsafe {
 				goto push_tokc
 			}
 		}
 		202 { // case comp body kind=BinaryOperator is_enum=true
-			t = 8
+			t = vt_float
 			unsafe {
 				goto push_tokc
 			}
 		}
 		203 { // case comp body kind=BinaryOperator is_enum=true
-			t = 9
+			t = vt_double
 			unsafe {
 				goto push_tokc
 			}
 		}
 		204 { // case comp body kind=BinaryOperator is_enum=true
-			t = 10
+			t = vt_ldouble
 			unsafe {
 				goto push_tokc
 			}
@@ -5059,7 +5116,7 @@ fn unary() {
 			}
 		}
 		199 { // case comp body kind=BinaryOperator is_enum=true
-			t = (if 8 == 8 { 4 } else { 3 }) | 2048 | 16
+			t = (if 8 == 8 { vt_llong } else { vt_int }) | vt_long | vt_unsigned
 			unsafe {
 				goto push_tokc
 			}
@@ -5076,7 +5133,7 @@ fn unary() {
 			cstr_reset(&tokcstr)
 			cstr_cat(&tokcstr, funcname, 0)
 			unsafe {
-				tokc.str.size = tokcstr.len
+				tokc.str.size = tokcstr.size
 				tokc.str.data = tokcstr.data
 			}
 			unsafe {
@@ -5084,7 +5141,7 @@ fn unary() {
 			}
 		}
 		201 { // case comp body kind=BinaryOperator is_enum=true
-			t = 3
+			t = vt_int
 			unsafe {
 				goto str_init
 			}
@@ -5095,20 +5152,23 @@ fn unary() {
 			t = char_type.t
 			// RRRREG str_init id=0x7fffed4c0e60
 			str_init:
+			vcc_trace_print('${@LOCATION} 200')
 			if tcc_state.warn_write_strings & 1 {
-				t |= 256
+				t |= vt_constant
 			}
 			type_.t = t
 			mk_pointer(&type_)
-			type_.t |= 64
+			type_.t |= vt_array
 			C.memset(&ad, 0, sizeof(AttributeDef))
 			ad.section = tcc_state.rodata_section
-			decl_initializer_alloc(&type_, &ad, 48, 2, 0, 0)
+			vcc_trace_print('${@LOCATION} 200.1')
+			decl_initializer_alloc(&type_, &ad, vt_const, 2, 0, 0)
 		}
 		167, int(`(`) {
 			t = tok
 			next()
 			if parse_btype(&type_, &ad, 0) {
+				vcc_trace_print('${@LOCATION} abstract')
 				type_decl(&type_, &ad, &n, 1)
 				skip(`)`)
 				if tok == `{` {
@@ -5117,8 +5177,9 @@ fn unary() {
 					} else { // 3
 						r = 50
 					}
-					if !(type_.t & 64) {
-						r |= 256
+					vcc_trace_print('${@LOCATION} r=${r}')
+					if !(type_.t & vt_array) {
+						r |= vt_lval
 					}
 					C.memset(&ad, 0, sizeof(AttributeDef))
 					decl_initializer_alloc(&type_, &ad, r, 1, 0, 0)
@@ -5152,14 +5213,16 @@ fn unary() {
 			}
 		}
 		int(`*`) { // case comp body kind=CallExpr is_enum=true
+			vcc_trace_print('${@LOCATION} asterisk')
 			next()
 			unary()
 			indir()
 		}
 		int(`&`) { // case comp body kind=CallExpr is_enum=true
+			vcc_trace_print('${@LOCATION} amp')
 			next()
 			unary()
-			if (vtop.type_.t & 15) != 6 && !(vtop.type_.t & (64 | 1024)) {
+			if (vtop.type_.t & vt_btype) != vt_func && !(vtop.type_.t & (vt_array | vt_vla)) {
 				test_lvalue()
 			}
 			if vtop.sym {
@@ -5176,6 +5239,7 @@ fn unary() {
 		}
 		int(`~`) { // case comp body kind=CallExpr is_enum=true
 			next()
+			vcc_trace_print('${@LOCATION} unary.~ tok=${tok}')
 			unary()
 			vpushi(-1)
 			gen_op(`^`)
@@ -5183,7 +5247,7 @@ fn unary() {
 		int(`+`) { // case comp body kind=CallExpr is_enum=true
 			next()
 			unary()
-			if (vtop.type_.t & 15) == 5 {
+			if (vtop.type_.t & vt_btype) == vt_ptr {
 				_tcc_error('pointer not accepted for unary plus')
 			}
 			if !is_float(vtop.type_.t) {
@@ -5204,8 +5268,8 @@ fn unary() {
 				gen_cast_s((2048 | 4 | 16))
 			} else {
 				type_size(&type_, &align)
-				s = (unsafe { nil })
-				if vtop[1].r & 512 {
+				s = unsafe { nil }
+				if vtop[1].r & vt_sym {
 					s = vtop[1].sym
 				}
 				if s != unsafe { nil } && s.a.aligned {
@@ -5220,8 +5284,8 @@ fn unary() {
 		}
 		int(Tcc_token.tok_builtin_types_compatible_p) { // case comp body kind=CallExpr is_enum=true
 			parse_builtin_params(0, c'tt')
-			vtop[-1].type_.t &= ~(256 | 512)
-			vtop[0].type_.t &= ~(256 | 512)
+			vtop[-1].type_.t &= ~(vt_constant | vt_volatile)
+			vtop[0].type_.t &= ~(vt_constant | vt_volatile)
 			n = is_compatible_types(&vtop[-1].type_, &vtop[0].type_)
 			vtop -= 2
 			vpushi(n)
@@ -5256,7 +5320,8 @@ fn unary() {
 		int(Tcc_token.tok_builtin_constant_p) { // case comp body kind=CallExpr is_enum=true
 			parse_builtin_params(1, c'e')
 			n = 1
-			if (vtop.r & (63 | 256)) != 48 || (vtop.r & 512 && vtop.sym.a.addrtaken) {
+			if (vtop.r & (vt_valmask | vt_lval)) != vt_const
+				|| (vtop.r & vt_sym && vtop.sym.a.addrtaken) {
 				n = 0
 			}
 			unsafe { vtop-- }
@@ -5293,6 +5358,7 @@ fn unary() {
 			}
 		}
 		int(Tcc_token.tok_builtin_va_arg_types) { // case comp body kind=CallExpr is_enum=true
+			vcc_trace_print('${@LOCATION} va_arg tok=${tok}')
 			parse_builtin_params(0, c't')
 			vpushi(classify_x86_64_va_arg(&vtop.type_))
 			vswap()
@@ -5445,8 +5511,9 @@ fn unary() {
 			t = tok
 			next()
 			s = sym_find(t)
-			if !s || (s.type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20) {
-				name := get_tok_str(t, (unsafe { nil }))
+			if !s || (s.type_.t & (15 | (0 | (1 << 20)))) == (0 | (1 << 20)) {
+				name := get_tok_str(t, unsafe { nil })
+				vcc_trace_print('${@LOCATION} glob')
 				if tok != `(` {
 					_tcc_error("'${name}' undeclared")
 				}
@@ -5455,15 +5522,17 @@ fn unary() {
 				s = external_global_sym(t, &func_old_type)
 			}
 			r = s.r
-			if (r & 63) < 48 {
-				r = (r & ~63) | 50
+			if (r & vt_valmask) < vt_const {
+				r = (r & ~vt_valmask) | vt_local
 			}
 			vset(&s.type_, r, s.c)
 			vtop.sym = s
-			if r & 512 {
+			if r & vt_sym {
 				vtop.c.i = 0
-			} else if r == 48 && (s.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (3 << 20) {
+				vcc_trace_print('${@LOCATION} 512 ${r}')
+			} else if r == vt_const && (s.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (3 << 20) {
 				vtop.c.i = s.enum_val
+				vcc_trace_print('${@LOCATION} enum_val ${s.enum_val}')
 			}
 		}
 	}
@@ -5475,10 +5544,12 @@ fn unary() {
 			qualifiers := 0
 			cumofs := 0
 
+			vcc_trace_print('${@LOCATION} quali')
+
 			if tok == 160 {
 				indir()
 			}
-			qualifiers = vtop.type_.t & (256 | 512)
+			qualifiers = vtop.type_.t & (vt_constant | vt_volatile)
 			test_lvalue()
 			next()
 			s = find_field(&vtop.type_, tok, &cumofs)
@@ -5512,6 +5583,7 @@ fn unary() {
 			ret_align := 0
 			regsize := 0
 			variadic := 0
+			vcc_trace_print('${@LOCATION} fcall')
 			unsafe {
 				if (vtop.type_.t & vt_btype) != vt_func {
 					if (vtop.type_.t & (vt_btype | vt_array)) == vt_ptr {
@@ -5535,14 +5607,15 @@ fn unary() {
 			regsize = nb_args
 			ret.r2 = vt_const
 			if (s.type_.t & vt_btype) == vt_struct {
+				vcc_trace_print('${@LOCATION} struct.2')
 				variadic = (s.f.func_type == func_ellipsis)
 				ret_nregs = gfunc_sret(&s.type_, variadic, &ret.type_, &ret_align, &regsize)
 				if ret_nregs <= 0 {
 					size = type_size(&s.type_, &align)
 					loc = (loc - size) & -align
 					ret.type_ = s.type_
-					ret.r = 50 | 256
-					vseti(50, loc)
+					ret.r = vt_local | vt_lval
+					vseti(vt_local, loc)
 					if tcc_state.do_bounds_check {
 						loc--
 					}
@@ -5558,10 +5631,12 @@ fn unary() {
 				ret.type_ = s.type_
 			}
 			if ret_nregs > 0 {
+				vcc_trace_print('${@LOCATION} ret reg')
 				ret.c.i = 0
 				put_r_ret(&ret, ret.type_.t)
 			}
 			if tok != `)` {
+				vcc_trace_print('${@LOCATION} }')
 				for {
 					expr_eq()
 					gfunc_param_typed(s, sa)
@@ -5596,9 +5671,11 @@ fn unary() {
 				}
 				vsetc(&ret.type_, ret.r, &ret.c)
 				vtop.r2 = ret.r2
-				if (s.type_.t & 15) == 7 && ret_nregs {
+				if (s.type_.t & vt_btype) == vt_struct && ret_nregs {
 					addr := 0
 					offset := 0
+
+					vcc_trace_print('${@LOCATION} struct')
 
 					size = type_size(&s.type_, &align)
 					size = (size + regsize - 1) & -regsize
@@ -5609,7 +5686,7 @@ fn unary() {
 					addr = loc
 					offset = 0
 					for ; true; {
-						vset(&ret.type_, 50 | 256, addr + offset)
+						vset(&ret.type_, vt_local | vt_lval, addr + offset)
 						vswap()
 						vstore()
 						unsafe { vtop-- }
@@ -5618,9 +5695,9 @@ fn unary() {
 						}
 						offset += regsize
 					}
-					vset(&s.type_, 50 | 256, addr)
+					vset(&s.type_, vt_local | vt_lval, addr)
 				}
-				t = s.type_.t & 15
+				t = s.type_.t & vt_btype
 				if t == 1 || t == 2 || t == 11 {
 					vtop.r |= (u32(((3072) & ~((3072) << 1))) * (1))
 				}
@@ -5637,6 +5714,7 @@ fn unary() {
 			break
 		}
 	}
+	vcc_trace_print('${@LOCATION} unary.end')
 }
 
 fn precedence(tok int) int {
@@ -5702,6 +5780,7 @@ fn expr_infix(p int) {
 		vcc_trace_print('${@LOCATION} - p2=${p2} p=${p}')
 
 		if t == 145 || t == 144 {
+			vcc_trace_print('${@LOCATION} - landor')
 			expr_landor(t)
 		} else {
 			vcc_trace_print('${@LOCATION} - else p2=${p2} p=${p}')
@@ -5725,7 +5804,7 @@ fn expr_infix(p int) {
 fn condition_3way() int {
 	c := -1
 	unsafe {
-		if (vtop.r & (vt_valmask | vt_lval)) == vt_const && (!(vtop.r & 512) || !vtop.sym.a.weak) {
+		if (vtop.r & (vt_valmask | vt_lval)) == vt_const && (!(vtop.r & vt_sym) || !vtop.sym.a.weak) {
 			vcc_trace_print('${@LOCATION} cond3way.0 c=${c}')
 			vdup()
 			vcc_trace_print('${@LOCATION} cond3way.1 c=${c}')
@@ -5750,6 +5829,7 @@ fn expr_landor(op int) {
 
 	for {
 		c = if f { i } else { condition_3way() }
+		vcc_trace_print('${@LOCATION} c=${c}')
 		if c < 0 {
 			save_regs(1)
 			cc = 0
@@ -5770,11 +5850,13 @@ fn expr_landor(op int) {
 		expr_infix((if u32(op) < 256 { prec[op] } else { 0 }) + 1)
 	}
 	if cc || f {
+		vcc_trace_print('${@LOCATION} c=${c}')
 		vpop()
 		vpushi(int(i) ^ int(f))
 		gsym(t)
 		nocode_wanted -= f
 	} else {
+		vcc_trace_print('${@LOCATION} 2 c=${c}')
 		gvtst_set(i, t)
 	}
 }
@@ -5810,21 +5892,25 @@ fn expr_cond() {
 	unary()
 	expr_infix(1)
 
-	vcc_trace_print('${@LOCATION} ${tok}')
+	vcc_trace_print('${@LOCATION} - ${tok}')
 
 	if tok == `?` {
+		vcc_trace_print('${@LOCATION} cond ?')
 		next()
 		c = condition_3way()
 		g = (tok == `:` && tcc_state.gnu_ext)
 		tt = 0
 		if !g {
+			vcc_trace_print('${@LOCATION} cond.2 ?')
 			if c < 0 {
+				vcc_trace_print('${@LOCATION} cond.3 ?')
 				save_regs(1)
 				tt = gvtst(1, 0)
 			} else {
 				vpop()
 			}
 		} else if c < 0 {
+			vcc_trace_print('${@LOCATION} cond.4 ?')
 			save_regs(1)
 			gv_dup()
 			tt = gvtst(0, 0)
@@ -5833,16 +5919,20 @@ fn expr_cond() {
 			nocode_wanted++
 		}
 		if !g {
+			vcc_trace_print('${@LOCATION} cond.5 ?')
 			gexpr()
 		}
-		if (vtop.type_.t & 15) == 6 {
+		if (vtop.type_.t & vt_btype) == vt_func {
+			vcc_trace_print('${@LOCATION} cond.6 ?')
 			mk_pointer(&vtop.type_)
 		}
 		sv = *vtop
 		unsafe { vtop-- }
 		if g {
+			vcc_trace_print('${@LOCATION} cond.7 ${tt}')
 			u = tt
 		} else if c < 0 {
+			vcc_trace_print('${@LOCATION} cond.8 ${c}')
 			u = gjmp_acs(0)
 			gsym(tt)
 		} else { // 3
@@ -5856,13 +5946,14 @@ fn expr_cond() {
 		}
 		skip(`:`)
 		expr_cond()
-		if (vtop.type_.t & 15) == 6 {
+		if (vtop.type_.t & vt_btype) == vt_func {
 			mk_pointer(&vtop.type_)
 		}
 		if !combine_types(&type_, &sv, vtop, `?`) {
 			type_incompatibility_error(&sv.type_, &vtop.type_, c"type mismatch in conditional expression (have '%s' and '%s')")
 		}
 		if c < 0 && is_cond_bool(vtop) && is_cond_bool(&sv) {
+			vcc_trace_print('${@LOCATION} cond.9 ${c}')
 			t1 = gvtst(0, 0)
 			t2 = gjmp_acs(0)
 			gsym(u)
@@ -5872,8 +5963,9 @@ fn expr_cond() {
 			gen_cast(&type_)
 			return
 		}
-		islv = vtop.r & 256 && sv.r & 256 && 7 == (type_.t & 15)
+		islv = vtop.r & vt_lval && sv.r & vt_lval && vt_struct == (type_.t & vt_btype)
 		if c != 1 {
+			vcc_trace_print('${@LOCATION} cond.10 ${c} ${islv}')
 			gen_cast(&type_)
 			if islv {
 				mk_pointer(&vtop.type_)
@@ -5897,6 +5989,7 @@ fn expr_cond() {
 			nocode_wanted--
 		}
 		if c != 0 {
+			vcc_trace_print('${@LOCATION} cond.11 ${c}')
 			*vtop = sv
 			gen_cast(&type_)
 			if islv {
@@ -5907,15 +6000,18 @@ fn expr_cond() {
 			}
 		}
 		if c < 0 {
+			vcc_trace_print('${@LOCATION} cond.12 ${c}')
 			r1 = gv(rc)
 			move_reg(r2, r1, if islv { 5 } else { type_.t })
 			vtop.r = r2
 			gsym(tt)
 		}
 		if islv {
+			vcc_trace_print('${@LOCATION} cond.13 ${islv}')
 			indir()
 		}
 	}
+	vcc_trace_print('${@LOCATION} cond.end')
 }
 
 fn expr_eq() {
@@ -5981,7 +6077,7 @@ fn expr_const1() {
 fn expr_const64() i64 {
 	c := i64(0)
 	expr_const1()
-	if (vtop.r & (63 | 256 | 512 | 4096)) != vt_const {
+	if (vtop.r & (vt_valmask | vt_lval | vt_sym | vt_nonconst)) != vt_const {
 		expect(c'constant expression')
 	}
 	unsafe {
@@ -5993,8 +6089,8 @@ fn expr_const64() i64 {
 }
 
 fn expr_const() int {
-	c := 0
-	wc := expr_const64()
+	c := int(0)
+	wc := i64(expr_const64())
 	c = wc
 	if c != wc && u32(c) != wc {
 		_tcc_error('constant exceeds 32 bit')
@@ -7175,9 +7271,9 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 				_tcc_error('unhandled string literal merging')
 			}
 			for tok == 200 || tok == 201 {
-				if initstr.len {
-					vcc_trace_print('${@LOCATION} go_back ${size1} ${initstr.len}')
-					initstr.go_back(size1)
+				if initstr.size {
+					vcc_trace_print('${@LOCATION} go_back ${size1} ${initstr.size}')
+					initstr.size -= size1
 				}
 				if tok == 200 {
 					len += tokc.str.size
@@ -7195,7 +7291,7 @@ fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 			}
 			if tok != `)` && tok != `}` && tok != `,` && tok != `;` && tok != (-1) {
 				unget_tok(if size1 == 1 { 200 } else { 201 })
-				tokc.str.size = initstr.len
+				tokc.str.size = initstr.size
 				tokc.str.data = initstr.data
 				goto do_init_array // id: 0x7fffed520228
 			}

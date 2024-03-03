@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 fn C.read(int, voidptr, int) int
 fn C.fputc(int, &C.FILE) int
 fn C.strerror(int) &char
@@ -1456,7 +1454,7 @@ fn tcc_add_btstub(s1 &TCCState) {
 	n := 0
 	o := 0
 
-	cstr := strings.new_builder(100)
+	cstr := CString{}
 	s = s1.data_section
 	section_ptr_add(s, -s.data_offset & (8 - 1))
 	o = s.data_offset
@@ -1497,7 +1495,7 @@ fn tcc_add_btstub(s1 &TCCState) {
 }
 
 fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
-	cstr := strings.new_builder(100)
+	cstr := CString{}
 	ptr := &voidptr(0)
 	wd := [1024]char{}
 	if s1.tcov_section == (unsafe { nil }) {
@@ -1512,7 +1510,7 @@ fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
 		C.getcwd(wd, sizeof(wd))
 		cstr_printf(&cstr, '${wd}/${filename}.tcov')
 	}
-	ptr = section_ptr_add(s1.tcov_section, cstr.len + 1)
+	ptr = section_ptr_add(s1.tcov_section, cstr.size + 1)
 	unsafe {
 		C.strcpy(&char(ptr), cstr.data)
 		C.unlink(&char(ptr))
@@ -1520,7 +1518,7 @@ fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
 	cstr_free(&cstr)
 	cstr_new(&cstr)
 	cstr_printf(&cstr, 'extern char *__tcov_data[];extern void __store_test_coverage ();__attribute__((destructor)) static void __tcov_exit() {__store_test_coverage(__tcov_data);}')
-	tcc_compile_string_no_debug(s1, cstr)
+	tcc_compile_string_no_debug(s1, cstr.data)
 	cstr_free(&cstr)
 	set_local_sym(s1, &c'___tcov_data'[!s1.leading_underscore], s1.tcov_section, 0)
 }

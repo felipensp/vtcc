@@ -116,10 +116,10 @@ fn gen_le64(c i64) {
 }
 
 fn orex(ll int, r int, r2 int, b int) {
-	if (r & 63) >= 48 {
+	if (r & vt_valmask) >= vt_const {
 		r = 0
 	}
-	if (r2 & 63) >= 48 {
+	if (r2 & vt_valmask) >= vt_const {
 		r2 = 0
 	}
 	if ll || (r >> 3) & 1 || (r2 >> 3) & 1 {
@@ -130,15 +130,16 @@ fn orex(ll int, r int, r2 int, b int) {
 
 fn gsym_addr(t int, a int) {
 	for t {
-		ptr := tcc_state.cur_text_section.data + t
-		n := read32le(ptr)
+		ptr := &char(tcc_state.cur_text_section.data + t)
+		n := u32(read32le(ptr))
+		vcc_trace_print('${@LOCATION} t=${t} a=${a} n=${n}')
 		write32le(ptr, if a < 0 { -a } else { a - t - 4 })
 		t = n
 	}
 }
 
 fn is64_type(t int) bool {
-	return (t & 15) == 5 || (t & 15) == 6 || (t & 15) == 4
+	return (t & vt_btype) == vt_ptr || (t & vt_btype) == vt_func || (t & vt_btype) == vt_llong
 }
 
 fn oad(c int, s int) int {
@@ -180,7 +181,8 @@ fn gen_gotpcrel(r int, sym &Sym, c int) {
 	greloca(tcc_state.cur_text_section, sym, ind, 9, -4)
 	gen_le32(0)
 	if c {
-		orex(1, r, 0, 129)
+		// we use add c, %xxx for displacement
+		orex(1, r, 0, 0x81)
 		o(192 + (r & 7))
 		gen_le32(c)
 	}
@@ -239,29 +241,30 @@ fn load(r int, sv &SValue) {
 
 	v1 := SValue{}
 	fr = sv.r
-	ft = sv.type_.t & ~32
+	ft = sv.type_.t & ~vt_defsign
 	fc = sv.c.i
-	if u64(fc) != sv.c.i && fr & 512 {
+	if u64(fc) != sv.c.i && fr & vt_sym {
 		_tcc_error('64 bit addend in load')
 	}
-	ft &= ~(512 | 256)
-	if (fr & 63) == 48 && fr & 512 && fr & 256 && !(sv.sym.type_.t & 8192) {
+	ft &= ~(vt_volatile | vt_constant)
+	if (fr & 63) == vt_const && fr & vt_struct && fr & vt_lval && !(sv.sym.type_.t & vt_static) {
 		tr := r | treg_mem
 		if is_float(ft) {
 			tr = get_reg(1) | treg_mem
 		}
-		gen_modrm64(139, tr, fr, sv.sym, 0)
-		fr = tr | 256
+		gen_modrm64(0x8b, tr, fr, sv.sym, 0)
+		fr = tr | vt_lval
 	}
-	v = fr & 63
-	if fr & 256 {
+	v = fr & vt_valmask
+	if fr & vt_lval {
 		b := 0
 		ll := 0
 
-		if v == 49 {
-			v1.type_.t = 5
-			v1.r = 50 | 256
+		if v == vt_llocal {
+			v1.type_.t = vt_ptr
+			v1.r = vt_local | vt_lval
 			v1.c.i = fc
+			vcc_trace_print('${@LOCATION} c.i=${v1.c.i}')
 			fr = r
 			if !(reg_classes[fr] & (1 | 2048)) {
 				fr = get_reg(1)
@@ -269,9 +272,11 @@ fn load(r int, sv &SValue) {
 			load(fr, &v1)
 		}
 		if u64(fc) != sv.c.i {
-			v1.type_.t = 4
-			v1.r = 48
+			vcc_trace_print('${@LOCATION} load.0')
+			v1.type_.t = vt_llong
+			v1.r = vt_const
 			v1.c.i = sv.c.i
+			vcc_trace_print('${@LOCATION} c.i=${v1.c.i}')
 			fr = r
 			if !(reg_classes[fr] & (1 | 2048)) {
 				fr = get_reg(1)
@@ -280,34 +285,34 @@ fn load(r int, sv &SValue) {
 			fc = 0
 		}
 		ll = 0
-		if (ft & 15) == 7 {
+		if (ft & vt_btype) == vt_struct {
 			align := 0
 			match type_size(&sv.type_, &align) {
 				1 { // case comp body kind=BinaryOperator is_enum=true
-					ft = 1
+					ft = vt_byte
 				}
 				2 { // case comp body kind=BinaryOperator is_enum=true
-					ft = 2
+					ft = vt_short
 				}
 				4 { // case comp body kind=BinaryOperator is_enum=true
-					ft = 3
+					ft = vt_int
 				}
 				8 { // case comp body kind=BinaryOperator is_enum=true
-					ft = 4
+					ft = vt_llong
 				}
 				else {
 					_tcc_error('invalid aggregate type for register load')
 				}
 			}
 		}
-		if (ft & 15) == 8 {
-			b = 7212902
+		if (ft & vt_btype) == vt_float {
+			b = 0x6e0f66
 			r = (r & 7)
-		} else if (ft & 15) == 9 {
-			b = 8261619
+		} else if (ft & vt_btype) == vt_double {
+			b = 0x7e0ff3
 			r = (r & 7)
-		} else if (ft & 15) == 10 {
-			b = 219
+		} else if (ft & vt_btype) == vt_ldouble {
+			b = 0xdb // fldt
 			r = 5
 		} else if
 			(ft & (~((4096 | 8192 | 16384 | 32768) | (((1 << (6 + 6)) - 1) << 20 | 128)))) == 1
@@ -324,7 +329,7 @@ fn load(r int, sv &SValue) {
 		} else {
 			assert (ft & 15) == 3 || (ft & 15) == 4 || (ft & 15) == 5 || (ft & 15) == 6
 			ll = is64_type(ft)
-			b = 139
+			b = 0x8b
 		}
 		if ll {
 			gen_modrm64(b, r, fr, sv.sym, fc)
@@ -333,8 +338,9 @@ fn load(r int, sv &SValue) {
 			gen_modrm(r, fr, sv.sym, fc)
 		}
 	} else {
-		if v == 48 {
-			if fr & 512 {
+		vcc_trace_print('${@LOCATION} 2')
+		if v == vt_const {
+			if fr & vt_sym {
 				if sv.sym.type_.t & 8192 {
 					orex(1, 0, r, 141)
 					o(5 + (r & 7) * 8)
@@ -1421,6 +1427,7 @@ fn gen_opf(op int) {
 				v1.type_.t = vt_ptr
 				v1.r = vt_local | vt_lval
 				v1.c.i = fc
+				vcc_trace_print('${@LOCATION} c.i=${v1.c.i}')
 				load(r, &v1)
 				fc = 0
 				r = r | vt_lval
@@ -1486,6 +1493,7 @@ fn gen_opf(op int) {
 				v1.type_.t = vt_ptr
 				v1.r = vt_local | vt_lval
 				v1.c.i = fc
+				vcc_trace_print('${@LOCATION} c.i=${v1.c.i}')
 				load(r, &v1)
 				fc = 0
 				r = r | vt_lval

@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 #include <setjmp.h>
 #include <semaphore.h>
 
@@ -55,7 +53,11 @@ pub struct TokenSym {
 
 pub type Nwchar_t = int
 
-pub type CString = []u8 // strings.Builder
+pub struct CString {
+	size           int
+	size_allocated int
+	data           voidptr
+}
 
 // pub struct CString {
 // 	size           int
@@ -1552,7 +1554,7 @@ enum Tcc_token as u16 {
 	tok_asm_clflush
 }
 
-__global tokcstr = strings.new_builder(100)
+__global tokcstr = CString{}
 
 enum Line_macro_output_format {
 	line_macro_output_format_gcc

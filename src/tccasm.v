@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 __global last_text_section = &Section(0)
 // to handle .previous asm directive
 __global asmgoto_n int
@@ -1063,7 +1061,7 @@ fn parse_asm_operands(operands &ASMOperand, nb_operands_ptr &int, is_output int)
 }
 
 fn asm_instr() {
-	astr := strings.new_builder(100)
+	astr := CString{}
 	astr1 := &CString(unsafe { nil })
 
 	operands := [30]ASMOperand{}
@@ -1083,7 +1081,7 @@ fn asm_instr() {
 	astr1 = parse_asm_str()
 	cstr_new(&astr)
 	dynarray_add(&stk_data, &nb_stk_data, &(&astr).data)
-	cstr_cat(&astr, astr1.data, astr1.len)
+	cstr_cat(&astr, astr1.data, astr1.size)
 	nb_operands = 0
 	nb_outputs = 0
 	nb_labels = 0
@@ -1160,13 +1158,13 @@ fn asm_instr() {
 	asm_compute_constraints(operands, nb_operands, nb_outputs, clobber_regs, &out_reg)
 	if must_subst {
 		cstr_reset(astr1)
-		cstr_cat(astr1, astr.data, astr.len)
+		cstr_cat(astr1, astr.data, astr.size)
 		cstr_reset(&astr)
 		subst_asm_operands(operands, nb_operands + nb_labels, &astr, astr1.data)
 	}
 	asm_gen_code(operands, nb_operands, nb_outputs, 0, clobber_regs, out_reg)
 	sec = tcc_state.cur_text_section
-	tcc_assemble_inline(tcc_state, astr.data, astr.len - 1, 0)
+	tcc_assemble_inline(tcc_state, astr.data, astr.size - 1, 0)
 	cstr_free(&astr)
 	nb_stk_data--
 	if voidptr(sec) != voidptr(tcc_state.cur_text_section) {
@@ -1192,7 +1190,7 @@ fn asm_global_instr() {
 	}
 	tcc_state.cur_text_section = tcc_state.text_section
 	ind = tcc_state.cur_text_section.data_offset
-	tcc_assemble_inline(tcc_state, astr.data, astr.len - 1, 1)
+	tcc_assemble_inline(tcc_state, astr.data, astr.size - 1, 1)
 	tcc_state.cur_text_section.data_offset = ind
 	next()
 	nocode_wanted = saved_nocode_wanted

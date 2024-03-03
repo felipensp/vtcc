@@ -1,8 +1,6 @@
 @[translated]
 module main
 
-import strings
-
 #include <unistd.h>
 
 type uintptr_t = usize
@@ -321,7 +319,7 @@ pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &char) {
 	p := &char(0)
 	for {
 		vcc_trace('${@LOCATION}: ${in_.vstring()}')
-		str := strings.new_builder(40)
+		str := CString{}
 		cstr_new(&str)
 		unsafe {
 			p = in_
@@ -356,15 +354,15 @@ pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &char) {
 				c = p[1]
 			}
 		}
-		if str.len {
+		if str.size {
 			cstr_ccat(&str, `\x00`)
 			a := tcc_strdup(&char(str.data))
-			vcc_trace('${@LOCATION} ${s.tcc_lib_path.vstring()} - ${str.len} ${str.data} - ${a}')
+			vcc_trace('${@LOCATION} ${s.tcc_lib_path.vstring()} - ${str.size} ${(&char(str.data)).vstring()} - ${a}')
 			dynarray_add(p_ary, p_nb_ary, a)
 		}
-		vcc_trace('${@LOCATION} - ${str.len}')
+		vcc_trace('${@LOCATION} - ${str.size}')
 		cstr_free(&str)
-		vcc_trace('${@LOCATION}  ${str.str()}')
+		vcc_trace('${@LOCATION}  ${(&char(str.data)).vstring()}')
 		in_ = p + 1
 		vcc_trace('${@LOCATION}')
 		// while()
@@ -381,10 +379,10 @@ const error_noabort = 1
 const error_error = 2
 
 fn error1(mode int, message string) {
-	vcc_trace('${@LOCATION} ${message} ${tcc_state != unsafe { nil }}')
+	vcc_trace_print('${@LOCATION} ${message} ${tcc_state != unsafe { nil }}')
 	f := &BufferedFile(0)
 	s1 := &TCCState(tcc_state)
-	cs := strings.new_builder(100)
+	cs := CString{}
 	vcc_trace('${@LOCATION} ${tcc_state != unsafe { nil }}')
 	tcc_exit_state(s1)
 	vcc_trace('${@LOCATION}')
@@ -446,10 +444,10 @@ fn error1(mode int, message string) {
 		}
 		C.fflush(C.stdout)
 		vcc_trace('${@LOCATION}')
-		C.fprintf(C.stderr, c'%s\n', cs.str().str)
+		C.fprintf(C.stderr, c'%s\n', &char(cs.data))
 		C.fflush(C.stderr)
 	} else {
-		s1.error_func(s1.error_opaque, cs.str().str)
+		s1.error_func(s1.error_opaque, &char(cs.data))
 	}
 	cstr_free(&cs)
 	if mode != error_warn {
@@ -1631,7 +1629,7 @@ fn args_parser_make_argv(r &rune, argc &int, argv &&&char) int {
 	q := 0
 	c := 0
 
-	str := strings.new_builder(100)
+	str := CString{}
 	for {
 		for {
 			c = u8(*r)
@@ -1989,8 +1987,8 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 				s.rdynamic = 1
 			}
 			tcc_option_wl { // case comp body kind=IfStmt is_enum=true
-				if s.linker_arg.len {
-					(&char(s.linker_arg.data))[s.linker_arg.len - 1] = `,`
+				if s.linker_arg.size {
+					(&char(s.linker_arg.data))[s.linker_arg.size - 1] = `,`
 				}
 				cstr_cat(&s.linker_arg, optarg, 0)
 				x = tcc_set_linker(s, s.linker_arg.data)
@@ -2095,7 +2093,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv []string, optind int) int {
 		}
 		vcc_trace('>> ${@LOCATION} ${optind}')
 	}
-	if s.linker_arg.len {
+	if s.linker_arg.size {
 		r = s.linker_arg.data
 		unsafe {
 			goto arg_err
