@@ -10,6 +10,10 @@ __global func_ret_sub = int(0)
 
 pub const target_machine_defs = ['__x86_64__', '__amd64__']
 
+// number of available registers
+pub const nb_regs = 25
+pub const nb_asm_regs = 16
+
 pub const ptr_size = 8
 
 const RC_INT = 0x0001 // generic integer register

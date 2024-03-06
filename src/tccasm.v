@@ -51,7 +51,7 @@ fn asm_label_push(v int) &Sym {
 	addeddot := 0
 	v2 := asm2cname(v, &addeddot)
 
-	sym := global_identifier_push(v2, (0 | 1 << 20) | 4096 | 8192, 0)
+	sym := global_identifier_push(v2, (0 | (1 << 20)) | 4096 | 8192, 0)
 	if addeddot {
 		sym.asm_label = v
 	}
@@ -355,7 +355,7 @@ fn asm_new_label1(s1 &TCCState, label int, is_local int, sh_num int, value int) 
 	if sym {
 		esym = elfsym(sym)
 		if esym && esym.st_shndx != 0 {
-			if (sym.type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20)
+			if (sym.type_.t & (15 | (0 | (1 << 20)))) == (0 | (1 << 20))
 				&& (is_local == 1 || sym.type_.t & 4096) {
 				unsafe {
 					goto new_label

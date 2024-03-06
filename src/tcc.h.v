@@ -1604,7 +1604,7 @@ fn read16le(p &u8) u16 {
 
 fn write16le(p &u8, x u16) {
 	p[0] = x & 255
-	p[1] = x >> 8 & 255
+	p[1] = (x >> 8) & 255
 }
 
 fn read32le(p &u8) u32 {

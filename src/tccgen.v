@@ -2,6 +2,7 @@
 module main
 
 pub const TOK_IDENT = 256
+const SYM_POOL_NB = 8192 / sizeof(Sym)
 
 const dif_first = 1
 const dif_size_only = 2
@@ -32,9 +33,12 @@ const vt_jmp = 0x0034 // value is the consequence of jmp true (even)
 const vt_lval = 0x0100 // var is an lvalue
 const vt_const = 0x0030 // c onstant in vc (must be first non register value)
 const vt_llocal = 0x0031 // lvalue, offset on stack
-const vt_nonconst = 0x1000 // VT_CONST, but not an (C standard) integer constant expression
 const vt_local = 0x0032 // offset on stack
 const vt_sym = 0x0200 // a symbol value is added
+const vt_mustcast = 0x0C0
+const vt_nonconst = 0x1000 // VT_CONST, but not an (C standard) integer constant expression
+const vt_mustbound = 0x4000
+const vt_bounded = 0x8000 // value is bounded. The address of the bounding function call point is in vc
 
 const vt_btype = 0x000f // mask for basic type
 const vt_void = 0 // void type
@@ -318,36 +322,39 @@ fn rc2_type(t int, rc int) int {
 	return rc_int
 }
 
-fn ieee_finite(d f64) int { // ok
+fn ieee_finite(d f64) int {
 	p := [4]int{}
 	unsafe { C.memcpy(p, &d, sizeof(f64)) }
-	return (u32(((p[1] | 2148532223) + 1))) >> 31
+	return (u32(((p[1] | 0x800fffff) + 1))) >> 31
 }
 
-fn test_lvalue() { // ok
+fn test_lvalue() {
 	if !(vtop.r & vt_lval) {
 		expect(c'lvalue')
 	}
 }
 
-fn check_vstack() { // ok
-	if vtop != (_vstack + 1) - 1 {
-		unsafe {
+fn check_vstack() {
+	unsafe {
+		if voidptr(vtop) != voidptr(&_vstack[0] + 1 - 1) {
 			_tcc_error('internal compiler error: vstack leak (${int((vtop - (_vstack + 1) + 1))})')
 		}
 	}
 }
 
-fn tccgen_init(s1 &TCCState) { // ok
+fn tccgen_init(s1 &TCCState) {
 	vtop = unsafe { (&_vstack[0] + 1) - 1 }
 	unsafe { C.memset(vtop, 0, sizeof(*vtop)) }
+
 	int_type.t = vt_int
 	char_type.t = vt_byte
+
 	if s1.char_is_unsigned {
 		char_type.t |= vt_unsigned
 	}
 	char_pointer_type = char_type
 	mk_pointer(&char_pointer_type)
+
 	func_old_type.t = vt_func
 	func_old_type.ref = sym_push(sym_field, &int_type, 0, 0)
 	func_old_type.ref.f.func_call = func_cdecl
@@ -365,7 +372,8 @@ fn tccgen_compile(s1 &TCCState) int {
 	nocode_wanted = data_only_wanted
 	local_scope = 0
 	debug_modes = char((if s1.do_debug { 1 } else { 0 }) | (s1.test_coverage << 1))
-	vcc_trace('${@LOCATION}')
+	vcc_trace_print('${@LOCATION} debug_modes=${int(debug_modes)}')
+
 	tcc_debug_start(s1)
 	vcc_trace('${@LOCATION}')
 	tcc_tcov_start(s1)
@@ -390,7 +398,7 @@ fn tccgen_compile(s1 &TCCState) int {
 	return 0
 }
 
-fn tccgen_finish(s1 &TCCState) { // ok
+fn tccgen_finish(s1 &TCCState) {
 	vcc_trace_print('${@LOCATION}')
 	tcc_debug_end(s1)
 	vcc_trace('${@LOCATION}')
@@ -411,14 +419,14 @@ fn tccgen_finish(s1 &TCCState) { // ok
 	vcc_trace_print('${@LOCATION}')
 }
 
-pub fn elfsym(s &Sym) &Elf64_Sym { // ok
+pub fn elfsym(s &Sym) &Elf64_Sym {
 	if s == unsafe { nil } || !s.c {
 		return unsafe { nil }
 	}
 	return &(&Elf64_Sym(tcc_state.symtab_section.data))[s.c]
 }
 
-fn update_storage(sym &Sym) { // ok
+fn update_storage(sym &Sym) {
 	esym := &Elf64_Sym(0)
 	sym_bind := 0
 	old_sym_bind := 0
@@ -434,7 +442,7 @@ fn update_storage(sym &Sym) { // ok
 		sym_bind = stb_local
 	} else if sym.a.weak {
 		sym_bind = stb_weak
-	} else { // 3
+	} else {
 		sym_bind = stb_global
 	}
 	old_sym_bind = ((u8((esym.st_info))) >> 4)
@@ -463,7 +471,7 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 			sym_type = stt_func
 		} else if (t & vt_btype) == vt_void {
 			sym_type = stt_notype
-			if (t & (15 | ((0 | 1 << 20) | 2 << 20))) == ((0 | 1 << 20) | 2 << 20) {
+			if (t & (15 | ((0 | (1 << 20)) | (2 << 20)))) == ((0 | (1 << 20)) | (2 << 20)) {
 				sym_type = stt_func
 			}
 		} else {
@@ -489,7 +497,7 @@ fn put_extern_sym2(sym &Sym, sh_num int, value Elf64_Addr, size u32, can_add_und
 		sym.c = put_elf_sym(tcc_state.symtab_section, value, size, info, other, sh_num,
 			name)
 		// vcc_trace('${@LOCATION} ${name.vstring()}')
-		vcc_trace_print('${@LOCATION} debug')
+		vcc_trace_print('${@LOCATION} debug ${int(debug_modes)}')
 		if debug_modes {
 			vcc_trace_print('${@LOCATION} debug.1')
 			tcc_debug_extern_sym(tcc_state, sym, sh_num, sym_bind, sym_type)
@@ -539,12 +547,12 @@ fn __sym_malloc() &Sym {
 	last_sym := &Sym(0)
 	i := 0
 
-	sym_pool = tcc_malloc((8192 / sizeof(Sym)) * sizeof(Sym))
+	sym_pool = tcc_malloc(SYM_POOL_NB * sizeof(Sym))
 	dynarray_add(&sym_pools, &nb_sym_pools, sym_pool)
 
 	last_sym = sym_free_first
 	sym = sym_pool
-	for i = 0; i < (8192 / sizeof(Sym)); i++ {
+	for i = 0; i < SYM_POOL_NB; i++ {
 		sym.next = last_sym
 		last_sym = sym
 		unsafe { sym++ }
@@ -553,7 +561,7 @@ fn __sym_malloc() &Sym {
 	return last_sym
 }
 
-fn sym_malloc() &Sym { // ok
+fn sym_malloc() &Sym {
 	sym := &Sym(0)
 	sym = sym_free_first
 	if !sym {
@@ -563,12 +571,13 @@ fn sym_malloc() &Sym { // ok
 	return sym
 }
 
-fn sym_free(sym &Sym) { // ok
+fn sym_free(sym &Sym) {
 	sym.next = sym_free_first
 	sym_free_first = sym
 }
 
-fn sym_push2(ps &&Sym, v int, t int, c int) &Sym { // ok
+// push, without hashing
+fn sym_push2(ps &&Sym, v int, t int, c int) &Sym {
 	s := &Sym(sym_malloc())
 
 	unsafe { C.memset(s, 0, sizeof(Sym)) }
@@ -581,7 +590,9 @@ fn sym_push2(ps &&Sym, v int, t int, c int) &Sym { // ok
 	return s
 }
 
-fn sym_find2(s &Sym, v int) &Sym { // ok
+// find a symbol and return its associated structure. 's' is the top
+//   of the symbol stack
+fn sym_find2(s &Sym, v int) &Sym {
 	for s {
 		if s.v == v {
 			return s
@@ -601,7 +612,7 @@ fn struct_find(v int) &Sym {
 	return table_ident[v].sym_struct
 }
 
-fn sym_find(v int) &Sym { // ok
+fn sym_find(v int) &Sym {
 	v -= TOK_IDENT
 	if u32(v) >= u32((tok_ident - TOK_IDENT)) {
 		return unsafe { nil }
@@ -618,6 +629,7 @@ fn sym_scope(s &Sym) int {
 	}
 }
 
+// push a given symbol on the symbol stack
 fn sym_push(v int, type_ &CType, r int, c int) &Sym {
 	s := &Sym(0)
 	ps := &&Sym(0)
@@ -658,7 +670,8 @@ fn sym_push(v int, type_ &CType, r int, c int) &Sym {
 	return s
 }
 
-fn global_identifier_push(v int, t int, c int) &Sym { // ok
+// push a global identifier
+fn global_identifier_push(v int, t int, c int) &Sym {
 	s := &Sym(0)
 	ps := &&Sym(0)
 
@@ -685,6 +698,8 @@ fn global_identifier_push(v int, t int, c int) &Sym { // ok
 	return s
 }
 
+// pop symbols until top reaches 'b'.  If KEEP is non-zero don't really
+// pop them yet from the list, but do remove them from the token array.
 fn sym_pop(ptop &&Sym, b &Sym, keep int) {
 	vcc_trace('${@LOCATION}')
 	s := &Sym(0)
@@ -697,6 +712,7 @@ fn sym_pop(ptop &&Sym, b &Sym, keep int) {
 	for voidptr(s) != voidptr(b) {
 		ss = s.prev
 		v = s.v
+		// remove symbol in token array
 		if !(v & sym_field) && (v & ~sym_struct) < sym_first_anom {
 			ts = table_ident[(v & ~sym_struct) - TOK_IDENT]
 			if v & sym_struct {
@@ -719,7 +735,8 @@ fn sym_pop(ptop &&Sym, b &Sym, keep int) {
 	vcc_trace('${@LOCATION}')
 }
 
-fn label_find(v int) &Sym { // ok
+// label lookup
+fn label_find(v int) &Sym {
 	v -= TOK_IDENT
 	if u32(v) >= u32((tok_ident - TOK_IDENT)) {
 		return unsafe { nil }
@@ -727,14 +744,16 @@ fn label_find(v int) &Sym { // ok
 	return table_ident[v].sym_label
 }
 
-fn label_push(ptop &&Sym, v int, flags int) &Sym { // ok
+fn label_push(ptop &&Sym, v int, flags int) &Sym {
 	s := &Sym(0)
 	ps := &&Sym(0)
 
 	s = sym_push2(ptop, v, vt_static, 0)
 	s.r = flags
-	ps = &table_ident[v - 256].sym_label
+	ps = &table_ident[v - TOK_IDENT].sym_label
 	if voidptr(ptop) == voidptr(&global_label_stack) {
+		// modify the top most local identifier, so that
+		//   sym_identifier will point to 's' when popped
 		for *ps != unsafe { nil } {
 			ps = &(*ps).prev_tok
 		}
@@ -744,6 +763,8 @@ fn label_push(ptop &&Sym, v int, flags int) &Sym { // ok
 	return s
 }
 
+// pop labels until element last is reached. Look if any labels are
+//   undefined. Define symbols if '&&label' was used.
 fn label_pop(ptop &&Sym, slast &Sym, keep int) {
 	s := &Sym(0)
 	s1 := &Sym(0)
@@ -765,8 +786,8 @@ fn label_pop(ptop &&Sym, slast &Sym, keep int) {
 		}
 		if !keep {
 			sym_free(s)
-		} else { // 3
-			s.r = 3
+		} else {
+			s.r = label_gone
 		}
 	}
 	if !keep {
@@ -784,8 +805,10 @@ fn vcheck_cmp() {
 }
 
 fn vsetc(type_ &CType, r int, vc &CValue) {
-	if vtop >= (_vstack + 1) + (512 - 1) {
-		_tcc_error('memory full (vstack)')
+	unsafe {
+		if voidptr(vtop) >= voidptr(&_vstack[0] + 1 + (VSTACK_SIZE - 1)) {
+			_tcc_error('memory full (vstack)')
+		}
 	}
 	vcheck_cmp()
 	unsafe { vtop++ }
@@ -805,6 +828,7 @@ fn vswap() {
 	vcc_trace_print('${@LOCATION}')
 }
 
+// pop stack value
 fn vpop() {
 	v := 0
 	v = vtop.r & vt_valmask
@@ -819,11 +843,13 @@ fn vpop() {
 	unsafe { vtop-- }
 }
 
+// push constant of type "type" with useless value
 fn vpush(type_ &CType) {
 	vset(type_, vt_const, 0)
 	vcc_trace_print('${@LOCATION}')
 }
 
+// push arbitrary 64bit constant
 fn vpush64(ty int, v i64) {
 	cval := CValue{}
 	ctype := CType{}
@@ -834,16 +860,19 @@ fn vpush64(ty int, v i64) {
 	vcc_trace_print('${@LOCATION}')
 }
 
+// push integer constant
 fn vpushi(v int) {
 	vpush64(vt_int, v)
 	vcc_trace_print('${@LOCATION}')
 }
 
+// push a pointer sized constant
 fn vpushs(v Elf64_Addr) {
 	vpush64(vt_size_t, v)
 	vcc_trace_print('${@LOCATION}')
 }
 
+// push long long constant
 fn vpushll(v i64) {
 	vpush64(vt_llong, v)
 	vcc_trace_print('${@LOCATION}')
@@ -864,12 +893,14 @@ fn vseti(r int, v int) {
 }
 
 fn vpushv(v &SValue) {
-	if vtop >= (_vstack + 1) + (512 - 1) {
-		_tcc_error('memory full (vstack)')
+	unsafe {
+		if voidptr(vtop) >= voidptr(&_vstack[0] + 1 + (VSTACK_SIZE - 1)) {
+			_tcc_error('memory full (vstack)')
+		}
+		vtop++
+		*vtop = *v
+		vcc_trace_print('${@LOCATION}')
 	}
-	unsafe { vtop++ }
-	*vtop = *v
-	vcc_trace_print('${@LOCATION}')
 }
 
 fn vdup() {
@@ -877,6 +908,8 @@ fn vdup() {
 	vpushv(vtop)
 }
 
+// rotate n first stack elements to the bottom
+//   I1 ... In -> I2 ... In I1 [top is right]
 fn vrotb(n int) {
 	i := 0
 	tmp := SValue{}
@@ -889,10 +922,14 @@ fn vrotb(n int) {
 	vtop[0] = tmp
 }
 
+// rotate the n elements before entry e towards the top
+//   I1 ... In ... -> In I1 ... I(n-1) ... [top is right]
 fn vrote(e &SValue, n int) {
 	i := 0
 	tmp := SValue{}
+
 	vcc_trace_print('${@LOCATION}')
+
 	vcheck_cmp()
 	tmp = *e
 	for i = 0; i < n - 1; i++ {
@@ -901,11 +938,16 @@ fn vrote(e &SValue, n int) {
 	e[-n + 1] = tmp
 }
 
+// rotate n first stack elements to the top
+//  I1 ... In -> In I1 ... I(n-1)  [top is right]
 fn vrott(n int) {
 	vcc_trace_print('${@LOCATION}')
 	vrote(vtop, n)
 }
 
+// vtop->r = VT_CMP means CPU-flags have been set from comparison or test.
+
+// called from generators to set the result from relational ops
 fn vset_vt_cmp(op int) {
 	vtop.r = vt_cmp
 	vtop.cmp_op = op
@@ -913,6 +955,7 @@ fn vset_vt_cmp(op int) {
 	vtop.jtrue = 0
 }
 
+// called once before asking generators to load VT_CMP to a register
 fn vset_vt_jmp() {
 	op := vtop.cmp_op
 	if vtop.jtrue || vtop.jfalse {
@@ -930,12 +973,14 @@ fn vset_vt_jmp() {
 	}
 }
 
+// Set CPU Flags, doesn't yet jump
 fn gvtst_set(inv int, t int) {
 	p := &int(0)
+
 	if vtop.r != vt_cmp {
 		vpushi(0)
 		gen_op(149)
-		if vtop.r != vt_cmp {
+		if vtop.r != vt_cmp { // must be VT_CONST then
 			unsafe { vset_vt_cmp(vtop.c.i != 0) }
 		}
 	}
@@ -943,6 +988,9 @@ fn gvtst_set(inv int, t int) {
 	*p = gjmp_append(*p, t)
 }
 
+// Generate value test
+//
+// Generate a test for any value (jump, comparison and integers)
 fn gvtst(inv int, t int) int {
 	op := 0
 	x := 0
@@ -951,24 +999,30 @@ fn gvtst(inv int, t int) int {
 	gvtst_set(inv, t)
 	t = vtop.jtrue
 	u = vtop.jfalse
+
 	if inv {
 		x = u
 		u = t
 		t = x
 	}
 	op = vtop.cmp_op
+
+	// jump to the wanted target
 	if op > 1 {
 		t = gjmp_cond(op ^ inv, t)
 	} else if op != inv {
 		t = gjmp_acs(t)
 	}
+	// resolve complementary jumps to here
 	gsym(u)
+
 	unsafe { vtop-- }
 	return t
 }
 
+// generate a zero or nozero test
 fn gen_test_zero(op int) {
-	if vtop.r == 51 {
+	if vtop.r == vt_cmp {
 		j := 0
 		if op == 148 {
 			j = vtop.jfalse
@@ -982,6 +1036,7 @@ fn gen_test_zero(op int) {
 	}
 }
 
+// push a symbol value of TYPE
 fn vpushsym(type_ &CType, sym &Sym) {
 	cval := CValue{}
 	cval.i = 0
@@ -989,9 +1044,11 @@ fn vpushsym(type_ &CType, sym &Sym) {
 	vtop.sym = sym
 }
 
+// Return a static symbol pointing to a section
 fn get_sym_ref(type_ &CType, sec &Section, offset u32, size u32) &Sym {
 	v := 0
 	sym := &Sym(0)
+
 	v = anon_sym++
 	sym = sym_push(v, type_, vt_const | vt_sym, 0)
 	sym.type_.t |= vt_static
@@ -999,17 +1056,21 @@ fn get_sym_ref(type_ &CType, sec &Section, offset u32, size u32) &Sym {
 	return sym
 }
 
+// push a reference to a section offset by adding a dummy symbol
 fn vpush_ref(type_ &CType, sec &Section, offset u32, size u32) {
 	vpushsym(type_, get_sym_ref(type_, sec, offset, size))
 }
 
+// define a new external reference to a symbol 'v' of type 'u'
 fn external_global_sym(v int, type_ &CType) &Sym {
 	s := &Sym(0)
+
 	s = sym_find(v)
 	if !s {
+		// push forward reference
 		s = global_identifier_push(v, type_.t | vt_extern, 0)
 		s.type_.ref = type_.ref
-	} else if ((s.type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20)) {
+	} else if ((s.type_.t & (15 | (0 | (1 << 20)))) == (0 | (1 << 20))) {
 		s.type_.t = type_.t | (s.type_.t & vt_extern)
 		s.type_.ref = type_.ref
 		update_storage(s)
@@ -1017,19 +1078,23 @@ fn external_global_sym(v int, type_ &CType) &Sym {
 	return s
 }
 
+// create an external reference with no specific type similar to asm labels.
+//   This avoids type conflicts if the symbol is used from C too
 fn external_helper_sym(v int) &Sym {
 	ct := CType{
-		t: ((0 | 1 << 20) | 2 << 20)
+		t: ((0 | (1 << 20)) | (2 << 20))
 		ref: unsafe { nil }
 	}
 
 	return external_global_sym(v, &ct)
 }
 
+// push a reference to an helper function (such as memmove)
 fn vpush_helper_func(v int) {
 	vpushsym(&func_old_type, external_helper_sym(v))
 }
 
+// Merge symbol attributes.
 fn merge_symattr(sa &SymAttr, sa1 &SymAttr) {
 	if sa1.aligned && !sa.aligned {
 		sa.aligned = sa1.aligned
@@ -1049,6 +1114,7 @@ fn merge_symattr(sa &SymAttr, sa1 &SymAttr) {
 	sa.dllimport |= sa1.dllimport
 }
 
+// Merge function attributes.
 fn merge_funcattr(fa &FuncAttr, fa1 &FuncAttr) {
 	if fa1.func_call && !fa.func_call {
 		fa.func_call = fa1.func_call
@@ -1070,6 +1136,7 @@ fn merge_funcattr(fa &FuncAttr, fa1 &FuncAttr) {
 	}
 }
 
+// Merge attributes.
 fn merge_attr(ad &AttributeDef, ad1 &AttributeDef) {
 	merge_symattr(&ad.a, &ad1.a)
 	merge_funcattr(&ad.f, &ad1.f)
@@ -1087,6 +1154,7 @@ fn merge_attr(ad &AttributeDef, ad1 &AttributeDef) {
 	}
 }
 
+// Merge some type attributes.
 fn patch_type(sym &Sym, type_ &CType) {
 	if !(type_.t & vt_extern) || (sym.type_.t & (((1 << (6 + 6)) - 1) << 20 | 128)) == (3 << 20) {
 		if !(sym.type_.t & vt_extern) {
@@ -1094,7 +1162,8 @@ fn patch_type(sym &Sym, type_ &CType) {
 		}
 		sym.type_.t &= ~vt_extern
 	}
-	if ((sym.type_.t & (15 | (0 | 1 << 20))) == (0 | 1 << 20)) {
+	if ((sym.type_.t & (15 | (0 | (1 << 20)))) == (0 | (1 << 20))) {
+		// stay static if both are static
 		sym.type_.t = type_.t & (sym.type_.t | ~vt_static)
 		sym.type_.ref = type_.ref
 	}
@@ -1102,10 +1171,12 @@ fn patch_type(sym &Sym, type_ &CType) {
 		_tcc_error("incompatible types for redefinition of '${get_tok_str(sym.v, (unsafe { nil }))}'")
 	} else if (sym.type_.t & vt_btype) == vt_func {
 		static_proto := sym.type_.t & vt_static
+		// warn if static follows non-static function declaration
 		if type_.t & vt_static && !static_proto && !((type_.t | sym.type_.t) & 32768) {
 			_tcc_warning("static storage ignored for redefinition of '${get_tok_str(sym.v,
 				(unsafe { nil }))}'")
 		}
+		// set 'inline' if both agree or if one has static
 		if (type_.t | sym.type_.t) & vt_inline {
 			if !((type_.t ^ sym.type_.t) & vt_inline) || (type_.t | sym.type_.t) & vt_static {
 				static_proto |= vt_inline
@@ -1132,6 +1203,7 @@ fn patch_type(sym &Sym, type_ &CType) {
 	}
 }
 
+// Merge some storage attributes.
 fn patch_storage(sym &Sym, ad &AttributeDef, type_ &CType) {
 	if type_ {
 		patch_type(sym, type_)
@@ -1143,6 +1215,7 @@ fn patch_storage(sym &Sym, ad &AttributeDef, type_ &CType) {
 	update_storage(sym)
 }
 
+// copy sym to other stack
 fn sym_copy(s0 &Sym, ps &&Sym) &Sym {
 	s := &Sym(sym_malloc())
 	*s = *s0
@@ -1158,6 +1231,7 @@ fn sym_copy(s0 &Sym, ps &&Sym) &Sym {
 	return s
 }
 
+// copy s->type.ref to stack 'ps' for VT_FUNC and VT_PTR
 fn sym_copy_ref(s &Sym, ps &&Sym) {
 	bt := s.type_.t & vt_btype
 	vcc_trace_print('${@LOCATION} copy_ref ${bt}')
@@ -1175,10 +1249,12 @@ fn sym_copy_ref(s &Sym, ps &&Sym) {
 	}
 }
 
+// define a new external reference to a symbol 'v'
 fn external_sym(v int, type_ &CType, r int, ad &AttributeDef) &Sym {
 	vcc_trace('${@LOCATION}')
 	s := &Sym(0)
 
+	// look for global symbol
 	s = sym_find(v)
 	vcc_trace('${@LOCATION}')
 
@@ -1188,6 +1264,7 @@ fn external_sym(v int, type_ &CType, r int, ad &AttributeDef) &Sym {
 
 	if !s {
 		vcc_trace_print('${@LOCATION} external.0')
+		// push forward reference
 		s = global_identifier_push(v, type_.t, 0)
 		s.r |= r
 		s.a = ad.a
@@ -1201,6 +1278,7 @@ fn external_sym(v int, type_ &CType, r int, ad &AttributeDef) &Sym {
 		vcc_trace_print('${@LOCATION} external.1')
 		patch_storage(s, ad, type_)
 	}
+	// push variables on local_stack if any
 	if local_stack && (s.type_.t & vt_btype) != vt_func {
 		vcc_trace_print('${@LOCATION} external.2')
 		vcc_trace('${@LOCATION}')
@@ -1210,13 +1288,13 @@ fn external_sym(v int, type_ &CType, r int, ad &AttributeDef) &Sym {
 	return s
 }
 
+// save registers up to (vtop - n) stack entry
 fn save_regs(n int) {
-	vcc_trace_print('${@LOCATION} ${n}')
 	p := &SValue(0)
 	p1 := &SValue(0)
 
 	p = unsafe { &_vstack[0] + 1 }
-	vcc_trace_print('${@LOCATION} .1')
+	vcc_trace_print('${@LOCATION} n=${n} .1')
 	unsafe {
 		for p1 = vtop - n; voidptr(p) <= voidptr(p1); p++ {
 			vcc_trace_print('${@LOCATION} .2')
@@ -1226,10 +1304,13 @@ fn save_regs(n int) {
 	}
 }
 
+// save r to the memory stack, and mark it as being free
 fn save_reg(r int) {
 	save_reg_upstack(r, 0)
 }
 
+// save r to the memory stack, and mark it as being free,
+//   if seen up to (vtop - n) stack entry
 fn save_reg_upstack(r int, n int) {
 	l := 0
 	size := 0
@@ -1248,10 +1329,10 @@ fn save_reg_upstack(r int, n int) {
 		return
 	}
 	l = 0
-	p = (_vstack + 1)
+	p = unsafe { &_vstack[0] + 1 }
 	unsafe {
 		for p1 = vtop - n; voidptr(p) <= voidptr(p1); p++ {
-			if (p.r & 63) == r || p.r2 == r {
+			if (p.r & vt_valmask) == r || p.r2 == r {
 				if !l {
 					bt = p.type_.t & vt_btype
 					if bt == vt_void {
@@ -1276,7 +1357,7 @@ fn save_reg_upstack(r int, n int) {
 					}
 				}
 				if p.r & vt_lval {
-					p.r = (p.r & ~(vt_valmask | 32768)) | vt_llocal
+					p.r = (p.r & ~(vt_valmask | vt_bounded)) | vt_llocal
 				} else {
 					p.r = vt_lval | vt_local
 				}
@@ -1293,60 +1374,61 @@ fn get_reg(rc int) int {
 	r := 0
 	p := &SValue(0)
 
-	for r = 0; r < 25; r++ {
+	for r = 0; r < nb_regs; r++ {
 		if reg_classes[r] & rc {
 			if nocode_wanted {
 				return r
 			}
 			unsafe {
-				for p = (_vstack + 1); voidptr(p) <= voidptr(vtop); p++ {
+				for p = &_vstack[0] + 1; voidptr(p) <= voidptr(vtop); p++ {
 					if (p.r & vt_valmask) == r || p.r2 == r {
-						goto notfound // id: 0x7fffed425a30
+						goto notfound
 					}
 				}
 			}
 			return r
 		}
-		// RRRREG notfound id=0x7fffed425a30
 		notfound:
 	}
 	unsafe {
-		for p = (_vstack + 1); voidptr(p) <= voidptr(vtop); p++ {
+		for p = &_vstack[0] + 1; voidptr(p) <= voidptr(vtop); p++ {
 			r = p.r2
 			if r < vt_const && reg_classes[r] & rc {
-				goto save_found // id: 0x7fffed426048
+				goto save_found
 			}
 			r = p.r & vt_valmask
 			if r < vt_const && reg_classes[r] & rc {
-				// RRRREG save_found id=0x7fffed426048
 				save_found:
 				save_reg(r)
 				return r
 			}
 		}
 	}
+	// Should never comes here
 	return -1
 }
 
+// find a free temporary local variable (return the offset on stack) match the size and align. If none, add new temporary stack variable
 fn get_temp_local_var(size int, align int) int {
 	i := 0
 	temp_var := &Temp_local_variable(0)
 	found_var := 0
 	p := &SValue(0)
 	r := 0
-	free := i8(0)
-	found := i8(0)
+	free := char(0)
+	found := char(0)
 	found = 0
 	for i = 0; i < nb_temp_local_vars; i++ {
 		temp_var = &arr_temp_local_vars[i]
 		if temp_var.size < size || align != temp_var.align {
 			continue
 		}
+		// check if temp_var is free
 		free = 1
 		unsafe {
-			for p = (_vstack + 1); voidptr(p) <= voidptr(vtop); p++ {
-				r = p.r & 63
-				if r == 50 || r == 49 {
+			for p = &_vstack[0] + 1; voidptr(p) <= voidptr(vtop); p++ {
+				r = p.r & vt_valmask
+				if r == vt_local || r == vt_llocal {
 					if p.c.i == u64(temp_var.location) {
 						free = 0
 						break
@@ -1378,12 +1460,15 @@ fn clear_temp_local_var_list() {
 	nb_temp_local_vars = 0
 }
 
+// move register 's' (of type 't') to 'r', and flush previous value of r to memory
+//   if needed
 fn move_reg(r int, s int, t int) {
 	sv := SValue{}
+
 	if r != s {
 		save_reg(r)
 		sv.type_.t = t
-		sv.type_.ref = (unsafe { nil })
+		sv.type_.ref = unsafe { nil }
 		sv.r = s
 		sv.c.i = 0
 		load(r, &sv)
@@ -1391,15 +1476,17 @@ fn move_reg(r int, s int, t int) {
 	}
 }
 
+// get address of vtop (vtop MUST BE an lvalue)
 fn gaddrof() {
 	vtop.r &= ~vt_lval
+	// tricky: if saved lvalue, then we can go back to lvalue
 	if (vtop.r & vt_valmask) == vt_llocal {
 		vtop.r = (vtop.r & ~vt_valmask) | vt_local | vt_lval
 	}
 }
 
 fn gen_bounded_ptr_add() {
-	save := (vtop[-1].r & 63) == 50
+	save := (vtop[-1].r & vt_valmask) == vt_local
 	if save {
 		vpushv(&vtop[-1])
 		vrott(3)
@@ -1409,14 +1496,18 @@ fn gen_bounded_ptr_add() {
 	gfunc_call(2)
 	vtop -= save
 	vpushi(0)
-	vtop.r = treg_rax | 32768
+	// returned pointer is in REG_IRET
+	vtop.r = treg_rax | vt_bounded
 	if nocode_wanted {
 		return
 	}
+	// relocation offset of the bounding function call point
 	vtop.c.i = (tcc_state.cur_text_section.reloc.data_offset - sizeof(Elf64_Rela))
 	vcc_trace_print('${@LOCATION} vtop.c.i=${vtop.c.i}')
 }
 
+// patch pointer addition in vtop so that pointer dereferencing is
+//   also tested
 fn gen_bounded_ptr_deref() {
 	func := Elf64_Addr(0)
 	size := 0
@@ -1424,46 +1515,56 @@ fn gen_bounded_ptr_deref() {
 
 	rel := &Elf64_Rela(0)
 	sym := &Sym(0)
+
 	if nocode_wanted {
 		return
 	}
+
 	size = type_size(&vtop.type_, &align)
 	match size {
-		1 { // case comp body kind=BinaryOperator is_enum=false
+		1 {
 			func = Tcc_token.tok___bound_ptr_indir1
 		}
-		2 { // case comp body kind=BinaryOperator is_enum=false
+		2 {
 			func = Tcc_token.tok___bound_ptr_indir2
 		}
-		4 { // case comp body kind=BinaryOperator is_enum=false
+		4 {
 			func = Tcc_token.tok___bound_ptr_indir4
 		}
-		8 { // case comp body kind=BinaryOperator is_enum=false
+		8 {
 			func = Tcc_token.tok___bound_ptr_indir8
 		}
-		12 { // case comp body kind=BinaryOperator is_enum=false
+		12 {
 			func = Tcc_token.tok___bound_ptr_indir12
 		}
-		16 { // case comp body kind=BinaryOperator is_enum=false
+		16 {
 			func = Tcc_token.tok___bound_ptr_indir16
 		}
 		else {
+			// may happen with struct member access
 			return
 		}
 	}
 	sym = external_helper_sym(func)
 	if !sym.c {
-		put_extern_sym(sym, (unsafe { nil }), 0, 0)
+		put_extern_sym(sym, unsafe { nil }, 0, 0)
 	}
+	// patch relocation
+	// XXX: find a better solution ?
 	rel = unsafe { &Elf64_Rela((tcc_state.cur_text_section.reloc.data + vtop.c.i)) }
 	rel.r_info = (((Elf64_Xword(u64(sym.c))) << 32) + ((rel.r_info) & 4294967295))
 }
 
+// generate lvalue bound code
 fn gbound() {
 	type1 := CType{}
-	vtop.r &= ~16384
+
+	vtop.r &= ~vt_mustbound
+	// if lvalue, then use checking code before dereferencing
 	if vtop.r & vt_lval {
-		if !(vtop.r & 32768) {
+		// if not VT_BOUNDED value, then make one
+		if !(vtop.r & vt_bounded) {
+			// must save type because we must set it to int to get pointer
 			type1 = vtop.type_
 			vtop.type_.t = vt_ptr
 			gaddrof()
@@ -1472,17 +1573,20 @@ fn gbound() {
 			vtop.r |= vt_lval
 			vtop.type_ = type1
 		}
+		// then check for dereferencing
 		gen_bounded_ptr_deref()
 	}
 }
 
+// we need to call __bound_ptr_add before we start to load function
+//   args into registers
 fn gbound_args(nb_args int) {
 	i := 0
 	v := 0
-
 	sv := &SValue(0)
+
 	for i = 1; i <= nb_args; i++ {
-		if vtop[1 - i].r & 16384 {
+		if vtop[1 - i].r & vt_mustbound {
 			vrotb(i)
 			gbound()
 			vrott(i)
@@ -1637,7 +1741,7 @@ fn store_packed_bf(bit_pos int, bit_size int) {
 			vpushi(m)
 			gen_op(`&`)
 			vpushv(unsafe { vtop - 1 })
-			vpushi(if m & 128 { ~m & 127 } else { ~m })
+			vpushi(if m & 0x80 { ~m & 0x7f } else { ~m })
 			gen_op(`&`)
 			gen_op(`|`)
 		}
@@ -1685,26 +1789,37 @@ fn gv(rc int) int {
 	size := 0
 	align := 0
 
-	if vtop.type_.t & 128 {
+	vcc_trace_print('${@LOCATION} .t=${vtop.type_.t}')
+
+	if vtop.type_.t & vt_bitfield {
 		type_ := CType{}
+
+		vcc_trace_print('${@LOCATION} bitfield')
+
 		bit_pos = (((vtop.type_.t) >> 20) & 63)
 		bit_size = (((vtop.type_.t) >> (20 + 6)) & 63)
 		vtop.type_.t &= ~(((1 << (6 + 6)) - 1) << 20 | 128)
+
 		type_.ref = unsafe { nil }
-		type_.t = vtop.type_.t & 16
-		if (vtop.type_.t & 15) == 11 {
-			type_.t |= 16
+		type_.t = vtop.type_.t & vt_unsigned
+		if (vtop.type_.t & vt_btype) == vt_bool {
+			type_.t |= vt_unsigned
 		}
+
 		r = adjust_bf(vtop, bit_pos, bit_size)
-		if (vtop.type_.t & vt_btype) == vt_llocal {
+
+		if (vtop.type_.t & vt_btype) == vt_llong {
 			type_.t |= vt_llong
-		} else { // 3
+		} else {
 			type_.t |= vt_int
 		}
-		if r == 7 {
+
+		if r == vt_struct {
 			load_packed_bf(&type_, bit_pos, bit_size)
 		} else {
-			bits := if (type_.t & 15) == 4 { 64 } else { 32 }
+			bits := if (type_.t & vt_btype) == vt_llong { 64 } else { 32 }
+
+			vcc_trace_print('${@LOCATION} cast')
 			gen_cast(&type_)
 			vpushi(bits - (bit_pos + bit_size))
 			gen_op(`<`)
@@ -1713,7 +1828,7 @@ fn gv(rc int) int {
 		}
 		r = gv(rc)
 	} else {
-		if is_float(vtop.type_.t) && (vtop.r & (63 | 256)) == 48 {
+		if is_float(vtop.type_.t) && (vtop.r & (vt_valmask | vt_lval)) == vt_const {
 			p := Init_params{
 				sec: tcc_state.rodata_section
 			}
@@ -1728,19 +1843,25 @@ fn gv(rc int) int {
 			vpush_ref(&vtop.type_, p.sec, offset, size)
 			vswap()
 			init_putv(&p, &vtop.type_, offset)
-			vtop.r |= 256
+			vtop.r |= vt_lval
 		}
-		if vtop.r & 16384 {
+		if vtop.r & vt_mustbound {
 			gbound()
 		}
-		bt = vtop.type_.t & 15
+
+		bt = vtop.type_.t & vt_btype
+
 		rc2 = rc2_type(bt, rc)
-		r = vtop.r & 63
-		r_ok = !(vtop.r & 256) && r < 48 && reg_classes[r] & rc
-		r2_ok = !rc2 || (vtop.r2 < 48 && reg_classes[vtop.r2] & rc2)
+
+		r = vtop.r & vt_valmask
+
+		r_ok = !(vtop.r & vt_lval) && r < vt_const && reg_classes[r] & rc
+		r2_ok = !rc2 || (vtop.r2 < vt_const && reg_classes[vtop.r2] & rc2)
+
 		if !r_ok || !r2_ok {
+			vcc_trace_print('${@LOCATION} save_reg')
 			if !r_ok {
-				if 1 && r < 48 && reg_classes[r] & rc && !rc2 {
+				if 1 && r < vt_const && reg_classes[r] & rc && !rc2 {
 					save_reg_upstack(r, 1)
 				} else { // 3
 					r = get_reg(rc)
@@ -1749,6 +1870,7 @@ fn gv(rc int) int {
 			if rc2 {
 				load_type := if (bt == vt_qfloat) { vt_double } else { vt_ptrdiff_t }
 				original_type := vtop.type_.t
+
 				if (vtop.r & (vt_valmask | vt_lval)) == vt_const {
 					unsafe {
 						ll := u64(vtop.c.i)
@@ -1762,15 +1884,17 @@ fn gv(rc int) int {
 				} else if vtop.r & vt_lval {
 					save_reg_upstack(vtop.r, 1)
 					vtop.type_.t = load_type
+					vcc_trace_print('${@LOCATION} load.0')
 					load(r, vtop)
 					vdup()
 					vtop[-1].r = r
-					incr_offset(8)
+					incr_offset(ptr_size)
 				} else {
+					vcc_trace_print('${@LOCATION} else')
 					if !r_ok {
 						load(r, vtop)
 					}
-					if r2_ok && vtop.r2 < 48 {
+					if r2_ok && vtop.r2 < vt_const {
 						unsafe {
 							goto done
 						}
@@ -1787,7 +1911,7 @@ fn gv(rc int) int {
 				done:
 				vtop.type_.t = original_type
 			} else {
-				if vtop.r == 51 {
+				if vtop.r == vt_cmp {
 					vset_vt_jmp()
 				}
 				load(r, vtop)
@@ -1799,12 +1923,12 @@ fn gv(rc int) int {
 }
 
 fn gv2(rc1 int, rc2 int) {
-	if vtop.r != 51 && rc1 <= rc2 {
+	if vtop.r != vt_cmp && rc1 <= rc2 {
 		vswap()
 		gv(rc1)
 		vswap()
 		gv(rc2)
-		if (vtop[-1].r & 63) >= 48 {
+		if (vtop[-1].r & vt_valmask) >= vt_const {
 			vswap()
 			gv(rc1)
 			vswap()
@@ -1814,7 +1938,7 @@ fn gv2(rc1 int, rc2 int) {
 		vswap()
 		gv(rc1)
 		vswap()
-		if (vtop[0].r & 63) >= 48 {
+		if (vtop[0].r & vt_valmask) >= vt_const {
 			gv(rc2)
 		}
 	}
@@ -1835,7 +1959,7 @@ fn gv_dup() {
 }
 
 fn gen_opic_sdiv(a u64, b u64) u64 {
-	x := (if a >> 63 { -a } else { a }) / (if b >> 63 { -b } else { b })
+	x := u64((if a >> 63 { -a } else { a }) / (if b >> 63 { -b } else { b }))
 	return if (a ^ b) >> 63 { -x } else { x }
 }
 
@@ -1856,33 +1980,33 @@ fn gen_opic(op int) {
 	r := 0
 
 	if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
-		// C.printf(c'%s t1=%d v1.r=%d c1=%d l1.1=%ld\n', C.__FUNCTION__, t1, v1.r, c1, l1)
+		C.printf(c'%s t1=%d v1.r=%d c1=%d l1.1=%ld\n', C.__FUNCTION__, t1, v1.r, c1, l1)
 		l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & u32(0x80000000)) }))
-		// C.printf(c'%s l1.2=%lu\n', C.__FUNCTION__, l1)
+		C.printf(c'%s l1.2=%lu\n', C.__FUNCTION__, l1)
 	}
 	if t2 != vt_llong && (ptr_size != 8 || t2 != vt_ptr) {
-		// C.printf(c'%s t2=%d v2.r=%d c2=%d l2.1=%ld\n', C.__FUNCTION__, t2, v2.r, c2, l2)
+		C.printf(c'%s t2=%d v2.r=%d c2=%d l2.1=%ld\n', C.__FUNCTION__, t2, v2.r, c2, l2)
 		l2 = (u32(l2) | (if v2.type_.t & vt_unsigned { 0 } else { -(l2 & u32(0x80000000)) }))
-		// C.printf(c'%s l2.2=%ld\n', C.__FUNCTION__, l2)
+		C.printf(c'%s l2.2=%ld\n', C.__FUNCTION__, l2)
 	}
 	if c1 && c2 {
 		match rune(op) {
-			`+` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`+` {
 				l1 += l2
 			}
-			`-` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`-` {
 				l1 -= l2
 			}
-			`&` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`&` {
 				l1 &= l2
 			}
-			`^` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`^` {
 				l1 ^= l2
 			}
-			`|` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`|` {
 				l1 |= l2
 			}
-			`*` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`*` {
 				l1 *= l2
 			}
 			133, `/`, `%`, 131, 132 {
@@ -1909,58 +2033,58 @@ fn gen_opic(op int) {
 					}
 				}
 			}
-			`<` { // case comp body kind=CompoundAssignOperator is_enum=false
+			`<` {
 				l1 <<= (l2 & shm)
 			}
-			139 { // case comp body kind=CompoundAssignOperator is_enum=false
+			139 {
 				l1 >>= (l2 & shm)
 			}
-			`>` { // case comp body kind=BinaryOperator is_enum=false
+			`>` {
 				l1 = if (l1 >> 63) { ~(~l1 >> (l2 & shm)) } else { l1 >> (l2 & shm) }
 			}
-			146 { // case comp body kind=BinaryOperator is_enum=false
+			146 {
 				l1 = l1 < l2
 			}
-			147 { // case comp body kind=BinaryOperator is_enum=false
+			147 {
 				l1 = l1 >= l2
 			}
-			148 { // case comp body kind=BinaryOperator is_enum=false
+			148 {
 				l1 = l1 == l2
 			}
-			149 { // case comp body kind=BinaryOperator is_enum=false
+			149 {
 				l1 = l1 != l2
 			}
-			150 { // case comp body kind=BinaryOperator is_enum=false
+			150 {
 				l1 = l1 <= l2
 			}
-			151 { // case comp body kind=BinaryOperator is_enum=false
+			151 {
 				l1 = l1 > l2
 			}
-			156 { // case comp body kind=BinaryOperator is_enum=false
+			156 {
 				l1 = gen_opic_lt(l1, l2)
 			}
-			157 { // case comp body kind=BinaryOperator is_enum=false
+			157 {
 				l1 = !gen_opic_lt(l1, l2)
 			}
-			158 { // case comp body kind=BinaryOperator is_enum=false
+			158 {
 				l1 = !gen_opic_lt(l2, l1)
 			}
-			159 { // case comp body kind=BinaryOperator is_enum=false
+			159 {
 				l1 = gen_opic_lt(l2, l1)
 			}
-			144 { // case comp body kind=BinaryOperator is_enum=false
+			144 {
 				l1 = l1 && l2
 			}
-			145 { // case comp body kind=BinaryOperator is_enum=false
+			145 {
 				l1 = l1 || l2
 			}
 			else {
 				unsafe {
 					goto general_case
-				} // id: 0x7fffed43f2b0
+				}
 			}
 		}
-		// C.printf(c'%s t1=%d l1=%ld %ld\n', C.__FUNCTION__, t1, l1, -(l1 & 0x80000000))
+		C.printf(c'%s t1=%d l1=%ld %ld\n', C.__FUNCTION__, t1, l1, -(l1 & 0x80000000))
 		if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
 			l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & 0x80000000) }))
 		}
@@ -2004,39 +2128,41 @@ fn gen_opic(op int) {
 					op = `<`
 				} else if op == 133 {
 					op = `>`
-				} else { // 3
+				} else {
 					op = 139
 				}
 			}
 			unsafe {
 				goto general_case
-			} // id: 0x7fffed43f2b0
-		} else if c2 && (op == `+` || op == `-`) && ((vtop[-1].r & (63 | 256 | 512)) == (48 | 512)
-			|| (vtop[-1].r & (63 | 256 | 512)) == 5) {
-			r = vtop[-1].r & (63 | 256 | 512)
+			}
+		} else if c2 && (op == `+` || op == `-`)
+			&& ((vtop[-1].r & (vt_valmask | vt_lval | vt_sym)) == (vt_const | vt_sym)
+			|| (vtop[-1].r & (vt_valmask | vt_lval | vt_sym)) == vt_local) {
+			r = vtop[-1].r & (vt_valmask | vt_lval | vt_sym)
+			// symbol + constant case
 			if op == `-` {
 				l2 = -l2
 			}
 			l2 += vtop[-1].c.i
-			if int(l2) != int(l2) {
+			if u64(int(l2)) != l2 {
 				unsafe {
 					goto general_case
-				} // id: 0x7fffed43f2b0
+				}
 			}
 			unsafe { vtop-- }
 			vtop.c.i = l2
-			vcc_trace_print('${@LOCATION} l2=${l2}')
+			vcc_trace_print('${@LOCATION} l2=${int(l2)}')
 		} else {
-			// RRRREG general_case id=0x7fffed43f2b0
 			general_case:
-			if t1 == 4 || t2 == 4 || (8 == 8 && (t1 == 5 || t2 == 5)) {
+			// call low level op generator
+			if t1 == vt_llong || t2 == vt_llong || (ptr_size == 8 && (t1 == vt_ptr || t2 == vt_ptr)) {
 				gen_opl(op)
-			} else { // 3
+			} else {
 				gen_opi(op)
 			}
 		}
 		if vtop.r == vt_const {
-			vtop.r |= vt_nonconst
+			vtop.r |= vt_nonconst // is const, but only by optimization
 		}
 	}
 }
@@ -2064,8 +2190,8 @@ fn gen_opif(op int) {
 		v1 = v2
 	}
 	bt = v1.type_.t & vt_btype
-	c1 = (v1.r & (63 | 256 | 512)) == vt_const
-	c2 = (v2.r & (63 | 256 | 512)) == vt_const
+	c1 = (v1.r & (vt_valmask | vt_lval | vt_sym)) == vt_const
+	c2 = (v2.r & (vt_valmask | vt_lval | vt_sym)) == vt_const
 	if c1 && c2 {
 		unsafe {
 			if bt == 8 {
@@ -2387,9 +2513,13 @@ fn type_incompatibility_error(st &CType, dt &CType, fmt &char) {
 	buf1 := [256]char{}
 	buf2 := [256]char{}
 
-	type_to_str(buf1, sizeof(buf1), st, (unsafe { nil }))
-	type_to_str(buf2, sizeof(buf2), dt, (unsafe { nil }))
-	_tcc_error('${buf1} ${buf2}')
+	type_to_str(buf1, sizeof(buf1), st, unsafe { nil })
+	type_to_str(buf2, sizeof(buf2), dt, unsafe { nil })
+
+	vfmt := fmt.vstring()
+	vfmt = vfmt.replace_once('%s', (&char(buf1)).vstring())
+	vfmt = vfmt.replace_once('%s', (&char(buf2)).vstring())
+	_tcc_error(vfmt)
 }
 
 fn type_incompatibility_warning(st &CType, dt &CType, fmt &char) {
@@ -7768,7 +7898,7 @@ fn gen_function(sym &Sym) {
 	vcc_trace_print('${@LOCATION} gen_fun.19')
 	next()
 
-	vcc_trace('${@LOCATION} end')
+	vcc_trace_print('${@LOCATION} end')
 }
 
 fn gen_inline_functions(s &TCCState) {
