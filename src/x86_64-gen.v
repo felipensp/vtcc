@@ -247,13 +247,17 @@ fn load(r int, sv &SValue) {
 	fr = sv.r
 	ft = sv.type_.t & ~vt_defsign
 	fc = sv.c.i
+
+	vcc_trace_print('${@LOCATION}')
 	if u64(fc) != sv.c.i && fr & vt_sym {
 		_tcc_error('64 bit addend in load')
 	}
 	ft &= ~(vt_volatile | vt_constant)
-	if (fr & 63) == vt_const && fr & vt_struct && fr & vt_lval && !(sv.sym.type_.t & vt_static) {
+	if (fr & vt_valmask) == vt_const && fr & vt_sym && fr & vt_lval && !(sv.sym.type_.t & vt_static) {
 		tr := r | treg_mem
+		vcc_trace_print('${@LOCATION} 1')
 		if is_float(ft) {
+			vcc_trace_print('${@LOCATION} 2')
 			tr = get_reg(1) | treg_mem
 		}
 		gen_modrm64(0x8b, tr, fr, sv.sym, 0)
@@ -263,6 +267,7 @@ fn load(r int, sv &SValue) {
 	if fr & vt_lval {
 		b := 0
 		ll := 0
+		vcc_trace_print('${@LOCATION} 3')
 
 		if v == vt_llocal {
 			v1.type_.t = vt_ptr
@@ -342,7 +347,7 @@ fn load(r int, sv &SValue) {
 			gen_modrm(r, fr, sv.sym, fc)
 		}
 	} else {
-		vcc_trace_print('${@LOCATION} 2')
+		vcc_trace_print('${@LOCATION} 2.2')
 		if v == vt_const {
 			if fr & vt_sym {
 				if sv.sym.type_.t & 8192 {
@@ -426,6 +431,7 @@ fn load(r int, sv &SValue) {
 			}
 		}
 	}
+	vcc_trace_print('${@LOCATION} end')
 }
 
 fn store(r int, v &SValue) {
@@ -500,7 +506,8 @@ fn store(r int, v &SValue) {
 
 fn gcall_or_jmp(is_jmp int) {
 	r := 0
-	if (vtop.r & (63 | 256)) == 48 && (vtop.r & 512 && (vtop.c.i - 4) == (vtop.c.i - 4)) {
+	if (vtop.r & (vt_valmask | vt_lval)) == vt_const
+		&& (vtop.r & vt_sym && u64(vtop.c.i - 4) == u64(int(vtop.c.i - 4))) {
 		greloca(tcc_state.cur_text_section, vtop.sym, ind + 1, 4, int((vtop.c.i - 4)))
 		oad(232 + is_jmp, 0)
 	} else {
@@ -566,7 +573,7 @@ fn gen_bounds_epilog() {
 }
 
 fn gadd_sp(val int) {
-	if val == i8(val) {
+	if int(char(val)) == val {
 		o(12878664)
 		g(val)
 	} else {
@@ -810,8 +817,9 @@ fn gfunc_call(nb_args int) {
 		mode = classify_x86_64_arg(&vtop[-i].type_, unsafe { nil }, &size, &align, &reg_count)
 		vcc_trace_print('${@LOCATION} size=${size}')
 		if size {
-			vcc_trace_print('${@LOCATION} onstack=${i + k}')
+			vcc_trace_print('${@LOCATION} onstack.0=${i + k}')
 			if !onstack[i + k] {
+				vcc_trace_print('${@LOCATION} onstack.2=${i + k}')
 				i++
 				continue
 			}
@@ -828,14 +836,15 @@ fn gfunc_call(nb_args int) {
 		vcc_trace_print('${@LOCATION} vrob.1')
 		vrotb(i + 1)
 		vcc_trace_print('${@LOCATION} vrob.2')
-		match vtop.type_.t & 15 {
-			7 { // case comp body kind=CallExpr is_enum=false
+		match vtop.type_.t & vt_btype {
+			vt_struct {
+				vcc_trace_print('${@LOCATION} struct')
 				o(72)
 				oad(60545, size)
 				r = get_reg(1)
-				orex(1, r, 0, 137)
+				orex(1, r, 0, 0x89)
 				o(224 + (r & 7))
-				vset(&vtop.type_, r | 256, 0)
+				vset(&vtop.type_, r | vt_lval, 0)
 				vswap()
 				o(283935560)
 				o(4041507656)
@@ -845,14 +854,14 @@ fn gfunc_call(nb_args int) {
 				o(147096392)
 				o(92)
 			}
-			10 { // case comp body kind=CallExpr is_enum=false
+			vt_ldouble {
 				gv(128)
 				oad(15499592, size)
 				o(31963)
 				g(36)
 				g(0)
 			}
-			8, 9 {
+			vt_float, vt_double {
 				assert mode == X86_64_Mode.x86_64_mode_sse
 				r = gv(2)
 				o(80)
@@ -940,9 +949,10 @@ fn gfunc_call(nb_args int) {
 
 fn push_arg_reg(i int) {
 	loc -= 8
-	gen_modrm64(137, arg_regs[i], 50, (unsafe { nil }), loc)
+	gen_modrm64(137, arg_regs[i], vt_local, (unsafe { nil }), loc)
 }
 
+// generate function prolog of type 't'
 fn gfunc_prolog(func_sym &Sym) {
 	func_type := &func_sym.type_
 	mode := X86_64_Mode{}
@@ -961,12 +971,12 @@ fn gfunc_prolog(func_sym &Sym) {
 	sym := &Sym(0)
 	type_ := &CType(0)
 	sym = func_type.ref
-	addr = 8 * 2
+	addr = ptr_size * 2
 	loc = 0
 	ind += 11
 	func_sub_sp_offset = ind
 	func_ret_sub = 0
-	ret_mode = classify_x86_64_arg(&func_vt, (unsafe { nil }), &size, &align, &reg_count)
+	ret_mode = classify_x86_64_arg(&func_vt, unsafe { nil }, &size, &align, &reg_count)
 	if func_var {
 		seen_reg_num := 0
 		seen_sse_num := 0
@@ -979,7 +989,7 @@ fn gfunc_prolog(func_sym &Sym) {
 		sym = sym.next
 		for sym != unsafe { nil } {
 			type_ = &sym.type_
-			mode = classify_x86_64_arg(type_, (unsafe { nil }), &size, &align, &reg_count)
+			mode = classify_x86_64_arg(type_, unsafe { nil }, &size, &align, &reg_count)
 			match mode {
 				.x86_64_mode_integer { // case comp body kind=IfStmt is_enum=true
 					if seen_reg_num + reg_count > 6 {
@@ -1034,7 +1044,7 @@ fn gfunc_prolog(func_sym &Sym) {
 		reg_param_index++
 	}
 	sym = sym.next
-	for sym != (unsafe { nil }) {
+	for sym != unsafe { nil } {
 		type_ = &sym.type_
 		mode = classify_x86_64_arg(type_, (unsafe { nil }), &size, &align, &reg_count)
 		match mode {
@@ -1047,7 +1057,7 @@ fn gfunc_prolog(func_sym &Sym) {
 					param_addr = loc
 					for i = 0; i < reg_count; i++ {
 						o(14028646)
-						gen_modrm(sse_param_index, 50, (unsafe { nil }), param_addr + i * 8)
+						gen_modrm(sse_param_index, 50, unsafe { nil }, param_addr + i * 8)
 						sse_param_index++
 					}
 				} else {
@@ -1079,7 +1089,7 @@ fn gfunc_prolog(func_sym &Sym) {
 			}
 			else {}
 		}
-		sym_push(sym.v & ~536870912, type_, 50 | 256, param_addr)
+		sym_push(sym.v & ~sym_field, type_, vt_local | vt_lval, param_addr)
 		sym = sym.next
 	}
 	if tcc_state.do_bounds_check {
@@ -1152,9 +1162,9 @@ fn gjmp_append(n int, t int) int {
 }
 
 fn gjmp_cond(op int, t int) int {
-	if op & 256 {
+	if op & 0x100 {
 		v := vtop.cmp_r
-		op &= ~256
+		op &= ~0x100
 		if op ^ v ^ (v != 149) {
 			o(1658)
 		} else {
@@ -1162,7 +1172,7 @@ fn gjmp_cond(op int, t int) int {
 			t = oad(138, t)
 		}
 	}
-	g(15)
+	g(0x0f)
 	t = oad(op - 16, t)
 	return t
 }
@@ -1184,7 +1194,7 @@ fn gen_opi(op int) {
 		int(`+`), 135 {
 			opc = 0
 			gen_op8:
-			if cc && (!ll || int(vtop.c.i) == int(vtop.c.i)) {
+			if cc && (!ll || u64(int(vtop.c.i)) == u64(vtop.c.i)) {
 				vswap()
 				r = gv(1)
 				vswap()
@@ -1339,6 +1349,8 @@ fn gen_opf(op int) {
 		}
 		return
 	}
+
+	// convert constants to memory references
 	if (vtop[-1].r & (vt_valmask | vt_lval)) == vt_const {
 		vswap()
 		gv(float_type)
@@ -1347,18 +1359,24 @@ fn gen_opf(op int) {
 	if (vtop[0].r & (vt_valmask | vt_lval)) == vt_const {
 		gv(float_type)
 	}
+
+	// must put at least one value in the floating point register
 	if vtop[-1].r & vt_lval && vtop[0].r & vt_lval {
 		vswap()
 		gv(float_type)
 		vswap()
 	}
 	swapped = 0
+	// swap the stack if needed so that t1 is the register and t2 is
+	//   the memory reference
 	if vtop[-1].r & vt_lval {
 		vswap()
 		swapped = 1
 	}
 	if (vtop.type_.t & vt_btype) == vt_ldouble {
+		vcc_trace_print('${@LOCATION} vldouble')
 		if op >= 146 && op <= 159 {
+			// load on stack second operand
 			load(treg_st0, vtop)
 			save_reg(treg_rax)
 			if op == 157 || op == 159 {
@@ -1415,6 +1433,7 @@ fn gen_opf(op int) {
 				}
 				else {}
 			}
+			vcc_trace_print('${@LOCATION} op=${op}')
 			ft = vtop.type_.t
 			fc = vtop.c.i
 			o(222)
@@ -1422,6 +1441,7 @@ fn gen_opf(op int) {
 			unsafe { vtop-- }
 		}
 	} else {
+		vcc_trace_print('${@LOCATION} ult op=${op}')
 		if op >= 146 && op <= 159 {
 			r = vtop.r
 			fc = vtop.c.i
@@ -1450,6 +1470,7 @@ fn gen_opf(op int) {
 				}
 			}
 			if swapped {
+				vcc_trace_print('${@LOCATION} swapped')
 				gv(2)
 				vswap()
 			}
@@ -1473,16 +1494,16 @@ fn gen_opf(op int) {
 		} else {
 			assert (vtop.type_.t & vt_btype) != vt_ldouble
 			match rune(op) {
-				`-` { // case comp body kind=BinaryOperator is_enum=false
+				`-` {
 					a = 4
 				}
-				`*` { // case comp body kind=BinaryOperator is_enum=false
+				`*` {
 					a = 1
 				}
-				`/` { // case comp body kind=BinaryOperator is_enum=false
+				`/` {
 					a = 6
 				}
-				`+` { // case comp body kind=BinaryOperator is_enum=false
+				`+` {
 					a = 0
 				}
 				else {}
@@ -1491,6 +1512,7 @@ fn gen_opf(op int) {
 			fc = vtop.c.i
 			assert (ft & vt_btype) != vt_ldouble
 			r = vtop.r
+			// if saved lvalue, then we must reload it
 			if (vtop.r & vt_valmask) == vt_llocal {
 				v1 := SValue{}
 				r = get_reg(1)
@@ -1504,12 +1526,14 @@ fn gen_opf(op int) {
 				vtop.r = r
 			}
 			assert !bool(vtop[-1].r & vt_lval)
+			vcc_trace_print('${@LOCATION} - assert ${swapped} ${vtop.r & vt_lval}')
 			if swapped {
-				assert bool(vtop.r & vt_lval)
+				assert (vtop.r & vt_lval) != 0
 				gv(2)
 				vswap()
 				fc = vtop.c.i
 			}
+			vcc_trace_print('${@LOCATION} - after assert')
 			if (ft & 15) == 9 {
 				o(242)
 			} else {
@@ -1518,13 +1542,16 @@ fn gen_opf(op int) {
 			o(15)
 			o(88 + a)
 			if vtop.r & 256 {
+				vcc_trace_print('${@LOCATION} .1')
 				gen_modrm(vtop[-1].r, r, vtop.sym, fc)
 			} else {
+				vcc_trace_print('${@LOCATION} .2')
 				o(192 + ((vtop[0].r) & 7) + ((vtop[-1].r) & 7) * 8)
 			}
 			unsafe { vtop-- }
 		}
 	}
+	vcc_trace_print('${@LOCATION} end')
 }
 
 fn gen_cvt_itof(t int) {

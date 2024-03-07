@@ -1072,18 +1072,16 @@ fn relocate_syms(s1 &TCCState, symtab &Section, do_resolve int) {
 				}
 				if !C.strcmp(name, c'_fp_hw') {
 					goto found
-					// id: 0x7fffe8ff9bc8
 				}
 				sym_bind = ((u8((sym.st_info))) >> 4)
 				if sym_bind == 2 {
 					sym.st_value = 0
-				} else { // 3
+				} else {
 					_tcc_error_noabort(s1, "undefined symbol '${name.vstring()}'")
 				}
 			} else if sh_num < 65280 {
 				sym.st_value += s1.sections[sym.st_shndx].sh_addr
 			}
-			// RRRREG found id=0x7fffe8ff9bc8
 			found:
 		}
 	}
@@ -1763,7 +1761,7 @@ fn bind_exe_dynsyms(s1 &TCCState, is_pie int) {
 					if ((u8((sym.st_info))) >> 4) == 2 || !C.strcmp(name, c'_fp_hw') {
 						vcc_trace('${@LOCATION} ${name.vstring()}')
 					} else {
-						_tcc_error_noabort(s1, "undefined symbol '${name.vstring()}' [${sym.st_name} ${s1.dynsymtab_section != nil} ${sym_index} ${u8(sym.st_info) >> 4}]")
+						_tcc_error_noabort(s1, "undefined symbol '${name.vstring()}'")
 					}
 				}
 			}

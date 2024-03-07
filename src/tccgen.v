@@ -30,12 +30,12 @@ const rc_float = 0x0002 // generic float register
 const vt_valmask = 0x003f // mask for value location, register or:
 const vt_cmp = 0x0033 // the value is stored in processor flags (in vc)
 const vt_jmp = 0x0034 // value is the consequence of jmp true (even)
-const vt_lval = 0x0100 // var is an lvalue
 const vt_const = 0x0030 // c onstant in vc (must be first non register value)
 const vt_llocal = 0x0031 // lvalue, offset on stack
 const vt_local = 0x0032 // offset on stack
+const vt_lval = 0x0100 // var is an lvalue
 const vt_sym = 0x0200 // a symbol value is added
-const vt_mustcast = 0x0C0
+const vt_mustcast = 0x0C00
 const vt_nonconst = 0x1000 // VT_CONST, but not an (C standard) integer constant expression
 const vt_mustbound = 0x4000
 const vt_bounded = 0x8000 // value is bounded. The address of the bounding function call point is in vc
@@ -59,18 +59,19 @@ const vt_qfloat = 14 //  128-bit float. Only used for x86-64 ABI
 const vt_struct_shift = 20
 const vt_union = ((1 << vt_struct_shift) | vt_struct)
 const vt_enum = (2 << vt_struct_shift)
+const vt_enum_val = (3 << vt_struct_shift)
 
 const vt_atomic = vt_volatile
 const vt_storage = (vt_extern | vt_static | vt_typedef | vt_inline)
 
 const vt_unsigned = 0x0010 // unsigned type
 const vt_defsign = 0x0020 // explicitly signed or unsigned
-const vt_long = 0x0800 // long type (also has VT_INT rsp. VT_LLONG)
+const vt_array = 0x0040 // array type (also has VT_PTR)
+const vt_bitfield = 0x0080 // bitfield modifier
 const vt_constant = 0x0100 // const modifier
 const vt_volatile = 0x0200 // volatile modifier
 const vt_vla = 0x0400 // VLA type (also has VT_PTR and VT_ARRAY)
-const vt_bitfield = 0x0040
-const vt_array = 0x0040 // array type (also has VT_PTR)
+const vt_long = 0x0800 // long type (also has VT_INT rsp. VT_LLONG)
 
 const vt_extern = 0x00001000 // extern definition
 const vt_static = 0x00002000 // static variable
@@ -850,7 +851,7 @@ fn vpush(type_ &CType) {
 }
 
 // push arbitrary 64bit constant
-fn vpush64(ty int, v i64) {
+fn vpush64(ty int, v u64) {
 	cval := CValue{}
 	ctype := CType{}
 	ctype.t = ty
@@ -1861,15 +1862,20 @@ fn gv(rc int) int {
 		if !r_ok || !r2_ok {
 			vcc_trace_print('${@LOCATION} save_reg')
 			if !r_ok {
+				vcc_trace_print('${@LOCATION} get_reg.2')
+				// we can 'mov (r),r' in cases
 				if 1 && r < vt_const && reg_classes[r] & rc && !rc2 {
+					vcc_trace_print('${@LOCATION} get_reg.3')
 					save_reg_upstack(r, 1)
-				} else { // 3
+				} else {
 					r = get_reg(rc)
 				}
 			}
 			if rc2 {
 				load_type := if (bt == vt_qfloat) { vt_double } else { vt_ptrdiff_t }
 				original_type := vtop.type_.t
+
+				vcc_trace_print('${@LOCATION} rc2')
 
 				if (vtop.r & (vt_valmask | vt_lval)) == vt_const {
 					unsafe {
@@ -1980,14 +1986,14 @@ fn gen_opic(op int) {
 	r := 0
 
 	if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
-		C.printf(c'%s t1=%d v1.r=%d c1=%d l1.1=%ld\n', C.__FUNCTION__, t1, v1.r, c1, l1)
+		// C.printf(c'%s t1=%d v1.r=%d c1=%d l1.1=%ld\n', C.__FUNCTION__, t1, v1.r, c1, l1)
 		l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & u32(0x80000000)) }))
-		C.printf(c'%s l1.2=%lu\n', C.__FUNCTION__, l1)
+		// C.printf(c'%s l1.2=%lu\n', C.__FUNCTION__, l1)
 	}
 	if t2 != vt_llong && (ptr_size != 8 || t2 != vt_ptr) {
-		C.printf(c'%s t2=%d v2.r=%d c2=%d l2.1=%ld\n', C.__FUNCTION__, t2, v2.r, c2, l2)
+		// C.printf(c'%s t2=%d v2.r=%d c2=%d l2.1=%ld\n', C.__FUNCTION__, t2, v2.r, c2, l2)
 		l2 = (u32(l2) | (if v2.type_.t & vt_unsigned { 0 } else { -(l2 & u32(0x80000000)) }))
-		C.printf(c'%s l2.2=%ld\n', C.__FUNCTION__, l2)
+		// C.printf(c'%s l2.2=%ld\n', C.__FUNCTION__, l2)
 	}
 	if c1 && c2 {
 		match rune(op) {
@@ -2084,7 +2090,7 @@ fn gen_opic(op int) {
 				}
 			}
 		}
-		C.printf(c'%s t1=%d l1=%ld %ld\n', C.__FUNCTION__, t1, l1, -(l1 & 0x80000000))
+		// C.printf(c'%s t1=%d l1=%ld %ld\n', C.__FUNCTION__, t1, l1, -(l1 & 0x80000000))
 		if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
 			l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & 0x80000000) }))
 		}
@@ -2715,13 +2721,13 @@ fn combine_types(dest &CType, op1 &SValue, op2 &SValue, op int) int {
 		if bt2 == vt_llong {
 			type_.t &= t2
 		}
-		if (t1 & (vt_btype | vt_unsigned | vt_bitfield)) == (4 | 16)
-			|| (t2 & (15 | 16 | 128)) == (vt_llong | vt_unsigned) {
+		if (t1 & (vt_btype | vt_unsigned | vt_bitfield)) == (vt_llong | vt_unsigned)
+			|| (t2 & (vt_btype | vt_unsigned | vt_bitfield)) == (vt_llong | vt_unsigned) {
 			type_.t |= vt_unsigned
 		}
 	} else {
 		type_.t = vt_int | (vt_long & (t1 | t2))
-		if (t1 & (vt_btype | vt_unsigned | vt_bitfield)) == (3 | 16)
+		if (t1 & (vt_btype | vt_unsigned | vt_bitfield)) == (vt_int | vt_unsigned)
 			|| (t2 & (vt_btype | vt_unsigned | vt_bitfield)) == (vt_int | vt_unsigned) {
 			type_.t |= vt_unsigned
 		}
@@ -2818,15 +2824,15 @@ fn gen_op(op int) {
 			&& op <= 159) {
 			_tcc_error('invalid operands for binary operation')
 		} else if op == 139 || op == `>` || op == `<` {
-			t = if bt1 == 4 { 4 } else { 3 }
-			if (t1 & (15 | 16 | 128)) == (t | 16) {
+			t = if bt1 == vt_llong { vt_llong } else { vt_int }
+			if (t1 & (vt_btype | vt_unsigned | vt_bitfield)) == (t | vt_unsigned) {
 				t |= vt_unsigned
 			}
 			t |= (vt_long & t1)
 			combtype.t = t
 			vcc_trace_print('${@LOCATION} combined t=${t} t1=${t1}')
 		}
-		// RRRREG std_op id=0x7fffed463d50
+
 		std_op:
 		t = combtype.t
 		t2 = t
@@ -2915,12 +2921,19 @@ fn gen_cvt_ftoi1(t int) {
 }
 
 fn force_charshort_cast() {
-	sbt := if (((vtop.r) & (3072)) / (u32(((3072) & ~((3072) << 1))) * (1))) == 2 { 4 } else { 3 }
+	vcc_trace_print('${@LOCATION} 1')
+	sbt := if (((vtop.r) & (3072)) / (u32(((3072) & ~(3072 << 1))) * 1)) == 2 {
+		vt_llong
+	} else {
+		vt_int
+	}
 	dbt := vtop.type_.t
-	vtop.r &= ~3072
+	vcc_trace_print('${@LOCATION} dbt=${dbt} sbt=${sbt}')
+	vtop.r &= ~vt_mustcast
 	vtop.type_.t = sbt
-	gen_cast_s(if dbt == 11 { 1 | 16 } else { dbt })
+	gen_cast_s(if dbt == vt_bool { vt_byte | vt_unsigned } else { dbt })
 	vtop.type_.t = dbt
+	vcc_trace_print('${@LOCATION} end')
 }
 
 fn gen_cast_s(t int) {
@@ -2944,13 +2957,13 @@ fn gen_cast(type_ &CType) {
 	bits := 0
 	trunc := 0
 
-	vcc_trace_print('${@LOCATION}')
+	vcc_trace_print('${@LOCATION} r=${vtop.r}')
 
-	if vtop.r & 3072 {
+	if vtop.r & vt_mustcast {
 		vcc_trace_print('${@LOCATION} cast.1')
 		force_charshort_cast()
 	}
-	if vtop.type_.t & 128 {
+	if vtop.type_.t & vt_bitfield {
 		vcc_trace_print('${@LOCATION} cast.2')
 		gv(1)
 	}
@@ -3116,7 +3129,7 @@ fn gen_cast(type_ &CType) {
 		if dbt_bt == vt_ptr || sbt_bt == vt_ptr {
 			_tcc_warning('cast between pointer and integer of different size')
 			if sbt_bt == 5 {
-				vtop.type_.t = (if ptr_size == 8 { 4 } else { 3 })
+				vtop.type_.t = (if ptr_size == 8 { vt_llong } else { vt_int })
 			}
 		}
 		if 1 && vtop.r & vt_lval {
@@ -3374,16 +3387,17 @@ fn vstore() {
 	if sbt == 7 {
 		size = type_size(&vtop.type_, &align)
 		vpushv(unsafe { vtop - 1 })
-		if vtop.r & 16384 {
+		if vtop.r & vt_mustbound {
 			gbound()
 		}
-		vtop.type_.t = 5
+		vtop.type_.t = vt_ptr
 		gaddrof()
+		// source
 		vswap()
-		if vtop.r & 16384 {
+		if vtop.r & vt_mustbound {
 			gbound()
 		}
-		vtop.type_.t = 5
+		vtop.type_.t = vt_ptr
 		gaddrof()
 		if 1 && !tcc_state.do_bounds_check {
 			gen_struct_copy(size)
@@ -3393,66 +3407,79 @@ fn vstore() {
 			vrott(4)
 			gfunc_call(3)
 		}
-	} else if ft & 128 {
+	} else if ft & vt_bitfield {
+		// bitfield store handling
 		vdup()
+
+		// save lvalue as expression result (example: s.b = s.a = n;)
 		vtop[-1] = vtop[-2]
 		bit_pos = ((ft >> 20) & 63)
 		bit_size = ((ft >> (20 + 6)) & 63)
+
+		// remove bit field info to avoid loops
 		vtop[-1].type_.t = ft & ~(((1 << (6 + 6)) - 1) << 20 | 128)
-		if dbt == 11 {
+		if dbt == vt_bool {
 			gen_cast(&vtop[-1].type_)
-			vtop[-1].type_.t = (vtop[-1].type_.t & ~15) | (1 | 16)
+			vtop[-1].type_.t = (vtop[-1].type_.t & ~vt_btype) | (vt_byte | vt_unsigned)
 		}
 		r = adjust_bf(unsafe { vtop - 1 }, bit_pos, bit_size)
-		if dbt != 11 {
+		if dbt != vt_bool {
 			gen_cast(&vtop[-1].type_)
-			dbt = vtop[-1].type_.t & 15
+			dbt = vtop[-1].type_.t & vt_btype
 		}
-		if r == 7 {
+		if r == vt_struct {
 			store_packed_bf(bit_pos, bit_size)
 		} else {
-			mask := (1 << bit_size) - 1
-			if dbt != 11 {
-				if dbt == 4 {
+			mask := u64((1 << bit_size) - 1)
+			if dbt != vt_bool {
+				// mask source
+				if dbt == vt_llong {
 					vpushll(mask)
-				} else { // 3
+				} else {
 					vpushi(u32(mask))
 				}
 				gen_op(`&`)
 			}
+			// shift source
 			vpushi(bit_pos)
 			gen_op(`<`)
 			vswap()
+			// duplicate destination
 			vdup()
 			vrott(3)
-			if dbt == 4 {
+			// load destination, mask and or with source
+			if dbt == vt_llong {
 				vpushll(~(mask << bit_pos))
-			} else { // 3
+			} else {
 				vpushi(~(u32(mask) << bit_pos))
 			}
 			gen_op(`&`)
 			gen_op(`|`)
+			// store result
 			vstore()
+			// ... and discard
 			vpop()
 		}
-	} else if dbt == 0 {
+	} else if dbt == vt_void {
 		unsafe { vtop-- }
 	} else {
+		// optimize char/short casts
 		delayed_cast = 0
-		if (dbt == 1 || dbt == 2) && is_integer_btype(sbt) {
-			if vtop.r & 3072 && btype_size(dbt) > btype_size(sbt) {
+		if (dbt == vt_byte || dbt == vt_short) && is_integer_btype(sbt) {
+			if vtop.r & vt_mustcast && btype_size(dbt) > btype_size(sbt) {
 				force_charshort_cast()
 			}
 			delayed_cast = 1
 		} else {
 			gen_cast(&vtop[-1].type_)
 		}
-		if vtop[-1].r & 16384 {
+		if vtop[-1].r & vt_mustbound {
 			vswap()
 			gbound()
 			vswap()
 		}
-		gv(rc_type(dbt))
+		gv(rc_type(dbt)) // generate value
+
 		if delayed_cast {
 			vtop.r |= (u32(((3072) & ~((3072) << 1))) * (int(sbt == 4) + 1))
 			vtop.type_.t = ft & (~((4096 | 8192 | 16384 | 32768) | (((1 << (6 + 6)) - 1) << 20 | 128)))
@@ -4947,21 +4974,21 @@ fn gfunc_param_typed(func &Sym, arg &Sym) {
 	func_type := 0
 	type_ := CType{}
 	func_type = func.f.func_type
-	if func_type == 2 || (func_type == 3 && arg == (unsafe { nil })) {
-		if (vtop.type_.t & 15) == 8 {
-			gen_cast_s(9)
-		} else if vtop.type_.t & 128 {
-			type_.t = vtop.type_.t & (15 | 16)
+	if func_type == func_old || (func_type == func_ellipsis && arg == unsafe { nil }) {
+		if (vtop.type_.t & vt_btype) == vt_float {
+			gen_cast_s(vt_double)
+		} else if vtop.type_.t & vt_bitfield {
+			type_.t = vtop.type_.t & (vt_btype | vt_unsigned)
 			type_.ref = vtop.type_.ref
 			gen_cast(&type_)
-		} else if vtop.r & 3072 {
+		} else if vtop.r & vt_mustcast {
 			force_charshort_cast()
 		}
 	} else if arg == (unsafe { nil }) {
 		_tcc_error('too many arguments to function')
 	} else {
 		type_ = arg.type_
-		type_.t &= ~256
+		type_.t &= ~vt_constant
 		gen_assign_cast(&type_)
 	}
 }
@@ -7656,9 +7683,11 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 			loc -= align
 		}
 		if v {
+			vcc_trace_print('${@LOCATION} v=${v}')
 			if ad.asm_label {
 				reg := asm_parse_regvar(ad.asm_label)
 				if reg >= 0 {
+					vcc_trace_print('${@LOCATION} reg=${reg}')
 					r = (r & ~vt_valmask) | reg
 				}
 			}
