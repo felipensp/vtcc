@@ -2,6 +2,9 @@
 module main
 
 #include <unistd.h>
+#include <sys/time.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 type uintptr_t = usize
 
@@ -12,9 +15,9 @@ fn C.lseek(int, int, int) int
 fn C.realpath(&char, &char) &char
 fn C.longjmp(&C.jmp_buf, int)
 
-// fn C.setjmp(&C.jmp_buf) int
 fn C._setjmp(&C.jmp_buf) int
-fn C.open(&char, int) int
+@[c2v_variadic]
+fn C.open(&char, int, ...int) int
 fn C.dlopen(&char, int) voidptr
 fn C.dlsym(voidptr, &char) voidptr
 fn C.dlclose(voidptr) int
@@ -284,7 +287,7 @@ fn dynarray_add(ptab voidptr, nb_ptr &int, data voidptr) {
 	if (nb & (nb - 1)) == 0 {
 		if !nb {
 			nb_alloc = 1
-		} else { // 3
+		} else {
 			nb_alloc = nb * 2
 		}
 		pp = tcc_realloc(pp, nb_alloc * sizeof(voidptr))
@@ -343,7 +346,7 @@ pub fn tcc_split_path(s &TCCState, p_ary voidptr, p_nb_ary &int, in_ &char) {
 						if b > f {
 							// vcc_trace('${@LOCATION}')
 							cstr_cat(&str, f, b - f - 1)
-						} else { // 3
+						} else {
 							cstr_cat(&str, c'.', 1)
 						}
 					}
@@ -539,8 +542,8 @@ fn _tcc_open(s1 &TCCState, filename &char) int {
 	if C.strcmp(filename, c'-') == 0 {
 		fd = 0
 		filename = c'<stdin>'
-	} else { // 3
-		fd = C.open(filename, 0 | 0)
+	} else {
+		fd = C.open(filename, 0)
 	}
 	if (s1.verbose == 2 && fd >= 0) || s1.verbose == 3 {
 		val := (&char(s1.include_stack_ptr) - &char(&s1.include_stack[0])) / sizeof(&BufferedFile)
@@ -819,7 +822,7 @@ pub fn tcc_add_file_internal(s1 &TCCState, filename &char, flags int) int {
 						vcc_trace('${@LOCATION}')
 						ret = 0
 					}
-				} else { // 3
+				} else {
 					vcc_trace('${@LOCATION}')
 					ret = tcc_load_dll(s1, fd, filename, (flags & 32) != 0)
 					vcc_trace('${@LOCATION}')
@@ -869,7 +872,7 @@ pub fn tcc_add_file(s &TCCState, filename &char) int {
 				filetype = 2
 			} else if !C.strcmp(ext, c'c') || !C.strcmp(ext, c'h') || !C.strcmp(ext, c'i') {
 				filetype = 1
-			} else { // 3
+			} else {
 				filetype |= 64
 			}
 		} else {
@@ -1122,7 +1125,7 @@ pub fn tcc_set_linker(s &TCCState, option &char) int {
 				s.output_format = 0
 			} else if !C.strcmp(p, c'binary') {
 				s.output_format = 1
-			} else { // 3
+			} else {
 				unsafe {
 					goto err
 				} // id: 0x7fffbf5942e8
@@ -1149,7 +1152,7 @@ pub fn tcc_set_linker(s &TCCState, option &char) int {
 			ret2 := link_option(option, c'?whole-archive', &p)
 			if ret2 > 0 {
 				s.filetype |= 128
-			} else { // 3
+			} else {
 				s.filetype &= ~128
 			}
 		} else if link_option(option, c'z=', &p) {
@@ -1683,7 +1686,7 @@ fn args_parser_listfile(s &TCCState, filename &char, optind int, pargc &int, par
 	for i = 0; i < *pargc; i++ {
 		if i == optind {
 			args_parser_make_argv(p, &argc, &argv)
-		} else { // 3
+		} else {
 			dynarray_add(&argv, &argc, tcc_strdup((*pargv)[i]))
 		}
 	}
@@ -1882,7 +1885,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&char, optind int) int {
 					s.dflag = 16
 				} else if isnum(*optarg) {
 					s.g_debug |= C.atoi(optarg)
-				} else { // 3
+				} else {
 					unsafe {
 						goto unsupported_option
 					} // id: 0x7fffbf5ae9a8
@@ -2054,7 +2057,7 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&char, optind int) int {
 					x = 64
 				} else if *optarg == `n` {
 					x = 0
-				} else { // 3
+				} else {
 					_tcc_warning("unsupported language '${optarg}'")
 				}
 				s.filetype = x | (s.filetype & ~(15 | 64))

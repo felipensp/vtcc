@@ -1,11 +1,22 @@
 @[translated]
 module main
 
-import os
-
 #flag -ldl
 
+#include <sys/stat.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+
+fn C.sysconf(int) int
+fn C.fdopen(int, &char) int
+fn C.getenv(&char) &char
+@[c2v_variadic]
+fn C.open(&char, int, ...int) int
+
+pub struct C.timeval {
+	tv_sec  u64
+	tv_usec u64
+}
 
 const help = "Tiny C Compiler 0.9.28rc - Copyright (C) 2001-2006 Fabrice Bellard\nUsage: tcc [options...] [-o outfile] [-c] infile(s)...\n       tcc [options...] -run infile (or --) [arguments...]\nGeneral options:\n  -c           compile only - generate an object file\n  -o outfile   set output filename\n  -run         run compiled source\n  -fflag       set or reset (with 'no-' prefix) 'flag' (see tcc -hh)\n  -std=c99     Conform to the ISO 1999 C standard (default).\n  -std=c11     Conform to the ISO 2011 C standard.\n  -Wwarning    set or reset (with 'no-' prefix) 'warning' (see tcc -hh)\n  -w           disable all warnings\n  -v --version show version\n  -vv          show search paths or loaded files\n  -h -hh       show this, show more help\n  -bench       show compilation statistics\n  -            use stdin pipe as infile\n  @listfile    read arguments from listfile\nPreprocessor options:\n  -Idir        add include path 'dir'\n  -Dsym[=val]  define 'sym' with value 'val'\n  -Usym        undefine 'sym'\n  -E           preprocess only\nLinker options:\n  -Ldir        add library path 'dir'\n  -llib        link with dynamic or static library 'lib'\n  -r           generate (relocatable) object file\n  -shared      generate a shared library/dll\n  -rdynamic    export all global symbols to dynamic linker\n  -soname      set name for shared library to be used at runtime\n  -Wl,-opt[=val]  set linker option (see tcc -hh)\nDebugger options:\n  -g           generate stab runtime debug info\n  -gdwarf[-x]  generate dwarf runtime debug info\n  -b           compile with built-in memory and bounds checker (implies -g)\n  -bt[N]       link with backtrace (stack dump) support [show max N callers]\nMisc. options:\n  -x[c|a|b|n]  specify type of the next infile (C,ASM,BIN,NONE)\n  -nostdinc    do not use standard system include paths\n  -nostdlib    do not link with standard crt and libraries\n  -Bdir        set tcc's private include/library dir\n  -M[M]D       generate make dependency file [ignore system files]\n  -M[M]        as above but no other output\n  -MF file     specify dependency file name\n  -m32/64      defer to i386/x86_64 cross compiler\nTools:\n  create library  : tcc -ar [crstvx] lib [files]\n"
 

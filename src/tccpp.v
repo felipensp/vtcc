@@ -257,7 +257,7 @@ fn tal_free_impl(al &TinyAlloc, p voidptr) {
 		} else if al.next {
 			al = al.next
 			goto tail_call // id: 0x7fffd8885400
-		} else { // 3
+		} else {
 			tcc_free(p)
 		}
 	}
@@ -338,7 +338,7 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 		unsafe {
 			goto tail_call
 		}
-	} else { // 3
+	} else {
 		// vcc_trace('${@LOCATION}')
 		ret = tcc_realloc(p, size)
 	}
@@ -397,7 +397,7 @@ fn unicode_to_utf8(b &char, uc u32) &char {
 			128 + uc / 64 % 64
 			*b++ = 128 + uc % 64
 		}
-	} else { // 3
+	} else {
 		error:
 		_tcc_error('0x${uc} is not a valid universal character')
 	}
@@ -698,7 +698,7 @@ fn check_space(t int, spc &int) int {
 			return 1
 		}
 		*spc = 1
-	} else { // 3
+	} else {
 		*spc = 0
 	}
 	return 0
@@ -1360,7 +1360,7 @@ fn tok_get_macro(mut t &int, mut p intpp, mut cv CValue) {
 		// vcc_trace_print('${@LOCATION} 1 ${_t}')
 		tok_get(t, p, cv)
 		// vcc_trace('${@LOCATION}')
-	} else { // 3
+	} else {
 		// vcc_trace_print('${@LOCATION} 2 ${_t}')
 		*t = _t
 		*p = unsafe { &int(*p) + 1 }
@@ -1519,7 +1519,7 @@ fn parse_include(s1 &TCCState, do_next int, test int) int {
 				p = s1.sysinclude_paths[k]
 			} else if test {
 				return 0
-			} else { // 3
+			} else {
 				unsafe {
 					_tcc_error("include file '${(&char(&name[0])).vstring()}' not found")
 				}
@@ -1868,7 +1868,7 @@ fn pragma_parse(s1 &TCCState) {
 			} else {
 				unsafe { nil }
 			}
-		} else { // 3
+		} else {
 			_tcc_warning('unbalanced #pragma pop_macro')
 		}
 		pp_debug_tok = t
@@ -1945,7 +1945,7 @@ fn pragma_parse(s1 &TCCState) {
 			}
 			tcc_free(p)
 		}
-	} else { // 3
+	} else {
 		tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
 		_tcc_warning('#pragma ${get_tok_str(tok, &tokc)} ignored')
 	}
@@ -2148,7 +2148,7 @@ fn preprocess(is_bof int) {
 					unsafe {
 						goto out
 					}
-				} else { // 3
+				} else {
 					vcc_trace_print('${@LOCATION} line err')
 					goto _line_err // id: 0x7fffd88ca4d0
 				}
@@ -2177,7 +2177,7 @@ fn preprocess(is_bof int) {
 			*q = `\x00`
 			if tok == Tcc_token.tok_error {
 				_tcc_error('#error ${(&char(buf)).vstring()}')
-			} else { // 3
+			} else {
 				_tcc_warning('#warning ${(&char(buf)).vstring()}')
 			}
 		}
@@ -2275,7 +2275,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 							c = c - `0`
 						} else if i > 0 {
 							expect(c'more hex digits in universal-character-name')
-						} else { // 3
+						} else {
 							goto add_hex_or_ucn // id: 0x7fffd88ceb38
 						}
 						n = n * 16 + c
@@ -2327,7 +2327,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 					invalid_escape:
 					if c >= `!` && c <= `~` {
 						_tcc_warning("unknown escape sequence: '\\${c}'")
-					} else { // 3
+					} else {
 						_tcc_warning("unknown escape sequence: '\\x${c}")
 					}
 				}
@@ -2398,7 +2398,7 @@ fn parse_escape_string(outstr &CString, buf &u8, is_long int) {
 	}
 	if !is_long {
 		cstr_ccat(outstr, `\x00`)
-	} else { // 3
+	} else {
 		cstr_wccat(outstr, `\x00`)
 	}
 }
@@ -2440,7 +2440,7 @@ fn parse_string(s &char, len int) {
 		if !is_long {
 			tok = 192
 			char_size = 1
-		} else { // 3
+		} else {
 			tok = 193
 			char_size = sizeof(Nwchar_t)
 		}
@@ -2457,7 +2457,7 @@ fn parse_string(s &char, len int) {
 		for i = c; i < n; i++ {
 			if is_long {
 				c = (&Nwchar_t(tokcstr.data))[i]
-			} else { // 3
+			} else {
 				c = (c << 8) | (&char(tokcstr.data))[i]
 			}
 		}
@@ -2467,7 +2467,7 @@ fn parse_string(s &char, len int) {
 		tokc.str.data = tokcstr.data
 		if !is_long {
 			tok = 200
-		} else { // 3
+		} else {
 			tok = 201
 		}
 	}
@@ -2543,7 +2543,7 @@ fn parse_number(p &char) {
 			t = ch - `A` + 10
 		} else if isnum(ch) {
 			t = ch - `0`
-		} else { // 3
+		} else {
 			break
 		}
 		if t >= b {
@@ -2566,7 +2566,7 @@ fn parse_number(p &char) {
 			*q = `\x00`
 			if b == 16 {
 				shift = 4
-			} else { // 3
+			} else {
 				shift = 1
 			}
 			bn_zero(bn)
@@ -2754,7 +2754,7 @@ fn parse_number(p &char) {
 				t = t - `a` + 10
 			} else if t >= `A` {
 				t = t - `A` + 10
-			} else { // 3
+			} else {
 				t = t - `0`
 			}
 			if t >= b {
@@ -3473,7 +3473,7 @@ fn macro_arg_subst(nested_list &&Sym, macro_str &int, args &Sym) &int {
 							vcc_trace('${@LOCATION}')
 							if t == 206 && *s2 != `'` {
 								add_char(&tokcstr, *s2)
-							} else { // 3
+							} else {
 								cstr_ccat(&tokcstr, *s2)
 							}
 							unsafe { s2++ }
