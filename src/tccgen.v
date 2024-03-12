@@ -6988,7 +6988,7 @@ fn skip_or_save_block(str &&TokenString) {
 	if str {
 		*str = tok_str_alloc()
 	}
-	for 1 {
+	for {
 		t := tok
 		if level == 0 && (t == `,` || t == `;` || t == `}` || t == `)` || t == `]`) {
 			break
@@ -6996,7 +6996,7 @@ fn skip_or_save_block(str &&TokenString) {
 		if t == (-1) {
 			if str || level > 0 {
 				_tcc_error('unexpected end of file')
-			} else { // 3
+			} else {
 				break
 			}
 		}
@@ -7641,7 +7641,7 @@ fn decl_initializer_alloc(type_ &CType, ad &AttributeDef, r int, has_init int, v
 			}
 			tok_str_add(init_str, -1)
 			tok_str_add(init_str, 0)
-		} else { // 3
+		} else {
 			skip_or_save_block(&init_str)
 		}
 		unget_tok(0)

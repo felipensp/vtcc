@@ -266,14 +266,14 @@ fn tal_free_impl(al &TinyAlloc, p voidptr) {
 fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 	// vcc_trace('${@LOCATION}')
 	header := &Tal_header_t(0)
-	ret := unsafe { nil }
+	ret := voidptr(unsafe { nil })
 	is_own := 0
-	adj_size := (size + 3) & -4
-	al := *pal
+	adj_size := u32((size + 3) & -4)
+	al := &TinyAlloc(*pal)
 	// RRRREG tail_call id=0x7fffd886f110
 	tail_call:
 	// vcc_trace('${@LOCATION}')
-	is_own = unsafe { (al.buffer <= &u8(p) && &u8(p) < al.buffer + al.size) }
+	is_own = unsafe { (al.buffer <= &u8(p) && &u8(p) < (al.buffer + al.size)) }
 	if (!p || is_own) && size <= al.limit {
 		// vcc_trace('${@LOCATION}')
 		if unsafe { al.p - al.buffer + adj_size + sizeof(Tal_header_t) < al.size } {
@@ -301,7 +301,7 @@ fn tal_realloc_impl(pal &&TinyAlloc, p voidptr, size u32) voidptr {
 		} else if is_own {
 			al.nb_allocs--
 			vcc_trace('${@LOCATION}')
-			ret = tal_realloc_impl(&&TinyAlloc(pal), 0, size)
+			ret = tal_realloc_impl(&*pal, unsafe { nil }, size)
 			header = unsafe { ((&Tal_header_t(p)) - 1) }
 			if p {
 				unsafe { C.memcpy(ret, p, header.size) }
@@ -1228,7 +1228,7 @@ fn tok_str_add2(s &TokenString, t int, cv &CValue) {
 	len = s.lastlen
 	str = s.str
 
-	if len + 4 >= s.allocated_len {
+	if (len + 4) >= s.allocated_len {
 		str = tok_str_realloc(s, len + 4 + 1)
 	}
 	str[len++] = t
@@ -2506,21 +2506,16 @@ fn parse_number(p &char) {
 	q = &token_buf[0]
 	vcc_trace('${@LOCATION}')
 	unsafe {
-		vcc_trace('${@LOCATION}')
 		ch = *p++
-		vcc_trace('${@LOCATION}')
 		t = ch
-		vcc_trace('${@LOCATION}')
 		ch = *p++
-		vcc_trace('${@LOCATION}')
 		*q++ = t
-		vcc_trace('${@LOCATION}')
 		b = 10
 	}
 	vcc_trace('${@LOCATION}')
 	if t == `.` {
 		vcc_trace('${@LOCATION}')
-		goto float_frac_parse // id: 0x7fffd88d6070
+		goto float_frac_parse
 	} else if t == `0` {
 		if ch == `x` || ch == `X` {
 			unsafe {
@@ -2550,7 +2545,6 @@ fn parse_number(p &char) {
 			break
 		}
 		if q >= &token_buf[0] + 1024 {
-			// RRRREG num_too_long id=0x7fffd88d7010
 			num_too_long:
 			_tcc_error('number too long')
 		}
@@ -2662,7 +2656,7 @@ fn parse_number(p &char) {
 		} else {
 			if ch == `.` {
 				if q >= &token_buf[0] + 1024 {
-					goto num_too_long // id: 0x7fffd88d7010
+					goto num_too_long
 				}
 				unsafe {
 					*q++ = ch
@@ -2670,7 +2664,7 @@ fn parse_number(p &char) {
 				}
 				float_frac_parse: for ch >= `0` && ch <= `9` {
 					if q >= &token_buf[0] + 1024 {
-						goto num_too_long // id: 0x7fffd88d7010
+						goto num_too_long
 					}
 					unsafe {
 						*q++ = ch
@@ -2680,7 +2674,7 @@ fn parse_number(p &char) {
 			}
 			if ch == `e` || ch == `E` {
 				if q >= &token_buf[0] + 1024 {
-					goto num_too_long // id: 0x7fffd88d7010
+					goto num_too_long
 				}
 				unsafe {
 					*q++ = ch
@@ -2688,7 +2682,7 @@ fn parse_number(p &char) {
 				}
 				if ch == `-` || ch == `+` {
 					if q >= &token_buf[0] + 1024 {
-						goto num_too_long // id: 0x7fffd88d7010
+						goto num_too_long
 					}
 					unsafe {
 						*q++ = ch
@@ -2700,7 +2694,7 @@ fn parse_number(p &char) {
 				}
 				for ch >= `0` && ch <= `9` {
 					if q >= &token_buf[0] + 1024 {
-						goto num_too_long // id: 0x7fffd88d7010
+						goto num_too_long
 					}
 					unsafe {
 						*q++ = ch
@@ -2808,7 +2802,7 @@ fn parse_number(p &char) {
 			if lcount <= (8 == 4) {
 				if n >= u64(0x100000000) {
 					lcount = int(8 == 4) + 1
-				} else if n >= 2147483648 {
+				} else if n >= u64(0x80000000) {
 					ucount = 1
 				}
 			}

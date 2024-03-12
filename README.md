@@ -11,7 +11,7 @@ TCC commit reference: _76d605192dae84c172722c3d73bf546a064b7e1c_
 
 `v .`
 
-(warnings are being fixed yet, but you can use `-cc gcc|tcc|clang_`)
+(warnings are being fixed yet, but you can use `-cc gcc|tcc|clang`)
 
 ### How to use
 
@@ -19,7 +19,7 @@ TCC commit reference: _76d605192dae84c172722c3d73bf546a064b7e1c_
 
 For full help (just like `tcc -h`), use `./vtcc -h`.
 
-### Building it self
+### Building itself
 
 ```
 $ v -w -o test.c . 
