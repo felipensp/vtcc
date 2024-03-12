@@ -654,7 +654,7 @@ pub fn tcc_new() &TCCState {
 	s.ms_extensions = 1
 	s.ppfp = C.stdout
 	s.include_stack_ptr = &s.include_stack[0]
-	tcc_set_lib_path(s, c'/home/felipe/github/tcc')
+	tcc_set_lib_path(s, c'/usr/local/lib/tcc')
 
 	return s
 }
