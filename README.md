@@ -26,3 +26,10 @@ $ v -w -o test.c .
 $ ./vtcc test.c -ltcc1 -lgc -ldl  -lc -lm -lmvec -lpthread
 $ ./a.out hello.c
 ```
+
+### Building Vlang
+
+```
+$ v -o vlang.c cmd/v # on vlang dir
+$ vtcc  vlang.c  -lc -ldl -pthread -ltcc1 -L$tccdir $tccdir/bt-log.o
+```

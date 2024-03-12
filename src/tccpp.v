@@ -4176,7 +4176,7 @@ fn tcc_predefs(s1 &TCCState, cs &CString, is_asm int) {
 	c := 0
 
 	C.sscanf(c'0_9_28', c'%d_%d_%d', &a, &b, &c)
-	cstr_printf(cs, '#define __VTINYC__ ${a * 10000 + b * 100 + c}\n')
+	cstr_printf(cs, '#define __TINYC__ ${a * 10000 + b * 100 + c}\n')
 	putdefs(cs, target_machine_defs)
 	putdefs(cs, target_os_defs)
 	if is_asm {
