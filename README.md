@@ -31,5 +31,6 @@ $ ./a.out hello.c
 
 ```
 $ v -o vlang.c cmd/v # on vlang dir
+$ export tccdir=/path/to/tcc/build/dir
 $ vtcc  vlang.c  -lc -ldl -pthread -ltcc1 -L$tccdir $tccdir/bt-log.o
 ```
