@@ -719,7 +719,7 @@ fn set_elf_sym(s &Section, value Elf64_Addr, size u32, info int, other int, shnd
 					goto do_patch
 				} // id: 0x7fffe8fdced0
 			} else {
-				_tcc_error_noabort(s1, "'${name}' defined twice")
+				_tcc_error_noabort(s1, "'${name.vstring()}' defined twice")
 			}
 		} else {
 			esym.st_other = other

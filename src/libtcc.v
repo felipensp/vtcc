@@ -2090,8 +2090,9 @@ pub fn tcc_parse_args(s &TCCState, pargc &int, pargv &&&char, optind int) int {
 			else {
 				// RRRREG unsupported_option id=0x7fffbf5ae9a8
 				unsupported_option:
+				tcc_enter_state(s1)
 				tcc_state.warn_num = __offsetof(TCCState, warn_unsupported) - __offsetof(TCCState, warn_none)
-				_tcc_warning("unsupported option '${r}'")
+				_tcc_warning("unsupported option '${r.vstring()}'")
 			}
 		}
 		vcc_trace('>> ${@LOCATION} ${optind}')
