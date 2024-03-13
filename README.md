@@ -9,13 +9,11 @@ TCC commit reference: _76d605192dae84c172722c3d73bf546a064b7e1c_
 
 ### Building vtcc
 
-`v .`
-
-(warnings are being fixed yet, but you can use `-cc gcc|tcc|clang`)
+`v run make.vsh`
 
 ### How to use
 
-`./vtcc hello.c && ./a.out` or `./vtcc -run hello.c`
+`./vtcc -Iinclude hello.c && ./a.out` or `./vtcc -Iinclude -run hello.c`
 
 For full help (just like `tcc -h`), use `./vtcc -h`.
 
@@ -32,5 +30,5 @@ $ ./a.out hello.c
 ```
 $ v -o vlang.c cmd/v # on vlang dir
 $ export tccdir=/path/to/tcc/build/dir
-$ vtcc  vlang.c  -lc -ldl -pthread -ltcc1 -L$tccdir $tccdir/bt-log.o
+$ vtcc  vlang.c -lc -ldl -lpthread -ltcc1 -L$tccdir -L.
 ```
