@@ -5,7 +5,7 @@ module main
 #include <setjmp.h>
 
 fn C.strlen(&char) int
-fn C.memcpy(&voidptr, &voidptr, int) voidptr
+fn C.memcpy(voidptr, voidptr, int) voidptr
 
 @[typedef]
 struct C.jmp_buf {
