@@ -22,18 +22,29 @@ fn build_btexe() ! {
 	}
 }
 
-fn build_vtcc() {
+fn build_libtcc1() ! {
+	eprint('buildind libtcc1.so: ')
+	res_libtcc1 := os.execute('v -shared -o libtcc1.so lib/')
+	if res_libtcc1.exit_code == 0 {
+		println('ok')
+	} else {
+		return error('failed ${res_libtcc1.output}')
+	}
+}
+
+fn build_vtcc() ! {
 	eprint('buildind vtcc: ')
-	res_vtcc := os.execute('v src')
+	res_vtcc := os.execute('v -o vtcc src/')
 	if res_vtcc.exit_code == 0 {
 		println('ok')
 	} else {
-		println('failed ${res_vtcc.output}')
+		return error('failed ${res_vtcc.output}')
 	}
 }
 
 fn main() {
 	build_btlog()!
 	build_btexe()!
-	build_vtcc()
+	build_libtcc1()!
+	build_vtcc()!
 }
