@@ -59,7 +59,7 @@ __global (
 	g_rtctxt Rt_context
 )
 
-fn tcc_pstrcpy(buf &i8, buf_size usize, s &i8) &i8 {
+fn tcc_pstrcpy(buf &char, buf_size usize, s &char) &char {
 	l := C.strlen(s)
 	if l >= buf_size {
 		l = buf_size - 1
