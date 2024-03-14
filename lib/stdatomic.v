@@ -6,6 +6,9 @@ const atomic_release = 3
 const atomic_acq_rel = 4
 const atomic_seq_cst = 5
 
+fn C.__atomic_load(voidptr, voidptr, int)
+fn C.__atomic_compare_exchange(voidptr, voidptr, voidptr, bool, int, int) bool
+
 fn atomic_thread_fence(memorder int) {
 	$if i386 ? {
 		// asm i386 { lock orl 0, (%esp) }
@@ -24,7 +27,10 @@ fn atomic_thread_fence(memorder int) {
 	}
 }
 
-// load, store, compare exchange
+// load, store, compare exchange, exchange
+// add_fetch, sub_fetch, and_fetch, or_fetch, xor_fetch
+// nand_fetch, fetch_add, fetch_sub, fetch_and, fetch_or
+// fetch_xor, fetch_nand
 
 // u8
 @[export: '__atomic_load_1']
@@ -55,6 +61,21 @@ fn atomic_compare_exchange_1(atom voidptr, ref voidptr, xchg u8, weak bool, succ
 		*&u8(ref) = rv
 	}
 	return rv == cmp
+}
+
+@[export: '__atomic_exchange_1']
+fn atomic_exchange_1(atom voidptr, value u8, memorder int) u8 {
+	mut xchg := u8(0)
+	cmp := u8(0)
+	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
+	for {
+		xchg = value
+		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+			atomic_seq_cst)) {
+			break
+		}
+	}
+	return cmp
 }
 
 // u16
@@ -88,6 +109,21 @@ fn atomic_compare_exchange_2(atom voidptr, ref voidptr, xchg u16, weak bool, suc
 	return rv == cmp
 }
 
+@[export: '__atomic_exchange_2']
+fn atomic_exchange_2(atom voidptr, value u16, memorder int) u16 {
+	mut xchg := u16(0)
+	cmp := u16(0)
+	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
+	for {
+		xchg = value
+		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+			atomic_seq_cst)) {
+			break
+		}
+	}
+	return cmp
+}
+
 // u32
 @[export: '__atomic_load_4']
 fn atomic_load_4(atom voidptr, memorder int) u32 {
@@ -119,6 +155,21 @@ fn atomic_compare_exchange_4(atom voidptr, ref voidptr, xchg u32, weak bool, suc
 	return rv == cmp
 }
 
+@[export: '__atomic_exchange_4']
+fn atomic_exchange_4(atom voidptr, value u16, memorder int) u32 {
+	mut xchg := u32(0)
+	cmp := u32(0)
+	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
+	for {
+		xchg = value
+		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+			atomic_seq_cst)) {
+			break
+		}
+	}
+	return cmp
+}
+
 // u64
 @[export: '__atomic_load_8']
 fn atomic_load_8(atom voidptr, memorder int) u64 {
@@ -148,4 +199,19 @@ fn atomic_compare_exchange_8(atom voidptr, ref voidptr, xchg u64, weak bool, suc
 		*&u64(ref) = rv
 	}
 	return rv == cmp
+}
+
+@[export: '__atomic_exchange_8']
+fn atomic_exchange_8(atom voidptr, value u16, memorder int) u64 {
+	mut xchg := u64(0)
+	cmp := u64(0)
+	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
+	for {
+		xchg = value
+		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+			atomic_seq_cst)) {
+			break
+		}
+	}
+	return cmp
 }
