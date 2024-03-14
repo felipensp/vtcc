@@ -9,21 +9,28 @@ const atomic_seq_cst = 5
 fn C.__atomic_load(voidptr, voidptr, int)
 fn C.__atomic_compare_exchange(voidptr, voidptr, voidptr, bool, int, int) bool
 
+@[inline]
 fn atomic_thread_fence(memorder int) {
-	$if i386 ? {
-		// asm i386 { lock orl 0, (%esp) }
-	} $else $if amd64 ? {
-		// asm amd64 { lock orq 0, (%rsp) }
-	} $else $if arm ? {
+	$if i386 {
+		asm i386 {
+			lock orl '(%esp)', 0
+		}
+	} $else $if amd64 {
+		asm amd64 {
+			lock orq '(%rsp)', 0
+		}
+	} $else $if arm32 {
 		asm arm32 {
 			.int 0xee070fba
 		} // mcr p15, 0, r0, c7, c10, 5
-	} $else $if aarch64 ? {
+	} $else $if arm64 {
 		asm arm64 {
 			.int 0xd5033bbf
 		} // dmb ish
-		//} $else $if riscv {
-		//		asm riscv { .int 0x0ff0000f } // fence iorw,iorw
+	} $else $if rv64 {
+		asm rv64 {
+			.int 0x0ff0000f
+		} // fence iorw,iorw
 	}
 }
 
