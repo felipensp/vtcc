@@ -59,6 +59,16 @@ __global (
 	g_rtctxt Rt_context
 )
 
+@[export: '__bt_init']
+fn __bt_init(p &Rt_context, num_callers int) {
+
+}
+
+@[export: '__bt_exit']
+fn __bt_exit(p &Rt_context) {
+
+}
+
 fn tcc_pstrcpy(buf &char, buf_size usize, s &char) &char {
 	l := C.strlen(s)
 	if l >= buf_size {
