@@ -24,7 +24,7 @@ fn build_btexe() ! {
 
 fn build_libtcc1() ! {
 	eprint('buildind libtcc1.so: ')
-	res_libtcc1 := os.execute('v -shared -o libtcc1.so lib/')
+	res_libtcc1 := os.execute('v -cc gcc -d no_backtrace -shared -o libtcc1.so lib/')
 	if res_libtcc1.exit_code == 0 {
 		println('ok')
 	} else {

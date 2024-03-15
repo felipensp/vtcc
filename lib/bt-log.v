@@ -1,5 +1,7 @@
 @[translated]
 module lib
 
-pub fn tcc_backtrace(fmt &char) {
+@[export:'tcc_backtrace']
+pub fn tcc_backtrace(fmt &char) int {
+	return 0
 }

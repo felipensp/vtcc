@@ -1795,6 +1795,7 @@ fn bind_libs_dynsyms(s1 &TCCState) {
 				esym = &Elf64_Sym(s1.dynsymtab_section.data) + dynsym_index
 				if esym.st_shndx == 0 {
 					if ((u8((esym.st_info))) >> 4) != 2 {
+						tcc_enter_state(s1)
 						_tcc_warning("undefined dynamic symbol '${name.vstring()}'")
 					}
 				}

@@ -61,7 +61,7 @@ fn atomic_compare_exchange_1(atom voidptr, ref voidptr, xchg u8, weak bool, succ
 	asm amd64 {
 		lock cmpxchgb '%1', '%2'
 		; =a (rv)
-		  +m (*u8(atom))
+		  +m (*&u8(atom))
 		; q (xchg)
 		  0 (cmp)
 		; memory
@@ -287,9 +287,9 @@ fn atomic_compare_exchange_2(atom voidptr, ref voidptr, xchg u16, weak bool, suc
 	mut rv := u16(0)
 	cmp := *&u16(ref)
 	asm amd64 {
-		lock cmpxchgl '%1', '%2'
+		lock cmpxchgw '%1', '%2'
 		; =a (rv)
-		  +m (*u16(atom))
+		  +m (*&u16(atom))
 		; q (xchg)
 		  0 (cmp)
 		; memory
@@ -517,7 +517,7 @@ fn atomic_compare_exchange_4(atom voidptr, ref voidptr, xchg u32, weak bool, suc
 	asm amd64 {
 		lock cmpxchgl '%1', '%2'
 		; =a (rv)
-		  +m (*u32(atom))
+		  +m (*&u32(atom))
 		; q (xchg)
 		  0 (cmp)
 		; memory
@@ -746,7 +746,7 @@ fn atomic_compare_exchange_8(atom voidptr, ref voidptr, xchg u64, weak bool, suc
 		asm amd64 {
 			lock cmpxchgq '%1', '%2'
 			; =a (rv)
-			  +m (*u64(atom))
+			  +m (*&u64(atom))
 			; q (xchg)
 			  0 (cmp)
 			; memory
