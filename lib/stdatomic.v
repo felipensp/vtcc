@@ -79,7 +79,7 @@ fn atomic_exchange_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -94,7 +94,7 @@ fn atomic_add_fetch_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -109,7 +109,7 @@ fn atomic_sub_fetch_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -124,7 +124,7 @@ fn atomic_and_fetch_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -139,7 +139,7 @@ fn atomic_or_fethc_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -154,7 +154,7 @@ fn atomic_xor_fetch_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -169,7 +169,7 @@ fn atomic_nand_fetch_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -184,7 +184,7 @@ fn atomic_fetch_add_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -199,7 +199,7 @@ fn atomic_fetch_sub_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -214,7 +214,7 @@ fn atomic_fetch_and_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -229,7 +229,7 @@ fn atomic_fetch_or_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -244,7 +244,7 @@ fn atomic_fetch_xor_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -259,7 +259,7 @@ fn atomic_fetch_nand_1(atom voidptr, value u8, memorder int) u8 {
 	C.__atomic_load(&u8(atom), &u8(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u8(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -307,7 +307,7 @@ fn atomic_exchange_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -322,7 +322,7 @@ fn atomic_add_fetch_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -337,7 +337,7 @@ fn atomic_sub_fetch_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -352,7 +352,7 @@ fn atomic_and_fetch_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -367,7 +367,7 @@ fn atomic_or_fethc_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -382,7 +382,7 @@ fn atomic_xor_fetch_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -397,7 +397,7 @@ fn atomic_nand_fetch_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -412,7 +412,7 @@ fn atomic_fetch_add_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -427,7 +427,7 @@ fn atomic_fetch_sub_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -442,7 +442,7 @@ fn atomic_fetch_and_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -457,7 +457,7 @@ fn atomic_fetch_or_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -472,7 +472,7 @@ fn atomic_fetch_xor_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -487,7 +487,7 @@ fn atomic_fetch_nand_2(atom voidptr, value u16, memorder int) u16 {
 	C.__atomic_load(&u16(atom), &u16(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u16(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -535,7 +535,7 @@ fn atomic_exchange_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -550,7 +550,7 @@ fn atomic_add_fetch_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -565,7 +565,7 @@ fn atomic_sub_fetch_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -580,7 +580,7 @@ fn atomic_and_fetch_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -595,7 +595,7 @@ fn atomic_or_fethc_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -610,7 +610,7 @@ fn atomic_xor_fetch_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -625,7 +625,7 @@ fn atomic_nand_fetch_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -640,7 +640,7 @@ fn atomic_fetch_add_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -655,7 +655,7 @@ fn atomic_fetch_sub_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -670,7 +670,7 @@ fn atomic_fetch_and_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -685,7 +685,7 @@ fn atomic_fetch_or_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -700,7 +700,7 @@ fn atomic_fetch_xor_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -715,7 +715,7 @@ fn atomic_fetch_nand_4(atom voidptr, value u32, memorder int) u32 {
 	C.__atomic_load(&u32(atom), &u32(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u32(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -765,7 +765,7 @@ fn atomic_exchange_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -780,7 +780,7 @@ fn atomic_add_fetch_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -795,7 +795,7 @@ fn atomic_sub_fetch_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -810,7 +810,7 @@ fn atomic_and_fetch_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -825,7 +825,7 @@ fn atomic_or_fethc_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -840,7 +840,7 @@ fn atomic_xor_fetch_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -855,7 +855,7 @@ fn atomic_nand_fetch_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -870,7 +870,7 @@ fn atomic_fetch_add_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp + value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -885,7 +885,7 @@ fn atomic_fetch_sub_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp - value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -900,7 +900,7 @@ fn atomic_fetch_and_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp & value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -915,7 +915,7 @@ fn atomic_fetch_or_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp | value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -930,7 +930,7 @@ fn atomic_fetch_xor_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = cmp ^ value
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
@@ -945,7 +945,7 @@ fn atomic_fetch_nand_8(atom voidptr, value u64, memorder int) u64 {
 	C.__atomic_load(&u64(atom), &u64(&cmp), atomic_relaxed)
 	for {
 		xchg = ~(cmp & value)
-		if !(C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
+		if (C.__atomic_compare_exchange(&u64(atom), &cmp, &xchg, true, atomic_seq_cst,
 			atomic_seq_cst)) {
 			break
 		}
