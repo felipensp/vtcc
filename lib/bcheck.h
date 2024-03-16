@@ -1,0 +1,1 @@
+void __bound_exit_dll(size_t *);

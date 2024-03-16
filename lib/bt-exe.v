@@ -4,6 +4,8 @@ module main
 #include <semaphore.h>
 #include <setjmp.h>
 
+#insert "lib/bcheck.h"
+
 fn C.strlen(&char) int
 fn C.memcpy(voidptr, voidptr, int) voidptr
 
@@ -51,7 +53,7 @@ struct Rt_context {
 	dwarf        Elf64_Addr
 	esym_start   &Elf64_Sym
 	esym_end     &Elf64_Sym
-	elf_str      &i8
+	elf_str      &char
 	prog_base    Elf64_Addr
 	bounds_start voidptr
 	next         &Rt_context
@@ -73,10 +75,14 @@ __global (
 )
 
 @[weak]
-fn C.main() int
+fn C.__bound_init(voidptr, int)
 
 @[weak]
-fn C.__bound_init(voidptr, int)
+fn C.__bound_exit_dll(voidptr)
+
+type Bound_init_fn = fn (voidptr, int)
+
+type Bound_exit_dll_fn = fn (voidptr)
 
 @[export: '__bt_init']
 fn __bt_init(p &Rt_context, num_callers int) {
@@ -102,22 +108,20 @@ fn __bt_init(p &Rt_context, num_callers int) {
 	}
 }
 
-type Bound_exit_dll_fn = fn (voidptr)
-
 fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 	return 0
 }
 
 @[export: '__bt_exit']
 fn __bt_exit(p &Rt_context) {
-	__bound_exit_dll := Bound_exit_dll_fn(unsafe { nil })
+	bound_exit_dll := Bound_exit_dll_fn(C.__bound_exit_dll)
 	rc := &g_rtctxt
 	if p.bounds_start {
-		__bound_exit_dll(p.bounds_start)
+		bound_exit_dll(p.bounds_start)
 		C.__bound_checking_lock()
 	}
 	for rc {
-		if rc.next == p {
+		if voidptr(rc.next) == voidptr(p) {
 			rc.next = rc.next.next
 			break
 		}

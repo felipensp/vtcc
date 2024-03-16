@@ -11,9 +11,20 @@ fn build_btlog() ! {
 	}
 }
 
+fn build_bcheck() ! {
+	eprint('building bcheck.o: ')
+	res_bchecklog := os.execute('v -d no_main -skip-unused -no-builtin -o bcheck.o lib/bcheck.v')
+	if res_bchecklog.exit_code == 0 {
+		println('ok')
+	} else {
+		println('failed ${res_bchecklog.output}')
+		return error('failed')
+	}
+}
+
 fn build_btexe() ! {
 	eprint('building bt-exe.o: ')
-	res_btexec := os.execute('v -d no_main -skip-unused -no-builtin -o bt-exe.o lib/bt-exe.v')
+	res_btexec := os.execute('v -keepc -cg -d no_main -skip-unused -no-builtin -o bt-exe.o lib/bt-exe.v')
 	if res_btexec.exit_code == 0 {
 		println('ok')
 	} else {
@@ -24,7 +35,7 @@ fn build_btexe() ! {
 
 fn build_libtcc1() ! {
 	eprint('buildind libtcc1.so: ')
-	res_libtcc1 := os.execute('v -shared -o libtcc1.so lib/libtcc1/')
+	res_libtcc1 := os.execute('v -cg -shared -o libtcc1.so lib/libtcc1/')
 	if res_libtcc1.exit_code == 0 {
 		println('ok')
 	} else {
@@ -34,7 +45,7 @@ fn build_libtcc1() ! {
 
 fn build_vtcc() ! {
 	eprint('buildind vtcc: ')
-	res_vtcc := os.execute('v -o vtcc src/')
+	res_vtcc := os.execute('v -keepc -cg -o vtcc src/')
 	if res_vtcc.exit_code == 0 {
 		println('ok')
 	} else {
@@ -43,6 +54,7 @@ fn build_vtcc() ! {
 }
 
 fn main() {
+	build_bcheck()!
 	build_btlog()!
 	build_btexe()!
 	build_libtcc1()!

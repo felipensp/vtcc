@@ -42,3 +42,7 @@ fn post_sem() {
 fn init_sem() {
 	C.pthread_spin_init(&bounds_spin, 0)
 }
+
+@[export: '__bound_exit_dll']
+pub fn __bound_exit_dll(p &usize) {
+}

@@ -61,7 +61,7 @@ fn atomic_compare_exchange_1(atom voidptr, ref voidptr, xchg u8, weak bool, succ
 	mut rv := u8(0)
 	cmp := *&u8(ref)
 	asm amd64 {
-		lock cmpxchg8b '%1', '%2'
+		lock cmpxchg '%1', '%2'
 		; =a (rv)
 		  +m (*&u8(atom))
 		; q (xchg)
