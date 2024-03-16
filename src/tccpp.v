@@ -1670,7 +1670,7 @@ fn parse_define() {
 	saved_parse_flags := parse_flags
 	v = tok
 	if v < 256 || v == Tcc_token.tok_defined {
-		_tcc_error("invalid macro name '${get_tok_str(tok, &tokc)}'")
+		_tcc_error("invalid macro name '${get_tok_str(tok, &tokc).vstring()}'")
 	}
 	first = unsafe { nil }
 	t = 0

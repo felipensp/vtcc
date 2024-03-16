@@ -8,6 +8,19 @@ fn C.strlen(&char) int
 fn C.memcpy(voidptr, voidptr, int) voidptr
 
 @[typedef]
+struct C.va_list {}
+
+type RtErrorFn = fn (voidptr, voidptr, &char, C.va_list) int
+
+__global __rt_error = RtErrorFn(unsafe { nil })
+
+@[weak]
+fn C.__bound_checking_lock()
+
+@[weak]
+fn C.__bound_checking_unlock()
+
+@[typedef]
 struct C.jmp_buf {
 }
 
@@ -59,14 +72,60 @@ __global (
 	g_rtctxt Rt_context
 )
 
+@[weak]
+fn C.main() int
+
+@[weak]
+fn C.__bound_init(voidptr, int)
+
 @[export: '__bt_init']
 fn __bt_init(p &Rt_context, num_callers int) {
+	main := C.main
+	__bound_init := C.__bound_init
+	rc := &g_rtctxt
+	if p.bounds_start {
+		__bound_init(p.bounds_start, -1)
+		C.__bound_checking_lock()
+	}
+	if num_callers {
+		C.memcpy(rc, p, __offsetof(Rt_context, next))
+		rc.num_callers = num_callers - 1
+		rc.top_func = main
+		__rt_error = _rt_error
+		// set_exception_handler()
+	} else {
+		p.next = rc.next
+		rc.next = p
+	}
+	if p.bounds_start {
+		C.__bound_checking_unlock()
+	}
+}
 
+type Bound_exit_dll_fn = fn (voidptr)
+
+fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
+	return 0
 }
 
 @[export: '__bt_exit']
 fn __bt_exit(p &Rt_context) {
-
+	__bound_exit_dll := Bound_exit_dll_fn(unsafe { nil })
+	rc := &g_rtctxt
+	if p.bounds_start {
+		__bound_exit_dll(p.bounds_start)
+		C.__bound_checking_lock()
+	}
+	for rc {
+		if rc.next == p {
+			rc.next = rc.next.next
+			break
+		}
+		rc = rc.next
+	}
+	if p.bounds_start {
+		C.__bound_checking_unlock()
+	}
 }
 
 fn tcc_pstrcpy(buf &char, buf_size usize, s &char) &char {

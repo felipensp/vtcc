@@ -1,4 +1,6 @@
 @[translated]
+module main
+
 const atomic_relaxed = 0
 const atomic_consume = 1
 const atomic_acquire = 2
@@ -59,7 +61,7 @@ fn atomic_compare_exchange_1(atom voidptr, ref voidptr, xchg u8, weak bool, succ
 	mut rv := u8(0)
 	cmp := *&u8(ref)
 	asm amd64 {
-		lock cmpxchgb '%1', '%2'
+		lock cmpxchg8b '%1', '%2'
 		; =a (rv)
 		  +m (*&u8(atom))
 		; q (xchg)
