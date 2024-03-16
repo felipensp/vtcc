@@ -22,6 +22,12 @@ fn C.__bound_checking_lock()
 @[weak]
 fn C.__bound_checking_unlock()
 
+@[weak]
+fn C.__bound_init(voidptr, int)
+
+@[weak]
+fn C.__bound_exit_dll(voidptr)
+
 @[typedef]
 struct C.jmp_buf {
 }
@@ -74,16 +80,6 @@ __global (
 	g_rtctxt Rt_context
 )
 
-@[weak]
-fn C.__bound_init(voidptr, int)
-
-@[weak]
-fn C.__bound_exit_dll(voidptr)
-
-type Bound_init_fn = fn (voidptr, int)
-
-type Bound_exit_dll_fn = fn (voidptr)
-
 @[export: '__bt_init']
 fn __bt_init(p &Rt_context, num_callers int) {
 	main := C.main
@@ -114,7 +110,7 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 
 @[export: '__bt_exit']
 fn __bt_exit(p &Rt_context) {
-	bound_exit_dll := Bound_exit_dll_fn(C.__bound_exit_dll)
+	bound_exit_dll := C.__bound_exit_dll
 	rc := &g_rtctxt
 	if p.bounds_start {
 		bound_exit_dll(p.bounds_start)
