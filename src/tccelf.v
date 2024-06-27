@@ -2392,18 +2392,18 @@ fn tcc_write_elf_file(s1 &TCCState, filename &char, phnum int, phdr &Elf64_Phdr,
 	f := &C.FILE(0)
 	file_type = s1.output_type
 	if file_type == 3 {
-		mode = 438
-	} else { // 3
-		mode = 511
+		mode = 0o666
+	} else {
+		mode = 0o777
 	}
 	C.unlink(filename)
-	fd = C.open(filename, 1 | 64 | 512 | 0, mode)
+	fd = C.open(filename, C.O_WRONLY | C.O_CREAT | C.O_TRUNC, mode)
 	if fd < 0 {
-		return _tcc_error_noabort(s1, "could not write '${filename}: ${C.strerror(C.errno)}'")
+		return _tcc_error_noabort(s1, "could not write '${filename.vstring()}: ${C.strerror(C.errno).vstring()}'")
 	} else {
 		f = C.fdopen(fd, c'wb')
 		if f == unsafe { nil } {
-			return _tcc_error_noabort(s1, "could not write '${filename}: ${C.strerror(C.errno)}'")
+			return _tcc_error_noabort(s1, "could not write2 '${filename.vstring()}: ${C.strerror(C.errno).vstring()}'")
 		}
 	}
 	if s1.verbose {

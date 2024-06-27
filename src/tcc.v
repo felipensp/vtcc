@@ -154,7 +154,6 @@ fn main() {
 		if s.nb_files == 0 {
 			_tcc_error_noabort(s1, 'no input files')
 		} else if s.output_type == 5 {
-			eprintln('>> -1')
 			if s.outfile && 0 != unsafe { C.strcmp(c'-', s.outfile) } {
 				ppfp = C.fopen(s.outfile, c'w')
 				if !ppfp {

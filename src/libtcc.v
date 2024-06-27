@@ -628,14 +628,14 @@ pub fn tcc_define_symbol(s1 &TCCState, sym &char, value &char) {
 	if unsafe { nil } == eq {
 		eq = C.strchr(sym, 0)
 	}
-	if (unsafe { nil }) == value {
+	if unsafe { nil } == value {
 		value = if *eq { eq + 1 } else { c'1' }
 	}
-	cstr_printf(&s1.cmdline_defs, '#define ${int((eq - sym))} ${value}\n')
+	cstr_printf(&s1.cmdline_defs, '#define ${sym.vstring()} ${value.vstring()}\n')
 }
 
 pub fn tcc_undefine_symbol(s1 &TCCState, sym &char) {
-	cstr_printf(&s1.cmdline_defs, '#undef ${sym}\n')
+	cstr_printf(&s1.cmdline_defs, '#undef ${sym.vstring()}\n')
 }
 
 pub fn tcc_new() &TCCState {
