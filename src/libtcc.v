@@ -654,7 +654,8 @@ pub fn tcc_new() &TCCState {
 	s.ms_extensions = 1
 	s.ppfp = C.stdout
 	s.include_stack_ptr = &s.include_stack[0]
-	tcc_set_lib_path(s, c'/home/felipe/vtcc')
+
+	tcc_set_lib_path(s, $d('vtcc_dir', '/usr/local/vtcc').str)
 
 	return s
 }

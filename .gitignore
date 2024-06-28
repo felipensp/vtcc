@@ -1,5 +1,6 @@
 vtcc
 **.o
+**.a
 **.so
 log
 **.out
