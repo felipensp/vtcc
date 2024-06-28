@@ -231,9 +231,9 @@ fn relocate(s1 &TCCState, rel &Elf64_Rela, type_ int, ptr &u8, addr Elf64_Addr, 
 		}
 		20 {
 			// case comp stmt
-			expect := [72, 141, 61, 0, 0, 0, 0, 232, 0, 0, 0, 0]!
+			expect := [u8(72), 141, 61, 0, 0, 0, 0, 232, 0, 0, 0, 0]!
 
-			replace := [102, 102, 102, 100, 72, 139, 4, 37, 0, 0, 0, 0]!
+			replace := [u8(102), 102, 102, 100, 72, 139, 4, 37, 0, 0, 0, 0]!
 
 			if C.memcmp(ptr - 3, expect, sizeof(expect)) == 0 {
 				C.memcpy(ptr - 3, replace, sizeof(replace))
