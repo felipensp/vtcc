@@ -1471,7 +1471,7 @@ fn tcc_add_btstub(s1 &TCCState) {
 	}
 	*&Elf64_Addr(section_ptr_add(s, 8)) = s1.dwarf
 	section_ptr_add(s, 3 * 8)
-	put_ptr(s1, (unsafe { nil }), 0)
+	put_ptr(s1, unsafe { nil }, 0)
 	n = 2 * 8
 	if s1.do_bounds_check {
 		put_ptr(s1, s1.bounds_section, 0)
@@ -1479,7 +1479,8 @@ fn tcc_add_btstub(s1 &TCCState) {
 	}
 	section_ptr_add(s, n)
 	cstr_new(&cstr)
-	cstr_printf(&cstr, 'extern void __bt_init(),__bt_exit(),__bt_init_dll();static void *__rt_info[];__attribute__((constructor)) static void __bt_init_rt(){')
+	cstr_printf(&cstr, 'extern void __bt_init(),__bt_exit(),__bt_init_dll();static void *__rt_info[];\n')
+	cstr_printf(&cstr, '__attribute__((constructor)) static void __bt_init_rt(){')
 	t := if s1.output_type == 4 {
 		0
 	} else {
@@ -1496,17 +1497,17 @@ fn tcc_tcov_add_file(s1 &TCCState, filename &char) {
 	cstr := CString{}
 	ptr := &voidptr(0)
 	wd := [1024]char{}
-	if s1.tcov_section == (unsafe { nil }) {
+	if s1.tcov_section == unsafe { nil } {
 		return
 	}
 	section_ptr_add(s1.tcov_section, 1)
 	write32le(s1.tcov_section.data, s1.tcov_section.data_offset)
 	cstr_new(&cstr)
 	if filename[0] == `/` {
-		cstr_printf(&cstr, '${filename}.tcov')
+		cstr_printf(&cstr, '${filename.vstring()}.tcov')
 	} else {
 		C.getcwd(wd, sizeof(wd))
-		cstr_printf(&cstr, '${wd}/${filename}.tcov')
+		cstr_printf(&cstr, '${(&char(&wd[0])).vstring()}/${filename.vstring()}.tcov')
 	}
 	ptr = section_ptr_add(s1.tcov_section, cstr.size + 1)
 	unsafe {
@@ -1561,9 +1562,7 @@ fn tcc_add_runtime(s1 &TCCState) {
 			tcc_add_library_err(s1, c'pthread')
 		}
 		tcc_add_library_err(s1, c'c')
-		// if c'libtcc1.a'[0] {
-		// tcc_add_support(s1, c'libtcc1.a')
-		//}
+		tcc_add_support(s1, c'libtcc1.so')
 		if s1.output_type != 1 {
 			tccelf_add_crtend(s1)
 		}

@@ -1169,13 +1169,13 @@ fn patch_type(sym &Sym, type_ &CType) {
 		sym.type_.ref = type_.ref
 	}
 	if !is_compatible_types(&sym.type_, type_) {
-		_tcc_error("incompatible types for redefinition of '${get_tok_str(sym.v, (unsafe { nil }))}'")
+		_tcc_error("incompatible types for redefinition of '${get_tok_str(sym.v, (unsafe { nil })).vstring()}'")
 	} else if (sym.type_.t & vt_btype) == vt_func {
 		static_proto := sym.type_.t & vt_static
 		// warn if static follows non-static function declaration
 		if type_.t & vt_static && !static_proto && !((type_.t | sym.type_.t) & 32768) {
 			_tcc_warning("static storage ignored for redefinition of '${get_tok_str(sym.v,
-				(unsafe { nil }))}'")
+				(unsafe { nil })).vstring()}'")
 		}
 		// set 'inline' if both agree or if one has static
 		if (type_.t | sym.type_.t) & vt_inline {
@@ -5672,7 +5672,7 @@ fn unary() {
 				name := get_tok_str(t, unsafe { nil })
 				vcc_trace_print('${@LOCATION} glob')
 				if tok != `(` {
-					_tcc_error("'${name}' undeclared")
+					_tcc_error("'${name.vstring()}' undeclared")
 				}
 				tcc_state.warn_num = __offsetof(TCCState, warn_implicit_function_declaration) - __offsetof(TCCState, warn_none)
 				_tcc_warning("implicit declaration of function '${name}'")

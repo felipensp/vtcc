@@ -24,7 +24,7 @@ fn build_bcheck() ! {
 
 fn build_btexe() ! {
 	eprint('building bt-exe.o: ')
-	res_btexec := os.execute('v -keepc -cg -d no_main -skip-unused -no-builtin -o bt-exe.o lib/bt-exe.v')
+	res_btexec := os.execute('v -cg -d no_main -skip-unused -no-builtin -o bt-exe.o lib/bt-exe.v')
 	if res_btexec.exit_code == 0 {
 		println('ok')
 	} else {
@@ -35,7 +35,7 @@ fn build_btexe() ! {
 
 fn build_libtcc1() ! {
 	eprint('buildind libtcc1.so: ')
-	res_libtcc1 := os.execute('v -cg -shared -o libtcc1.so lib/libtcc1/')
+	res_libtcc1 := os.execute('v -cg -d no_main -shared -o libtcc1.so lib/libtcc1/')
 	if res_libtcc1.exit_code == 0 {
 		println('ok')
 	} else {

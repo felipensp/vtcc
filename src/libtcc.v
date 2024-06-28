@@ -654,7 +654,7 @@ pub fn tcc_new() &TCCState {
 	s.ms_extensions = 1
 	s.ppfp = C.stdout
 	s.include_stack_ptr = &s.include_stack[0]
-	tcc_set_lib_path(s, c'/usr/local/lib/tcc')
+	tcc_set_lib_path(s, c'/home/felipe/vtcc')
 
 	return s
 }
@@ -711,7 +711,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 	s.output_type = output_type
 	if !s.nostdinc {
 		vcc_trace('${@LOCATION}')
-		tcc_add_sysinclude_path(s, c'{B}/include:/usr/include/x86_64-linux-gnu:/usr/include')
+		tcc_add_sysinclude_path(s, c'{B}/include:/usr/local/include/x86_64-linux-gnu:/usr/local/include:/usr/include/x86_64-linux-gnu:/usr/include')
 	}
 	if output_type == 5 {
 		s.do_debug = 0
@@ -725,7 +725,7 @@ pub fn tcc_set_output_type(s &TCCState, output_type int) int {
 		return 0
 	}
 	vcc_trace('${@LOCATION}')
-	tcc_add_library_path(s, c'{R}:/usr/lib:/lib/x86_64-linux-gnu:/usr/local/lib')
+	tcc_add_library_path(s, c'{B}:{R}:/usr/lib:/lib/x86_64-linux-gnu:/lib:/usr/local/lib/x86_64-linux-gnu:/usr/local/lib')
 	vcc_trace('${@LOCATION}')
 	tcc_split_path(s, &s.crt_paths, &s.nb_crt_paths, c'{R}')
 	vcc_trace('${@LOCATION}')

@@ -1,5 +1,9 @@
 @[translated]
-module main
+module libtcc1
+
+#flag bcheck.o
+#flag bt-exe.o
+#flag bt-log.o
 
 __global __mzerosf = f32(-0.0)
 __global __mzerodf = f64(-0.0)

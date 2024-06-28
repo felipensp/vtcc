@@ -2161,7 +2161,7 @@ fn preprocess(is_bof int) {
 		}
 		int(Tcc_token.tok_error), int(Tcc_token.tok_warning) {
 			vcc_trace('${@LOCATION}')
-			q = buf
+			q = unsafe { &buf[0] }
 			vcc_trace('${@LOCATION}')
 			c = skip_spaces()
 			vcc_trace('${@LOCATION}')

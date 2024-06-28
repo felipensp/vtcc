@@ -1,5 +1,5 @@
 @[translated]
-module main
+module btexe
 
 #include <semaphore.h>
 #include <setjmp.h>

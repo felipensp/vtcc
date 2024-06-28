@@ -1,5 +1,5 @@
 @[translated]
-module main
+module bcheck
 
 #include <pthread.h>
 

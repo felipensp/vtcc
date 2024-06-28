@@ -1,7 +1,7 @@
 @[translated]
 module main
 
-#flag -ldl
+#flag -ldl -L.
 
 #include <sys/stat.h>
 #include <dlfcn.h>
@@ -36,7 +36,7 @@ fn print_search_dirs(s &TCCState) {
 	C.printf(c'install: %s\n', s.tcc_lib_path)
 	print_dirs(c'include', s.sysinclude_paths, s.nb_sysinclude_paths)
 	print_dirs(c'libraries', s.library_paths, s.nb_library_paths)
-	C.printf(c'libtcc1:\n  %s/%s\n', s.library_paths[0], c'libtcc1.a')
+	C.printf(c'libtcc1:\n  %s/tcc/%s\n', s.library_paths[0], c'libtcc1.a')
 	print_dirs(c'crt', s.crt_paths, s.nb_crt_paths)
 	C.printf(c'elfinterp:\n  %s\n', c'/lib64/ld-linux-x86-64.so.2')
 }
