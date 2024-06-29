@@ -23,7 +23,7 @@ For full help (just like `tcc -h`), use `./vtcc -h`.
 
 ```
 $ v -d vtcc_dir=`pwd` -o test.c .
-$ ./vtcc - test.c -lgc -ldl -lpthread
+$ ./vtcc test.c -lgc -ldl -lpthread
 $ ./a.out -run hello.c
 ```
 
