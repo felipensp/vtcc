@@ -5202,7 +5202,8 @@ fn subst_asm_operand(add_str &CString, sv &SValue, modifier int) {
 	}
 }
 
-fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output int, clobber_regs &u8, out_reg int) {
+fn asm_gen_code(operands &ASMOperand, nb_operands int, nb_outputs int, is_output int, clobber_regs &u8,
+	out_reg int) {
 	regs_allocated := [16]u8{}
 	op := &ASMOperand(0)
 	i := 0

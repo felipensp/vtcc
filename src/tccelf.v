@@ -217,7 +217,8 @@ fn new_section(s1 &TCCState, name &char, sh_type int, sh_flags int) &Section {
 	return sec
 }
 
-fn new_symtab(s1 &TCCState, symtab_name &char, sh_type int, sh_flags int, strtab_name &char, hash_name &char, hash_sh_flags int) &Section {
+fn new_symtab(s1 &TCCState, symtab_name &char, sh_type int, sh_flags int, strtab_name &char, hash_name &char,
+	hash_sh_flags int) &Section {
 	symtab := &Section(0)
 	strtab := &Section(0)
 	hash := &Section(0)
