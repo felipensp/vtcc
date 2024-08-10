@@ -7,6 +7,12 @@ module main
 
 const REG_RIP = 16
 
+@[typedef]
+struct C.va_list {}
+
+fn C.va_start(C.va_list, voidptr)
+fn C.va_end(voidptr)
+
 const __SI_MASK = u64(0xffff_0000)
 const __SI_KILL = (0 << 16)
 const __SI_TIMER = (1 << 16)
@@ -37,13 +43,21 @@ const FPE_FLTINV = (__SI_FAULT | 7) // floating point invalid operation
 const FPE_FLTSUB = (__SI_FAULT | 8) // subscript out of range
 const NSIGFPE = 8
 
+union Rt_context_union {
+	stab struct {
+		stab_sym       &Stab_Sym
+		stab_sym_end   &Stab_Sym
+		stab_str       &char
+	}
+	dwarf struct {
+		dwarf_line     &u8
+		dwarf_line_end &u8
+		dwarf_line_str &u8
+	}
+};
+
 struct Rt_context {
-	stab_sym       &Stab_Sym
-	stab_sym_end   &Stab_Sym
-	stab_str       &char
-	dwarf_line     &u8
-	dwarf_line_end &u8
-	dwarf_line_str &u8
+	u Rt_context_union
 	dwarf          Elf64_Addr
 	esym_start     &Elf64_Sym
 	esym_end       &Elf64_Sym
@@ -63,10 +77,7 @@ struct Rt_context {
 	exitarg        [32]voidptr
 }
 
-@[weak]
-__global (
-	g_rtctxt Rt_context
-)
+__global g_rtctxt = Rt_context{}
 
 const DIR_TABLE_SIZE = 64
 const FILE_TABLE_SIZE = 512
@@ -76,7 +87,7 @@ struct C.va_list {}
 fn C._setjmp(&C.jmp_buf) int
 fn C.mprotect(voidptr, usize, int) int
 fn C.vprintf(&char, C.va_list) int
-fn C.vfprintf(&C.FILE, &char) int
+fn C.vfprintf(&C.FILE, &char, C.va_list) int
 fn C.strstr(&char, &char) &char
 
 fn rt_exit(code int) {
@@ -181,15 +192,15 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&char) int {
 	if s1.do_debug {
 		p := &voidptr(0)
 		if s1.dwarf {
-			rc.dwarf_line = s1.dwarf_line_section.data
-			rc.dwarf_line_end = s1.dwarf_line_section.data + s1.dwarf_line_section.data_offset
+			rc.u.dwarf.dwarf_line = s1.dwarf_line_section.data
+			rc.u.dwarf.dwarf_line_end = s1.dwarf_line_section.data + s1.dwarf_line_section.data_offset
 			if s1.dwarf_line_str_section {
-				rc.dwarf_line_str = s1.dwarf_line_str_section.data
+				rc.u.dwarf.dwarf_line_str = s1.dwarf_line_str_section.data
 			}
 		} else {
-			rc.stab_sym = &Stab_Sym(s1.stab_section.data)
-			rc.stab_sym_end = &Stab_Sym((s1.stab_section.data + s1.stab_section.data_offset))
-			rc.stab_str = &char(s1.stab_section.link.data)
+			rc.u.stab.stab_sym = &Stab_Sym(s1.stab_section.data)
+			rc.u.stab.stab_sym_end = &Stab_Sym((s1.stab_section.data + s1.stab_section.data_offset))
+			rc.u.stab.stab_str = &char(s1.stab_section.link.data)
 		}
 		rc.dwarf = s1.dwarf
 		rc.esym_start = &Elf64_Sym((s1.symtab_section.data))
@@ -358,15 +369,20 @@ fn set_pages_executable(s1 &TCCState, mode int, ptr voidptr, length u32) int {
 	return 0
 }
 
-fn rt_vprintf(msg string) int {
-	ret := C.fputs(msg.str, C.stderr)
+@[inline]
+fn rt_vprintf(const_fmt &char, ap C.va_list) int {
+	ret := C.vfprintf(C.stderr, const_fmt, ap)
 	C.fflush(C.stderr)
 	return ret
 }
 
-fn rt_printf(msg string) int {
+@[inline]
+fn rt_printf(const_fmt &char, ...) int {
+	ap := C.va_list{}
 	r := 0
-	r = rt_vprintf(msg)
+	C.va_start(ap, const_fmt)
+	r = rt_vprintf(const_fmt, ap)
+	C.va_end(ap)
 	return r
 }
 
@@ -411,8 +427,8 @@ fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf
 	last_line_num = 1
 	last_incl_index = 0
 	unsafe {
-		for sym = rc.stab_sym + 1; voidptr(sym) < voidptr(rc.stab_sym_end); sym++ {
-			str = rc.stab_str + sym.n_strx
+		for sym = rc.u.stab.stab_sym + 1; voidptr(sym) < voidptr(rc.u.stab.stab_sym_end); sym++ {
+			str = rc.u.stab.stab_str + sym.n_strx
 			pc = sym.n_value
 			match Stab_debug_code(sym.n_type) {
 				.n_sline { // case comp body kind=IfStmt is_enum=true
@@ -513,14 +529,14 @@ fn rt_printline(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &char) Elf
 		if skip[0] && C.strstr(str, skip) {
 			return Elf64_Addr(-1)
 		}
-		rt_printf('${str}:${last_line_num}: ')
+		rt_printf(c'%s:%d: ', str, last_line_num)
 	} else { // 3
-		rt_printf('${i64(wanted_pc)} : ')
+		rt_printf(c'%08llx : ', i64(wanted_pc))
 	}
 	if func_name[0] {
-		rt_printf('${msg} ${func_name}')
+		rt_printf(c'%s %s', msg, func_name)
 	} else {
-		rt_printf('${msg} ???')
+		rt_printf(c'%s %s', msg, c'???')
 	}
 
 	return func_addr
@@ -595,18 +611,18 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 	function := &char(0)
 	// RRRREG next id=0x7fffd8cedcc0
 	next:
-	ln = rc.dwarf_line
-	for ln < rc.dwarf_line_end {
+	ln = rc.u.dwarf.dwarf_line
+	for ln < rc.u.dwarf.dwarf_line_end {
 		dir_size = 0
 		filename_size = 0
 		last_pc = 0
 		pc = 0
 		func_addr = 0
 		line = 1
-		filename = (unsafe { nil })
-		function = (unsafe { nil })
+		filename = unsafe { nil }
+		function = unsafe { nil }
 		length = 4
-		size = if ln + 4 < (rc.dwarf_line_end) {
+		size = if ln + 4 < (rc.u.dwarf.dwarf_line_end) {
 			ln += 4
 			read32le(ln - 4)
 		} else {
@@ -614,7 +630,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 		}
 		if size == 4294967295 {
 			length = 8
-			size = if ln + 8 < (rc.dwarf_line_end) {
+			size = if ln + 8 < (rc.u.dwarf.dwarf_line_end) {
 				ln += 8
 				read64le(ln - 8)
 			} else {
@@ -622,7 +638,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 			}
 		}
 		end = ln + size
-		if end < ln || end > rc.dwarf_line_end {
+		if end < ln || end > rc.u.dwarf.dwarf_line_end {
 			break
 		}
 		version = if ln + 2 < end {
@@ -706,7 +722,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 							}
 						}
 						if i < (512) {
-							filename_table[i].name = &char(rc.dwarf_line_str) + value
+							filename_table[i].name = &char(rc.u.dwarf.dwarf_line_str) + value
 						}
 					} else if entry_format[j].type_ == dw_lnct_directory_index {
 						match entry_format[j].form {
@@ -933,19 +949,19 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 		if skip[0] && C.strstr(filename, skip) {
 			return Elf64_Addr(-1)
 		}
-		rt_printf('${filename.vstring()}:${line}: ')
+		rt_printf(c'%s:%s: ', filename, line)
 	} else { // 3
-		rt_printf('0x${i64(wanted_pc)} : ')
+		rt_printf(c'0x%08llx : ', i64(wanted_pc))
 	}
 	if function {
-		rt_printf('${msg.vstring()} ${function.vstring()}')
+		rt_printf(c'%s %s', msg, function)
 	} else {
-		rt_printf('${msg.vstring()} ???')
+		rt_printf(c'%s %s', msg, c'???')
 	}
 	return Elf64_Addr(func_addr)
 }
 
-fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
+fn _rt_error(fp voidptr, ip voidptr, fmt &char, ap C.va_list) int {
 	rc := &g_rtctxt
 	pc := Elf64_Addr(0)
 	skip := [100]char{}
@@ -986,9 +1002,9 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 		a = c'%s'
 		if ret != -1 {
 			if rc.dwarf {
-				pc = rt_printline_dwarf(rc, pc, if level { c'by' } else { c'at' }, skip)
+				//pc = rt_printline_dwarf(rc, pc, if level { c'by' } else { c'at' }, skip)
 			} else { // 3
-				pc = rt_printline(rc, pc, if level { c'by' } else { c'at' }, skip)
+				//pc = rt_printline(rc, pc, if level { c'by' } else { c'at' }, skip)
 			}
 			if pc == Elf64_Addr(-1) {
 				continue
@@ -996,15 +1012,15 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 			a = c': %s'
 		}
 		if level == 0 {
-			rt_printf('${msg}')
-			rt_vprintf('${fmt}')
+			rt_printf(a, msg)
+			rt_vprintf(fmt, ap)
 		} else if ret == -1 {
 			break
 		}
 		if one {
 			break
 		}
-		rt_printf('\n')
+		rt_printf(c'\n')
 		if ret == -1 || (pc == Elf64_Addr(rc.top_func) && pc) {
 			break
 		}
@@ -1015,8 +1031,12 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char) int {
 	return 0
 }
 
-fn rt_error(msg &char) int {
-	ret := _rt_error(0, 0, msg)
+fn rt_error(const_fmt &char, ...) int {
+	ap := C.va_list{}
+	ret := 0
+	C.va_start(ap, const_fmt)
+	ret = _rt_error(0, 0, const_fmt, ap);
+	C.va_end(ap)
 	return ret
 }
 

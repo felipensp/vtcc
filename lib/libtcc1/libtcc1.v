@@ -5,7 +5,10 @@ module libtcc1
 #flag bt-exe.o
 #flag bt-log.o
 
+@[markused]
 __global __mzerosf = f32(-0.0)
+
+@[markused]
 __global __mzerodf = f64(-0.0)
 
 type Wtype = int

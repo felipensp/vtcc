@@ -1,5 +1,5 @@
 @[translated]
 module main
 
-@[hidden]
+@[hidden; markused]
 __global __dso_handle = unsafe { nil }

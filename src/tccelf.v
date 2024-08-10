@@ -325,8 +325,8 @@ fn find_section(s1 &TCCState, name &char) &Section {
 fn put_elf_str(s &Section, sym &char) int {
 	offset := 0
 	len := 0
-
 	ptr := &char(0)
+	
 	len = unsafe { C.strlen(sym) + 1 }
 	offset = s.data_offset
 	ptr = section_ptr_add(s, len)
