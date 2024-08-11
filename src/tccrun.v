@@ -45,36 +45,37 @@ const NSIGFPE = 8
 
 union Rt_context_union {
 	stab struct {
-		stab_sym       &Stab_Sym
-		stab_sym_end   &Stab_Sym
-		stab_str       &char
+		stab_sym     &Stab_Sym
+		stab_sym_end &Stab_Sym
+		stab_str     &char
 	}
+
 	dwarf struct {
 		dwarf_line     &u8
 		dwarf_line_end &u8
 		dwarf_line_str &u8
 	}
-};
+}
 
 struct Rt_context {
-	u Rt_context_union
-	dwarf          Elf64_Addr
-	esym_start     &Elf64_Sym
-	esym_end       &Elf64_Sym
-	elf_str        &char
-	prog_base      Elf64_Addr
-	bounds_start   voidptr
-	next           &Rt_context
-	num_callers    int
-	ip             Elf64_Addr
-	fp             Elf64_Addr
-	sp             Elf64_Addr
-	top_func       voidptr
-	jb             C.jmp_buf
-	do_jmp         int
-	nr_exit        int
-	exitfunc       [32]voidptr
-	exitarg        [32]voidptr
+	u            Rt_context_union
+	dwarf        Elf64_Addr
+	esym_start   &Elf64_Sym
+	esym_end     &Elf64_Sym
+	elf_str      &char
+	prog_base    Elf64_Addr
+	bounds_start voidptr
+	next         &Rt_context
+	num_callers  int
+	ip           Elf64_Addr
+	fp           Elf64_Addr
+	sp           Elf64_Addr
+	top_func     voidptr
+	jb           C.jmp_buf
+	do_jmp       int
+	nr_exit      int
+	exitfunc     [32]voidptr
+	exitarg      [32]voidptr
 }
 
 __global g_rtctxt = Rt_context{}
@@ -193,7 +194,8 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&char) int {
 		p := &voidptr(0)
 		if s1.dwarf {
 			rc.u.dwarf.dwarf_line = s1.dwarf_line_section.data
-			rc.u.dwarf.dwarf_line_end = s1.dwarf_line_section.data + s1.dwarf_line_section.data_offset
+			rc.u.dwarf.dwarf_line_end = s1.dwarf_line_section.data +
+				s1.dwarf_line_section.data_offset
 			if s1.dwarf_line_str_section {
 				rc.u.dwarf.dwarf_line_str = s1.dwarf_line_str_section.data
 			}
@@ -1002,9 +1004,9 @@ fn _rt_error(fp voidptr, ip voidptr, fmt &char, ap C.va_list) int {
 		a = c'%s'
 		if ret != -1 {
 			if rc.dwarf {
-				//pc = rt_printline_dwarf(rc, pc, if level { c'by' } else { c'at' }, skip)
+				// pc = rt_printline_dwarf(rc, pc, if level { c'by' } else { c'at' }, skip)
 			} else { // 3
-				//pc = rt_printline(rc, pc, if level { c'by' } else { c'at' }, skip)
+				// pc = rt_printline(rc, pc, if level { c'by' } else { c'at' }, skip)
 			}
 			if pc == Elf64_Addr(-1) {
 				continue
@@ -1035,7 +1037,7 @@ fn rt_error(const_fmt &char, ...) int {
 	ap := C.va_list{}
 	ret := 0
 	C.va_start(ap, const_fmt)
-	ret = _rt_error(0, 0, const_fmt, ap);
+	ret = _rt_error(0, 0, const_fmt, ap)
 	C.va_end(ap)
 	return ret
 }

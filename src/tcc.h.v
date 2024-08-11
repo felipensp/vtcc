@@ -492,7 +492,7 @@ pub struct Filespec {
 }
 
 enum Tcc_token as u16 {
-	tok_last                       = 256 - 1
+	tok_last = 256 - 1
 	tok_int
 	tok_void
 	tok_char
@@ -1560,7 +1560,7 @@ enum Line_macro_output_format {
 	line_macro_output_format_gcc
 	line_macro_output_format_none
 	line_macro_output_format_std
-	line_macro_output_format_p10  = 11
+	line_macro_output_format_p10 = 11
 }
 
 fn is_space(ch int) bool {
