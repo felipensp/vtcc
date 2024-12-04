@@ -1254,8 +1254,8 @@ const NSIGFPE = 8
 
 @[direct_array_access]
 fn rt_getcontext(uc &C.ucontext_t, rc &Rt_context) {
-	rc.ip = uc.uc_mcontext.gregs[btexe.REG_RIP]
-	rc.fp = uc.uc_mcontext.gregs[btexe.REG_RIP]
+	rc.ip = uc.uc_mcontext.gregs[REG_RIP]
+	rc.fp = uc.uc_mcontext.gregs[REG_RIP]
 }
 
 fn rt_exit(code int) {
@@ -1272,7 +1272,7 @@ fn sig_error(signum int, siginf &C.siginfo_t, puc voidptr) {
 	match signum {
 		8 { // case comp body kind=SwitchStmt is_enum=false
 			match siginf.si_code {
-				int(btexe.FPE_INTDIV), int(btexe.FPE_FLTDIV) {
+				int(FPE_INTDIV), int(FPE_FLTDIV) {
 					rt_error(c'division by zero')
 				}
 				else {
@@ -1535,7 +1535,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 	entry_format := [256]enry_format_struct{}
 	dir_size := u32(0)
 	filename_size := u32(0)
-	filename_table := [btexe.FILE_TABLE_SIZE]Dwarf_filename_struct{}
+	filename_table := [FILE_TABLE_SIZE]Dwarf_filename_struct{}
 	last_pc := Elf64_Addr(0)
 	pc := Elf64_Addr(0)
 	func_addr := Elf64_Addr(0)
@@ -1608,8 +1608,8 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 			dir_size = dwarf_read_uleb128(&ln, end)
 			for i = 0; i < dir_size; i++ {
 				for j = 0; j < col; j++ {
-					if entry_format[j].type_ == btexe.dw_lnct_path {
-						if entry_format[j].form != btexe.dw_form_line_strp {
+					if entry_format[j].type_ == dw_lnct_path {
+						if entry_format[j].form != dw_form_line_strp {
 							goto next_line // id: 0x7fffd8cf3458
 						}
 						if length == 4 {
@@ -1635,8 +1635,8 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 			filename_size = dwarf_read_uleb128(&ln, end)
 			for i = 0; i < filename_size; i++ {
 				for j = 0; j < col; j++ {
-					if entry_format[j].type_ == btexe.dw_lnct_path {
-						if entry_format[j].form != btexe.dw_form_line_strp {
+					if entry_format[j].type_ == dw_lnct_path {
+						if entry_format[j].form != dw_form_line_strp {
 							goto next_line // id: 0x7fffd8cf3458
 						}
 						value = if length == 4 {
@@ -1657,12 +1657,12 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 						if i < (512) {
 							filename_table[i].name = &char(rc.u.dwarf.dwarf_line_str) + value
 						}
-					} else if entry_format[j].type_ == btexe.dw_lnct_directory_index {
+					} else if entry_format[j].type_ == dw_lnct_directory_index {
 						match entry_format[j].form {
-							btexe.dw_form_data1 { // case comp body kind=BinaryOperator is_enum=true
+							dw_form_data1 { // case comp body kind=BinaryOperator is_enum=true
 								value = (if ln < end { *ln++ } else { 0 })
 							}
-							btexe.dw_form_data2 { // case comp body kind=BinaryOperator is_enum=true
+							dw_form_data2 { // case comp body kind=BinaryOperator is_enum=true
 								value = (if ln + 2 < end {
 									ln += 2
 									read16le(ln - 2)
@@ -1670,7 +1670,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 									0
 								})
 							}
-							btexe.dw_form_data4 { // case comp body kind=BinaryOperator is_enum=true
+							dw_form_data4 { // case comp body kind=BinaryOperator is_enum=true
 								value = (if ln + 4 < end {
 									ln += 4
 									read32le(ln - 4)
@@ -1678,7 +1678,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 									0
 								})
 							}
-							btexe.dw_form_udata { // case comp body kind=BinaryOperator is_enum=true
+							dw_form_udata { // case comp body kind=BinaryOperator is_enum=true
 								value = dwarf_read_uleb128(&ln, end)
 							}
 							else {
@@ -1769,9 +1769,9 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 							0
 						}
 						match z {
-							btexe.dw_lne_end_sequence { // case comp body kind=BreakStmt is_enum=true
+							dw_lne_end_sequence { // case comp body kind=BreakStmt is_enum=true
 							}
-							btexe.dw_lne_set_address { // case comp body kind=BinaryOperator is_enum=true
+							dw_lne_set_address { // case comp body kind=BinaryOperator is_enum=true
 								pc = (if cp + 8 < end {
 									cp += 8
 									read64le(cp - 8)
@@ -1780,7 +1780,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 								})
 								opindex = 0
 							}
-							btexe.dw_lne_define_file { // case comp body kind=IfStmt is_enum=true
+							dw_lne_define_file { // case comp body kind=IfStmt is_enum=true
 								if (filename_size++ + 1) < (512) {
 									filename_table[filename_size - 1].name = &char(ln) - 1
 									for (if ln < end {
@@ -1803,14 +1803,14 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 								dwarf_read_uleb128(&ln, end)
 								dwarf_read_uleb128(&ln, end)
 							}
-							btexe.dw_lne_hi_user - 1 { // case comp body kind=BinaryOperator is_enum=true
+							dw_lne_hi_user - 1 { // case comp body kind=BinaryOperator is_enum=true
 								function = &char(cp)
 								func_addr = pc
 							}
 							else {}
 						}
 					}
-					btexe.dw_lns_advance_pc { // case comp body kind=IfStmt is_enum=true
+					dw_lns_advance_pc { // case comp body kind=IfStmt is_enum=true
 						if max_ops_per_insn == 1 {
 							pc += dwarf_read_uleb128(&ln, end) * min_insn_length
 						} else {
@@ -1821,17 +1821,17 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 						i = 0
 						goto check_pc // id: 0x7fffd8cf9e20
 					}
-					btexe.dw_lns_advance_line { // case comp body kind=CompoundAssignOperator is_enum=true
+					dw_lns_advance_line { // case comp body kind=CompoundAssignOperator is_enum=true
 						line += dwarf_read_sleb128(&ln, end)
 					}
-					btexe.dw_lns_set_file { // case comp body kind=BinaryOperator is_enum=true
+					dw_lns_set_file { // case comp body kind=BinaryOperator is_enum=true
 						i = dwarf_read_uleb128(&ln, end)
 						i -= i > 0 && version < 5
 						if i < (512) && i < filename_size {
 							filename = filename_table[i].name
 						}
 					}
-					btexe.dw_lns_const_add_pc { // case comp body kind=IfStmt is_enum=true
+					dw_lns_const_add_pc { // case comp body kind=IfStmt is_enum=true
 						if max_ops_per_insn == 1 {
 							pc += ((255 - opcode_base) / line_range) * min_insn_length
 						} else {
@@ -1842,7 +1842,7 @@ fn rt_printline_dwarf(rc &Rt_context, wanted_pc Elf64_Addr, msg &char, skip &cha
 						i = 0
 						goto check_pc // id: 0x7fffd8cf9e20
 					}
-					btexe.dw_lns_fixed_advance_pc { // case comp body kind=BinaryOperator is_enum=true
+					dw_lns_fixed_advance_pc { // case comp body kind=BinaryOperator is_enum=true
 						i = (if ln + 2 < end {
 							ln += 2
 							read16le(ln - 2)

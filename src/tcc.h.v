@@ -288,8 +288,8 @@ struct TCCState {
 	nb_pragma_libs int
 	/* inline functions are stored as token lists and compiled last
        only if referenced */
-	inline_fns    &&InlineFunc
-	nb_inline_fns int
+	inline_fns     &&InlineFunc
+	nb_inline_fns  int
 	// sections
 	sections    &&Section
 	nb_sections int // number of sections, including first dummy section

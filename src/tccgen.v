@@ -1083,7 +1083,7 @@ fn external_global_sym(v int, type_ &CType) &Sym {
 //   This avoids type conflicts if the symbol is used from C too
 fn external_helper_sym(v int) &Sym {
 	ct := CType{
-		t: ((0 | (1 << 20)) | (2 << 20))
+		t:   ((0 | (1 << 20)) | (2 << 20))
 		ref: unsafe { nil }
 	}
 
@@ -8110,7 +8110,8 @@ fn decl(l int) int {
 				type_.t &= ~4096
 				sym = external_sym(v, &type_, 0, &ad)
 				if sym.type_.t & 32768 {
-					fnc := &InlineFunc(tcc_malloc(sizeof(InlineFunc) + usize(C.strlen(file.filename))))
+					fnc := &InlineFunc(tcc_malloc(sizeof(InlineFunc) +
+						usize(C.strlen(file.filename))))
 					C.strcpy(fnc.filename, file.filename)
 					fnc.sym = sym
 					skip_or_save_block(&fnc.func_str)

@@ -1242,239 +1242,239 @@ const tcc_option_compatibility_version = 58
 const tcc_option_current_version = 59
 
 __global tcc_options = [TCCOption{
-	name: c'h'
+	name:  c'h'
 	index: tcc_option_help
 	flags: 0
 }, TCCOption{
-	name: c'-help'
+	name:  c'-help'
 	index: tcc_option_help
 	flags: 0
 }, TCCOption{
-	name: c'?'
+	name:  c'?'
 	index: tcc_option_help
 	flags: 0
 }, TCCOption{
-	name: c'hh'
+	name:  c'hh'
 	index: tcc_option_help2
 	flags: 0
 }, TCCOption{
-	name: c'v'
+	name:  c'v'
 	index: tcc_option_v
 	flags: 1 | 2
 }, TCCOption{
-	name: c'-version'
+	name:  c'-version'
 	index: tcc_option_v
 	flags: 0
 }, TCCOption{
-	name: c'I'
+	name:  c'I'
 	index: tcc_option_i
 	flags: 1
 }, TCCOption{
-	name: c'D'
+	name:  c'D'
 	index: tcc_option_dd
 	flags: 1
 }, TCCOption{
-	name: c'U'
+	name:  c'U'
 	index: tcc_option_u
 	flags: 1
 }, TCCOption{
-	name: c'P'
+	name:  c'P'
 	index: tcc_option_p
 	flags: 1 | 2
 }, TCCOption{
-	name: c'L'
+	name:  c'L'
 	index: tcc_option_ll
 	flags: 1
 }, TCCOption{
-	name: c'B'
+	name:  c'B'
 	index: tcc_option_bb
 	flags: 1
 }, TCCOption{
-	name: c'l'
+	name:  c'l'
 	index: tcc_option_l
 	flags: 1
 }, TCCOption{
-	name: c'bench'
+	name:  c'bench'
 	index: tcc_option_bench
 	flags: 0
 }, TCCOption{
-	name: c'bt'
+	name:  c'bt'
 	index: tcc_option_bt
 	flags: 1 | 2
 }, TCCOption{
-	name: c'b'
+	name:  c'b'
 	index: tcc_option_b
 	flags: 0
 }, TCCOption{
-	name: c'g'
+	name:  c'g'
 	index: tcc_option_g
 	flags: 1 | 2
 }, TCCOption{
-	name: c'c'
+	name:  c'c'
 	index: tcc_option_c
 	flags: 0
 }, TCCOption{
-	name: c'dumpmachine'
+	name:  c'dumpmachine'
 	index: tcc_option_dumpmachine
 	flags: 0
 }, TCCOption{
-	name: c'dumpversion'
+	name:  c'dumpversion'
 	index: tcc_option_dumpversion
 	flags: 0
 }, TCCOption{
-	name: c'd'
+	name:  c'd'
 	index: tcc_option_d
 	flags: 1 | 2
 }, TCCOption{
-	name: c'static'
+	name:  c'static'
 	index: tcc_option_static
 	flags: 0
 }, TCCOption{
-	name: c'std'
+	name:  c'std'
 	index: tcc_option_std
 	flags: 1 | 2
 }, TCCOption{
-	name: c'shared'
+	name:  c'shared'
 	index: tcc_option_shared
 	flags: 0
 }, TCCOption{
-	name: c'soname'
+	name:  c'soname'
 	index: tcc_option_soname
 	flags: 1
 }, TCCOption{
-	name: c'o'
+	name:  c'o'
 	index: tcc_option_o
 	flags: 1
 }, TCCOption{
-	name: c'pthread'
+	name:  c'pthread'
 	index: tcc_option_pthread
 	flags: 0
 }, TCCOption{
-	name: c'run'
+	name:  c'run'
 	index: tcc_option_run
 	flags: 1 | 2
 }, TCCOption{
-	name: c'rdynamic'
+	name:  c'rdynamic'
 	index: tcc_option_rdynamic
 	flags: 0
 }, TCCOption{
-	name: c'r'
+	name:  c'r'
 	index: tcc_option_r
 	flags: 0
 }, TCCOption{
-	name: c'Wl,'
+	name:  c'Wl,'
 	index: tcc_option_wl
 	flags: 1 | 2
 }, TCCOption{
-	name: c'Wp,'
+	name:  c'Wp,'
 	index: tcc_option_wp
 	flags: 1 | 2
 }, TCCOption{
-	name: c'W'
+	name:  c'W'
 	index: tcc_option_ww
 	flags: 1 | 2
 }, TCCOption{
-	name: c'O'
+	name:  c'O'
 	index: tcc_option_oo
 	flags: 1 | 2
 }, TCCOption{
-	name: c'm'
+	name:  c'm'
 	index: tcc_option_m
 	flags: 1 | 2
 }, TCCOption{
-	name: c'f'
+	name:  c'f'
 	index: tcc_option_f
 	flags: 1 | 2
 }, TCCOption{
-	name: c'isystem'
+	name:  c'isystem'
 	index: tcc_option_isystem
 	flags: 1
 }, TCCOption{
-	name: c'include'
+	name:  c'include'
 	index: tcc_option_include
 	flags: 1
 }, TCCOption{
-	name: c'nostdinc'
+	name:  c'nostdinc'
 	index: tcc_option_nostdinc
 	flags: 0
 }, TCCOption{
-	name: c'nostdlib'
+	name:  c'nostdlib'
 	index: tcc_option_nostdlib
 	flags: 0
 }, TCCOption{
-	name: c'print-search-dirs'
+	name:  c'print-search-dirs'
 	index: tcc_option_print_search_dirs
 	flags: 0
 }, TCCOption{
-	name: c'w'
+	name:  c'w'
 	index: tcc_option_w
 	flags: 0
 }, TCCOption{
-	name: c'E'
+	name:  c'E'
 	index: tcc_option_e
 	flags: 0
 }, TCCOption{
-	name: c'M'
+	name:  c'M'
 	index: tcc_option_m2
 	flags: 0
 }, TCCOption{
-	name: c'MD'
+	name:  c'MD'
 	index: tcc_option_md
 	flags: 0
 }, TCCOption{
-	name: c'MF'
+	name:  c'MF'
 	index: tcc_option_mf
 	flags: 1
 }, TCCOption{
-	name: c'MM'
+	name:  c'MM'
 	index: tcc_option_mm
 	flags: 0
 }, TCCOption{
-	name: c'MMD'
+	name:  c'MMD'
 	index: tcc_option_mmd
 	flags: 0
 }, TCCOption{
-	name: c'MP'
+	name:  c'MP'
 	index: tcc_option_mp
 	flags: 0
 }, TCCOption{
-	name: c'x'
+	name:  c'x'
 	index: tcc_option_x
 	flags: 1
 }, TCCOption{
-	name: c'ar'
+	name:  c'ar'
 	index: tcc_option_ar
 	flags: 0
 }, TCCOption{
-	name: c'arch'
+	name:  c'arch'
 	index: 0
 	flags: 1
 }, TCCOption{
-	name: c'C'
+	name:  c'C'
 	index: 0
 	flags: 0
 }, TCCOption{
-	name: c'-param'
+	name:  c'-param'
 	index: 0
 	flags: 1
 }, TCCOption{
-	name: c'pedantic'
+	name:  c'pedantic'
 	index: 0
 	flags: 0
 }, TCCOption{
-	name: c'pipe'
+	name:  c'pipe'
 	index: 0
 	flags: 0
 }, TCCOption{
-	name: c's'
+	name:  c's'
 	index: 0
 	flags: 0
 }, TCCOption{
-	name: c'traditional'
+	name:  c'traditional'
 	index: 0
 	flags: 0
 }, TCCOption{
-	name: (unsafe { nil })
+	name:  (unsafe { nil })
 	index: 0
 	flags: 0
 }]!
@@ -1488,99 +1488,99 @@ struct FlagDef {
 const options_W = [
 	FlagDef{
 		offset: __offsetof(TCCState, warn_all)
-		flags: 1
-		name: c'all'
+		flags:  1
+		name:   c'all'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, warn_error)
-		flags: 0
-		name: c'error'
+		flags:  0
+		name:   c'error'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, warn_write_strings)
-		flags: 0
-		name: c'write-strings'
+		flags:  0
+		name:   c'write-strings'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, warn_unsupported)
-		flags: 0
-		name: c'unsupported'
+		flags:  0
+		name:   c'unsupported'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, warn_implicit_function_declaration)
-		flags: 1
-		name: c'implicit-function-declaration'
+		flags:  1
+		name:   c'implicit-function-declaration'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, warn_discarded_qualifiers)
-		flags: 1
-		name: c'discarded-qualifiers'
+		flags:  1
+		name:   c'discarded-qualifiers'
 	},
 	FlagDef{
 		offset: 0
-		flags: 0
-		name: (unsafe { nil })
+		flags:  0
+		name:   (unsafe { nil })
 	},
 ]!
 
 const options_f = [
 	FlagDef{
 		offset: __offsetof(TCCState, char_is_unsigned)
-		flags: 0
-		name: c'unsigned-char'
+		flags:  0
+		name:   c'unsigned-char'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, char_is_unsigned)
-		flags: 2
-		name: c'signed-char'
+		flags:  2
+		name:   c'signed-char'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, nocommon)
-		flags: 2
-		name: c'common'
+		flags:  2
+		name:   c'common'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, leading_underscore)
-		flags: 0
-		name: c'leading-underscore'
+		flags:  0
+		name:   c'leading-underscore'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, ms_extensions)
-		flags: 0
-		name: c'ms-extensions'
+		flags:  0
+		name:   c'ms-extensions'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, dollars_in_identifiers)
-		flags: 0
-		name: c'dollars-in-identifiers'
+		flags:  0
+		name:   c'dollars-in-identifiers'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, test_coverage)
-		flags: 0
-		name: c'test-coverage'
+		flags:  0
+		name:   c'test-coverage'
 	},
 	FlagDef{
 		offset: 0
-		flags: 0
-		name: (unsafe { nil })
+		flags:  0
+		name:   (unsafe { nil })
 	},
 ]!
 
 const options_m = [
 	FlagDef{
 		offset: __offsetof(TCCState, ms_bitfields)
-		flags: 0
-		name: c'ms-bitfields'
+		flags:  0
+		name:   c'ms-bitfields'
 	},
 	FlagDef{
 		offset: __offsetof(TCCState, nosse)
-		flags: 2
-		name: c'sse'
+		flags:  2
+		name:   c'sse'
 	},
 	FlagDef{
 		offset: 0
-		flags: 0
-		name: (unsafe { nil })
+		flags:  0
+		name:   (unsafe { nil })
 	},
 ]!
 

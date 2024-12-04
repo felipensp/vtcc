@@ -1035,7 +1035,8 @@ fn tcc_debug_fix_anon(s1 &TCCState, t &CType) {
 
 fn tcc_debug_add(s1 &TCCState, t &Sym, dwarf int) int {
 	offset := if dwarf { s1.dwarf_info_section.data_offset } else { s1.dState.debug_next_type++ + 1 }
-	s1.dState.debug_hash = &debug_hash(tcc_realloc(s1.dState.debug_hash, (u32(s1.dState.n_debug_hash) + 1) * sizeof(*s1.dState.debug_hash)))
+	s1.dState.debug_hash = &debug_hash(tcc_realloc(s1.dState.debug_hash, (
+		u32(s1.dState.n_debug_hash) + 1) * sizeof(*s1.dState.debug_hash)))
 	s1.dState.debug_hash[s1.dState.n_debug_hash].debug_type = offset
 	s1.dState.debug_hash[s1.dState.n_debug_hash++].type_ = t
 	return int(offset)
