@@ -496,7 +496,7 @@ fn tok_alloc_new(pts &&TokenSym, str &char, len int) &TokenSym {
 	ts := &TokenSym(0)
 	ptable := &&TokenSym(0)
 
-	i := 0
+	i := u32(0)
 	if tok_ident >= sym_first_anom {
 		_tcc_error('memory full (symbols)')
 	}
@@ -507,7 +507,7 @@ fn tok_alloc_new(pts &&TokenSym, str &char, len int) &TokenSym {
 		vcc_trace_print('${@LOCATION} realloc table_ident')
 	}
 	// vcc_trace('${@LOCATION}')
-	ts = &TokenSym(tal_realloc_impl(&toksym_alloc, unsafe { nil }, sizeof(TokenSym) + len))
+	ts = &TokenSym(tal_realloc_impl(&toksym_alloc, unsafe { nil }, sizeof(TokenSym) + usize(len)))
 	// vcc_trace('${@LOCATION}')
 	table_ident[i] = ts
 	unsafe { vcc_trace_print('${@LOCATION} i=${i} new token=${str.vstring()[0..len]}') }
@@ -1144,8 +1144,8 @@ fn tok_str_alloc() &TokenString {
 
 fn tok_str_dup(s &TokenString) &int {
 	unsafe {
-		str := &int(tal_realloc_impl(&tokstr_alloc, nil, s.len * sizeof(int)))
-		C.memcpy(str, s.str, s.len * sizeof(int))
+		str := &int(tal_realloc_impl(&tokstr_alloc, nil, usize(s.len) * sizeof(int)))
+		C.memcpy(str, s.str, usize(s.len) * sizeof(int))
 		return str
 	}
 }
@@ -1162,7 +1162,7 @@ fn tok_str_free(str &TokenString) {
 fn tok_str_realloc(s &TokenString, new_size int) &int {
 	// vcc_trace('${@LOCATION}')
 	str := &int(0)
-	size := s.allocated_len
+	size := usize(s.allocated_len)
 	// vcc_trace('${@LOCATION}')
 	if size < 16 {
 		size = 16
@@ -1784,14 +1784,14 @@ fn search_cached_include(s1 &TCCState, filename &char, add int) &CachedInclude {
 	e := &CachedInclude(0)
 	c := 0
 	i := 0
-	len := 0
+	len := u32(0)
 
 	s = tcc_basename(filename)
 	basename = s
 	h = 1
 	c = u8(*s)
 	for c != 0 {
-		h = (h + (h << 5) + (h >> 27) + c)
+		h = h + (h << 5) + (h >> 27) + c
 		unsafe { s++ }
 		c = u8(*s)
 	}
@@ -2981,11 +2981,11 @@ fn next_nomacro1() {
 			// vcc_trace('${@LOCATION}')
 			p1 = p
 			h = 1
-			h = (h + (h << 5) + (h >> 27) + c)
+			h = h + (h << 5) + (h >> 27) + c
 			p++
 			c = *p
 			for isidnum_table[c - (-1)] & (2 | 4) {
-				h = (h + (h << 5) + (h >> 27) + c)
+				h = h + (h << 5) + (h >> 27) + c
 				p++
 				c = *p
 			}

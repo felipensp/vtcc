@@ -326,7 +326,7 @@ fn rc2_type(t int, rc int) int {
 fn ieee_finite(d f64) int {
 	p := [4]int{}
 	unsafe { C.memcpy(p, &d, sizeof(f64)) }
-	return (u32(((p[1] | 0x800fffff) + 1))) >> 31
+	return int((u32(((p[1] | 0x800fffff) + 1))) >> 31)
 }
 
 fn test_lvalue() {
@@ -1987,12 +1987,12 @@ fn gen_opic(op int) {
 
 	if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
 		// C.printf(c'%s t1=%d v1.r=%d c1=%d l1.1=%ld\n', C.__FUNCTION__, t1, v1.r, c1, l1)
-		l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & u32(0x80000000)) }))
+		l1 = u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & u32(0x80000000)) })
 		// C.printf(c'%s l1.2=%lu\n', C.__FUNCTION__, l1)
 	}
 	if t2 != vt_llong && (ptr_size != 8 || t2 != vt_ptr) {
 		// C.printf(c'%s t2=%d v2.r=%d c2=%d l2.1=%ld\n', C.__FUNCTION__, t2, v2.r, c2, l2)
-		l2 = (u32(l2) | (if v2.type_.t & vt_unsigned { 0 } else { -(l2 & u32(0x80000000)) }))
+		l2 = u32(l2) | (if v2.type_.t & vt_unsigned { 0 } else { -(l2 & u32(0x80000000)) })
 		// C.printf(c'%s l2.2=%ld\n', C.__FUNCTION__, l2)
 	}
 	if c1 && c2 {
@@ -2092,7 +2092,7 @@ fn gen_opic(op int) {
 		}
 		// C.printf(c'%s t1=%d l1=%ld %ld\n', C.__FUNCTION__, t1, l1, -(l1 & 0x80000000))
 		if t1 != vt_llong && (ptr_size != 8 || t1 != vt_ptr) {
-			l1 = (u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & 0x80000000) }))
+			l1 = u32(l1) | (if v1.type_.t & vt_unsigned { 0 } else { -(l1 & 0x80000000) })
 		}
 		v1.c.i = l1
 		v1.r |= v2.r & vt_nonconst
@@ -3481,7 +3481,7 @@ fn vstore() {
 		gv(rc_type(dbt)) // generate value
 
 		if delayed_cast {
-			vtop.r |= (u32(((3072) & ~((3072) << 1))) * (int(sbt == 4) + 1))
+			vtop.r |= u32(((3072) & ~((3072) << 1))) * (int(sbt == 4) + 1)
 			vtop.type_.t = ft & (~((4096 | 8192 | 16384 | 32768) | (((1 << (6 + 6)) - 1) << 20 | 128)))
 		}
 		if (vtop[-1].r & vt_valmask) == vt_llocal {
@@ -3497,7 +3497,7 @@ fn vstore() {
 			}
 		}
 		r = vtop.r & vt_valmask
-		if (r2_ret(dbt) != 48) {
+		if r2_ret(dbt) != 48 {
 			load_type := if (dbt == 14) { 9 } else { (2048 | 4) }
 			vtop[-1].type_.t = load_type
 			store(r, unsafe { vtop - 1 })
@@ -7050,7 +7050,7 @@ fn init_assert(p &Init_params, offset int) {
 }
 
 fn init_putz(p &Init_params, c u32, size int) {
-	init_assert(p, c + size)
+	init_assert(p, c + usize(size))
 	if p.sec {
 	} else {
 		vpush_helper_func(Tcc_token.tok_memset)
@@ -7107,7 +7107,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 	elem_size := 0
 
 	corig := c
-	elem_size = 0
+	elem_size = u32(0)
 	nb_elems = 1
 	if flags & 4 {
 		unsafe {
@@ -7211,7 +7211,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 		}
 
 		t1 := CType{}
-		i := 0
+		i := u32(0)
 		if p.sec != unsafe { nil } || type_.t & 64 {
 			aref.c = elem_size
 			t1.t = 7
@@ -7240,7 +7240,7 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 	bt := 0
 	ptr := unsafe { nil }
 	dtype := CType{}
-	size := 0
+	size := usize(0)
 	align := 0
 
 	sec := p.sec
@@ -7375,11 +7375,11 @@ fn init_putv(p &Init_params, type_ &CType, c u32) {
 
 fn decl_initializer(p &Init_params, type_ &CType, c u32, flags int) {
 	len := 0
-	n := 0
+	n := u32(0)
 	no_oblock := 0
-	i := 0
+	i := u32(0)
 
-	size1 := 0
+	size1 := u32(0)
 	align1 := 0
 
 	s := &Sym(0)
@@ -8110,7 +8110,7 @@ fn decl(l int) int {
 				type_.t &= ~4096
 				sym = external_sym(v, &type_, 0, &ad)
 				if sym.type_.t & 32768 {
-					fnc := &InlineFunc(tcc_malloc(sizeof(InlineFunc) + C.strlen(file.filename)))
+					fnc := &InlineFunc(tcc_malloc(sizeof(InlineFunc) + usize(C.strlen(file.filename))))
 					C.strcpy(fnc.filename, file.filename)
 					fnc.sym = sym
 					skip_or_save_block(&fnc.func_str)

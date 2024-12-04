@@ -56,7 +56,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	ehdr := &Elf64_Ehdr(0)
 	shdr := &Elf64_Shdr(0)
 	sym := &Elf64_Sym(0)
-	i := 0
+	i := u32(0)
 	fsize := 0
 	i_lib := 0
 	i_obj := 0
@@ -73,7 +73,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	strpos := 0
 	fpos := 0
 	funccnt := 0
-	funcmax := 0
+	funcmax := u32(0)
 	hofs := 0
 
 	tfile := [260]char{}
@@ -294,7 +294,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	for i = 1; i <= funccnt; i++ {
 		afpos[i] = le2belong(afpos[i] + hofs)
 	}
-	C.fwrite(afpos, (funccnt + 1) * sizeof(int), 1, fh)
+	C.fwrite(afpos, u32(funccnt + 1) * sizeof(int), 1, fh)
 	C.fwrite(anames, strpos, 1, fh)
 	if fpos {
 		C.fwrite(c'', 1, 1, fh)
@@ -383,7 +383,7 @@ fn gen_makedeps(s1 &TCCState, target &char, filename &char) int {
 	if s1.verbose {
 		C.printf(c'<- %s\n', filename)
 	}
-	escaped_targets = tcc_malloc(s1.nb_target_deps * sizeof(*escaped_targets))
+	escaped_targets = tcc_malloc(u32(s1.nb_target_deps) * sizeof(*escaped_targets))
 	num_targets = 0
 	for i = 0; i < s1.nb_target_deps; i++ {
 		for k = 0; k < i; k++ {

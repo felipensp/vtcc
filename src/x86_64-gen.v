@@ -751,7 +751,7 @@ fn arg_prepare_reg(idx int) int {
 	}
 }
 
-fn gfunc_call(nb_args int) {
+fn gfunc_call(nb_args u32) {
 	vcc_trace_print('${@LOCATION}')
 	mode := X86_64_Mode{}
 	type_ := CType{}

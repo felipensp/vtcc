@@ -1059,7 +1059,7 @@ fn write32le(p &u8, x u32) {
 }
 
 fn add32le(p &u8, x int) {
-	write32le(p, read32le(p) + x)
+	write32le(p, read32le(p) + u32(x))
 }
 
 fn read64le(p &u8) u64 {

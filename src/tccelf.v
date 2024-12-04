@@ -123,7 +123,7 @@ fn tccelf_end_file(s1 &TCCState) {
 	vcc_trace('${@LOCATION}')
 	s := s1.symtab
 	first_sym := 0
-	nb_syms := 0
+	nb_syms := u32(0)
 	tr := &int(0)
 	i := 0
 	vcc_trace('${@LOCATION}')
@@ -188,7 +188,7 @@ fn tccelf_end_file(s1 &TCCState) {
 fn new_section(s1 &TCCState, name &char, sh_type int, sh_flags int) &Section {
 	sec := &Section(0)
 	unsafe {
-		sec = &Section(tcc_mallocz(sizeof(Section) + C.strlen(name)))
+		sec = &Section(tcc_mallocz(sizeof(Section) + usize(C.strlen(name))))
 		sec.s1 = s1
 		C.strcpy(sec.name, name)
 	}
@@ -224,7 +224,7 @@ fn new_symtab(s1 &TCCState, symtab_name &char, sh_type int, sh_flags int, strtab
 	hash := &Section(0)
 
 	ptr := &int(0)
-	nb_buckets := 0
+	nb_buckets := u32(0)
 
 	unsafe {
 		vcc_trace('${@LOCATION} symtab_name=${symtab_name.vstring()}')
@@ -353,7 +353,7 @@ fn rebuild_hash(s &Section, nb_buckets u32) {
 	sym := &Elf64_Sym(0)
 	ptr := &int(0)
 	hash := &int(0)
-	nb_syms := 0
+	nb_syms := u32(0)
 	sym_index := 0
 	h := 0
 
@@ -546,7 +546,7 @@ fn version_add(s1 &TCCState) {
 	vn := &Elf64_Verneed{}
 	symtab := &Section(0)
 	sym_index := 0
-	end_sym := 0
+	end_sym := u32(0)
 	nb_versions := 2
 	nb_entries := 0
 
@@ -773,7 +773,7 @@ fn put_elf_reloc(symtab &Section, s &Section, offset u32, type_ int, symbol int)
 }
 
 fn get_sym_attr(s1 &TCCState, index int, alloc int) &Sym_attr {
-	n := 0
+	n := u32(0)
 	tab := &Sym_attr(0)
 	if index >= s1.nb_sym_attrs {
 		if !alloc {
@@ -786,7 +786,7 @@ fn get_sym_attr(s1 &TCCState, index int, alloc int) &Sym_attr {
 		tab = tcc_realloc(s1.sym_attrs, n * sizeof(*s1.sym_attrs))
 		s1.sym_attrs = tab
 		unsafe {
-			C.memset(s1.sym_attrs + s1.nb_sym_attrs, 0, (n - s1.nb_sym_attrs) * sizeof(*s1.sym_attrs))
+			C.memset(s1.sym_attrs + s1.nb_sym_attrs, 0, (n - u32(s1.nb_sym_attrs)) * sizeof(*s1.sym_attrs))
 		}
 		s1.nb_sym_attrs = n
 	}
@@ -820,7 +820,7 @@ fn modify_reloctions_old_to_new(s1 &TCCState, s &Section, old_to_new_syms &int) 
 fn sort_syms(s1 &TCCState, s &Section) {
 	old_to_new_syms := &int(0)
 	new_syms := &Elf64_Sym(0)
-	nb_syms := 0
+	nb_syms := u32(0)
 	i := 0
 
 	p := &Elf64_Sym(0)
@@ -920,9 +920,9 @@ struct buck {
 fn update_gnu_hash(s1 &TCCState, gnu_hash &Section) {
 	old_to_new_syms := &int(0)
 	new_syms := &Elf64_Sym(0)
-	nb_syms := 0
+	nb_syms := u32(0)
 	i := 0
-	nbuckets := 0
+	nbuckets := u32(0)
 	bloom_size := 0
 	bloom_shift := 0
 
@@ -2017,10 +2017,10 @@ fn layout_sections(s1 &TCCState, sec_order &int, d &Dyn_inf) int {
 		phnum++
 	}
 	d.phnum = phnum
-	d.phdr = &Elf64_Phdr(tcc_mallocz(phnum * sizeof(Elf64_Phdr)))
+	d.phdr = &Elf64_Phdr(tcc_mallocz(u32(phnum) * sizeof(Elf64_Phdr)))
 	file_offset = 0
 	if s1.output_format == 0 {
-		file_offset = sizeof(Elf64_Ehdr) + phnum * sizeof(Elf64_Phdr)
+		file_offset = sizeof(Elf64_Ehdr) + u32(phnum) * sizeof(Elf64_Phdr)
 	}
 	s_align = 2097152
 	if s1.section_align {
@@ -2310,7 +2310,7 @@ fn tcc_output_elf(s1 &TCCState, f &C.FILE, phnum int, phdr &Elf64_Phdr, file_off
 	C.fwrite(&ehdr, 1, sizeof(Elf64_Ehdr), f)
 	if phdr {
 		vcc_trace('${@LOCATION}')
-		C.fwrite(phdr, 1, phnum * sizeof(Elf64_Phdr), f)
+		C.fwrite(phdr, 1, u32(phnum) * sizeof(Elf64_Phdr), f)
 	}
 	vcc_trace('${@LOCATION}')
 	offset = sizeof(Elf64_Ehdr) + phnum * sizeof(Elf64_Phdr)
@@ -2431,8 +2431,8 @@ fn tidy_section_headers(s1 &TCCState, sec_order &int) int {
 	s := &Section(0)
 
 	sym := &Elf64_Sym(0)
-	snew = tcc_malloc(s1.nb_sections * sizeof(snew[0]))
-	backmap = tcc_malloc(s1.nb_sections * sizeof(backmap[0]))
+	snew = tcc_malloc(u32(s1.nb_sections) * sizeof(snew[0]))
+	backmap = tcc_malloc(u32(s1.nb_sections) * sizeof(backmap[0]))
 	i = 0
 	nnew = 0
 	for l = s1.nb_sections; i < s1.nb_sections; i++ {
@@ -2615,7 +2615,7 @@ fn elf_output_file(s1 &TCCState, filename &char) int {
 		vcc_trace_print('${@LOCATION}')
 	}
 	vcc_trace_print('${@LOCATION}')
-	sec_order = tcc_malloc(sizeof(int) * 2 * s1.nb_sections)
+	sec_order = tcc_malloc(sizeof(int) * 2 * u32(s1.nb_sections))
 	vcc_trace_print('${@LOCATION}')
 	file_offset = layout_sections(s1, sec_order, &dyninf)
 	vcc_trace_print('${@LOCATION}')
@@ -2788,7 +2788,7 @@ fn tcc_load_object_file(s1 &TCCState, fd int, file_offset u32) int {
 
 	i := 0
 	j := 0
-	nb_syms := 0
+	nb_syms := u32(0)
 	sym_index := 0
 	ret := 0
 	seencompressed := 0
@@ -3216,11 +3216,11 @@ fn tcc_load_archive(s1 &TCCState, fd int, alacarte int) int {
 fn set_ver_to_ver(s1 &TCCState, n &int, lv &&int, i int, lib &char, version &char) {
 	unsafe { vcc_trace_print('${@LOCATION} lib=${lib.vstring()}') }
 	for i >= *n {
-		*lv = tcc_realloc(*lv, (*n + 1) * sizeof(**lv))
+		*lv = tcc_realloc(*lv, (u32(*n) + 1) * sizeof(**lv))
 		(*lv)[(*n)++] = -1
 	}
 	if (*lv)[i] == -1 {
-		v := 0
+		v := u32(0)
 		prev_same_lib := -1
 
 		for v = 0; v < s1.nb_sym_versions; v++ {
@@ -3246,9 +3246,9 @@ fn set_ver_to_ver(s1 &TCCState, n &int, lv &&int, i int, lib &char, version &cha
 
 fn set_sym_version(s1 &TCCState, sym_index int, verndx int) {
 	if sym_index >= s1.nb_sym_to_version {
-		newelems := if sym_index { sym_index * 2 } else { 1 }
+		newelems := u32(if sym_index { sym_index * 2 } else { 1 })
 		s1.sym_to_version = tcc_realloc(s1.sym_to_version, newelems * sizeof(*s1.sym_to_version))
-		unsafe { C.memset(s1.sym_to_version + s1.nb_sym_to_version, -1, (newelems - s1.nb_sym_to_version) * sizeof(*s1.sym_to_version)) }
+		unsafe { C.memset(s1.sym_to_version + s1.nb_sym_to_version, -1, (newelems - u32(s1.nb_sym_to_version)) * sizeof(*s1.sym_to_version)) }
 		s1.nb_sym_to_version = newelems
 	}
 	if s1.sym_to_version[sym_index] < 0 {

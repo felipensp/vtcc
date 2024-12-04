@@ -9,7 +9,6 @@ module main
 type uintptr_t = usize
 
 fn C.realloc(voidptr, int) voidptr
-
 fn C.strcpy(&char, &char) &char
 fn C.lseek(int, int, int) int
 fn C.realpath(&char, &char) &char
@@ -278,7 +277,7 @@ fn normalized_pathcmp(f1 &char, f2 &char) int {
 
 fn dynarray_add(ptab voidptr, nb_ptr &int, data voidptr) {
 	nb := 0
-	nb_alloc := 0
+	nb_alloc := u32(0)
 
 	nb = *nb_ptr
 	pp := &voidptr(0)
@@ -497,7 +496,7 @@ fn _tcc_warning(message string) {
 }
 
 pub fn tcc_open_bf(s1 &TCCState, filename &char, initlen int) {
-	buflen := if initlen { initlen } else { 8192 }
+	buflen := u32(if initlen { initlen } else { 8192 })
 	bf := &BufferedFile(tcc_mallocz(sizeof(BufferedFile) + buflen))
 	vcc_trace('${@LOCATION} ${filename.vstring()}')
 	bf.buf_ptr = &bf.buffer[0]
@@ -546,7 +545,7 @@ fn _tcc_open(s1 &TCCState, filename &char) int {
 		fd = C.open(filename, 0)
 	}
 	if (s1.verbose == 2 && fd >= 0) || s1.verbose == 3 {
-		val := (&char(s1.include_stack_ptr) - &char(&s1.include_stack[0])) / sizeof(&BufferedFile)
+		val := u32(&char(s1.include_stack_ptr) - &char(&s1.include_stack[0])) / sizeof(&BufferedFile)
 		if fd < 0 {
 			C.printf(c'%s %*s%s\n', c'nf', val, c'', filename)
 		} else {
@@ -768,7 +767,7 @@ pub fn tcc_add_dllref(s1 &TCCState, dllname &char, level int) &DLLReference {
 		ref.found = 1
 		return ref
 	}
-	ref = tcc_mallocz(sizeof(DLLReference) + C.strlen(dllname))
+	ref = tcc_mallocz(sizeof(DLLReference) + usize(C.strlen(dllname)))
 	C.strcpy(ref.name, dllname)
 	dynarray_add(&s1.loaded_dlls, &s1.nb_loaded_dlls, ref)
 	ref.level = level
@@ -1086,7 +1085,7 @@ fn args_parser_add_file(s &TCCState, filename &char, filetype int) {
 	unsafe {
 		vcc_trace('${@LOCATION} ${C.strlen(filename)}')
 
-		f := &Filespec(tcc_malloc(sizeof(Filespec) + C.strlen(filename)))
+		f := &Filespec(tcc_malloc(sizeof(Filespec) + usize(C.strlen(filename))))
 		f.type_ = filetype
 
 		vcc_trace('${@LOCATION} ${filename.vstring()}')

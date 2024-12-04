@@ -334,13 +334,13 @@ fn dwarf_file(s1 &TCCState) {
 		if i == s1.dState.dwarf_line.dir_size {
 			s1.dState.dwarf_line.dir_size++
 			s1.dState.dwarf_line.dir_table = &&u8(tcc_realloc(s1.dState.dwarf_line.dir_table,
-				s1.dState.dwarf_line.dir_size * sizeof(&char)))
+				usize(s1.dState.dwarf_line.dir_size) * sizeof(&char)))
 			s1.dState.dwarf_line.dir_table[i] = tcc_strdup(dir)
 		}
 		*undo = `/`
 	}
 	s1.dState.dwarf_line.filename_table = &Dwarf_filename_struct{}
-	(tcc_realloc(s1.dState.dwarf_line.filename_table, (s1.dState.dwarf_line.filename_size + 1) * sizeof(Dwarf_filename_struct)))
+	(tcc_realloc(s1.dState.dwarf_line.filename_table, (usize(s1.dState.dwarf_line.filename_size) + 1) * sizeof(Dwarf_filename_struct)))
 	s1.dState.dwarf_line.filename_table[s1.dState.dwarf_line.filename_size].dir_entry = i +
 		index_offset
 	s1.dState.dwarf_line.filename_table[s1.dState.dwarf_line.filename_size].name = tcc_strdup(filename)
@@ -579,7 +579,7 @@ fn tcc_debug_start(s1 &TCCState) {
 				*undo = 0
 			}
 			s1.dState.dwarf_line.dir_size = 1 + (undo != (unsafe { nil }))
-			s1.dState.dwarf_line.dir_table = &&u8(tcc_malloc(sizeof(&char) * s1.dState.dwarf_line.dir_size))
+			s1.dState.dwarf_line.dir_table = &&u8(tcc_malloc(sizeof(&char) * u32(s1.dState.dwarf_line.dir_size)))
 			s1.dState.dwarf_line.dir_table[0] = tcc_strdup(buf)
 			if undo {
 				s1.dState.dwarf_line.dir_table[1] = tcc_strdup(filename)
@@ -640,10 +640,10 @@ fn tcc_debug_end(s1 &TCCState) {
 		tcc_debug_funcend(s1, 0)
 	}
 	if s1.dwarf {
-		i := 0
+		i := u32(0)
 		j := 0
 
-		start_aranges := 0
+		start_aranges := u32(0)
 		ptr := &u8(0)
 		text_size := s1.text_section.data_offset
 		for i = 0; i < s1.dState.n_debug_anon_hash; i++ {
@@ -669,7 +669,7 @@ fn tcc_debug_end(s1 &TCCState) {
 			for j = 0; j < s1.dState.debug_anon_hash[i].n_debug_type; j++ {
 				unsafe {
 					write32le(s1.dwarf_info_section.data +
-						s1.dState.debug_anon_hash[i].debug_type[j], pos - s1.dState.dwarf_info.start)
+						s1.dState.debug_anon_hash[i].debug_type[j], pos - u32(s1.dState.dwarf_info.start))
 				}
 			}
 			tcc_free(s1.dState.debug_anon_hash[i].debug_type)
@@ -681,7 +681,7 @@ fn tcc_debug_end(s1 &TCCState) {
 		}
 		unsafe {
 			ptr = s1.dwarf_info_section.data + s1.dState.dwarf_info.start
-			write32le(ptr, s1.dwarf_info_section.data_offset - s1.dState.dwarf_info.start - 4)
+			write32le(ptr, s1.dwarf_info_section.data_offset - u32(s1.dState.dwarf_info.start) - 4)
 
 			write32le(ptr + 25 + int(s1.dwarf >= 5) + 8, text_size)
 		}
@@ -777,7 +777,7 @@ fn tcc_debug_end(s1 &TCCState) {
 		dwarf_uleb128_op(s1, 1)
 		dwarf_line_op(s1, dw_lne_end_sequence)
 		i = int(s1.dwarf >= 5) * 2
-		write32le(&s1.dwarf_line_section.data[s1.dState.dwarf_line.start + 6 + i], s1.dwarf_line_section.data_offset - s1.dState.dwarf_line.start - (
+		write32le(&s1.dwarf_line_section.data[s1.dState.dwarf_line.start + 6 + i], s1.dwarf_line_section.data_offset - u32(s1.dState.dwarf_line.start) - (
 			10 + i))
 		section_ptr_add(s1.dwarf_line_section, 3)
 		dwarf_reloc(s1.dwarf_line_section, s1.dState.section_sym, 1)
@@ -787,7 +787,7 @@ fn tcc_debug_end(s1 &TCCState) {
 		}
 		tcc_free(s1.dState.dwarf_line.line_data)
 		unsafe {
-			write32le(s1.dwarf_line_section.data + s1.dState.dwarf_line.start, s1.dwarf_line_section.data_offset - s1.dState.dwarf_line.start - 4)
+			write32le(s1.dwarf_line_section.data + s1.dState.dwarf_line.start, s1.dwarf_line_section.data_offset - u32(s1.dState.dwarf_line.start) - 4)
 		}
 	} else {
 		put_stabs_r(s1, (unsafe { nil }), Stab_debug_code.n_so, 0, 0, s1.text_section.data_offset,
@@ -916,7 +916,7 @@ fn tcc_debug_stabs(s1 &TCCState, str &char, type_ int, value u32, sec &Section, 
 	s := &Debug_sym(0)
 	if s1.dState.debug_info {
 		s1.dState.debug_info.sym = &Debug_sym(tcc_realloc(s1.dState.debug_info.sym, sizeof(Debug_sym) * (
-			s1.dState.debug_info.n_sym + 1)))
+			u32(s1.dState.debug_info.n_sym) + 1)))
 		s = unsafe { s1.dState.debug_info.sym + s1.dState.debug_info.n_sym++ }
 		s.type_ = type_
 		s.value = value
@@ -971,7 +971,7 @@ fn tcc_debug_find(s1 &TCCState, t &Sym, dwarf int) int {
 			}
 		}
 		s1.dState.debug_anon_hash = &debug_anon_hash(tcc_realloc(s1.dState.debug_anon_hash,
-			(s1.dState.n_debug_anon_hash + 1) * sizeof(*s1.dState.debug_anon_hash)))
+			(u32(s1.dState.n_debug_anon_hash) + 1) * sizeof(*s1.dState.debug_anon_hash)))
 		s1.dState.debug_anon_hash[s1.dState.n_debug_anon_hash].n_debug_type = 0
 		s1.dState.debug_anon_hash[s1.dState.n_debug_anon_hash].debug_type = (unsafe { nil })
 		s1.dState.debug_anon_hash[s1.dState.n_debug_anon_hash++].type_ = t
@@ -991,7 +991,7 @@ fn tcc_debug_check_anon(s1 &TCCState, t &Sym, debug_type int) {
 		for i = 0; i < s1.dState.n_debug_anon_hash; i++ {
 			if voidptr(t.type_.ref) == voidptr(s1.dState.debug_anon_hash[i].type_) {
 				s1.dState.debug_anon_hash[i].debug_type = tcc_realloc(s1.dState.debug_anon_hash[i].debug_type,
-					(s1.dState.debug_anon_hash[i].n_debug_type + 1) * sizeof(int))
+					(u32(s1.dState.debug_anon_hash[i].n_debug_type) + 1) * sizeof(int))
 				s1.dState.debug_anon_hash[i].debug_type[s1.dState.debug_anon_hash[i].n_debug_type++] = debug_type
 			}
 		}
@@ -1035,10 +1035,10 @@ fn tcc_debug_fix_anon(s1 &TCCState, t &CType) {
 
 fn tcc_debug_add(s1 &TCCState, t &Sym, dwarf int) int {
 	offset := if dwarf { s1.dwarf_info_section.data_offset } else { s1.dState.debug_next_type++ + 1 }
-	s1.dState.debug_hash = &debug_hash(tcc_realloc(s1.dState.debug_hash, (s1.dState.n_debug_hash + 1) * sizeof(*s1.dState.debug_hash)))
+	s1.dState.debug_hash = &debug_hash(tcc_realloc(s1.dState.debug_hash, (u32(s1.dState.n_debug_hash) + 1) * sizeof(*s1.dState.debug_hash)))
 	s1.dState.debug_hash[s1.dState.n_debug_hash].debug_type = offset
 	s1.dState.debug_hash[s1.dState.n_debug_hash++].type_ = t
-	return offset
+	return int(offset)
 }
 
 fn tcc_debug_remove(s1 &TCCState, t &Sym) {
@@ -1192,13 +1192,13 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 	e := &Sym(0)
 	t := s
 
-	i := 0
+	i := u32(0)
 	last_pos := -1
 	retval := 0
 	if s1.dState.new_file {
 		put_new_file(s1)
 	}
-	for ; true; {
+	for {
 		type_ = t.type_.t & ~((4096 | 8192 | 16384 | 32768) | 256 | 512 | 1024)
 		if (type_ & 15) != 1 {
 			type_ &= ~32
@@ -1285,7 +1285,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 					*p = (0)
 				}
 				unsafe {
-					write32le(s1.dwarf_info_section.data + pos_sib, s1.dwarf_info_section.data_offset - s1.dState.dwarf_info.start)
+					write32le(s1.dwarf_info_section.data + pos_sib, s1.dwarf_info_section.data_offset - u32(s1.dState.dwarf_info.start))
 				}
 			}
 			e = t
@@ -1367,7 +1367,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 				*p = (0)
 			}
 			unsafe {
-				write32le(s1.dwarf_info_section.data + pos_sib, s1.dwarf_info_section.data_offset - s1.dState.dwarf_info.start)
+				write32le(s1.dwarf_info_section.data + pos_sib, u32(s1.dwarf_info_section.data_offset) - u32(s1.dState.dwarf_info.start))
 			}
 			if s1.dState.debug_info {
 				tcc_debug_remove(s1, t)
@@ -1428,7 +1428,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 			if last_pos != -1 {
 				tcc_debug_check_anon(s1, e, last_pos)
 				unsafe {
-					write32le(s1.dwarf_info_section.data + last_pos, i - s1.dState.dwarf_info.start)
+					write32le(s1.dwarf_info_section.data + last_pos, i - u32(s1.dState.dwarf_info.start))
 				}
 			}
 			last_pos = s1.dwarf_info_section.data_offset
@@ -1455,7 +1455,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 			if last_pos != -1 {
 				tcc_debug_check_anon(s1, e, last_pos)
 				unsafe {
-					write32le(s1.dwarf_info_section.data + last_pos, i - s1.dState.dwarf_info.start)
+					write32le(s1.dwarf_info_section.data + last_pos, i - u32(s1.dState.dwarf_info.start))
 				}
 			}
 			last_pos = s1.dwarf_info_section.data_offset
@@ -1483,7 +1483,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 				*p = (0)
 			}
 			unsafe {
-				write32le(s1.dwarf_info_section.data + sib_pos, s1.dwarf_info_section.data_offset - s1.dState.dwarf_info.start)
+				write32le(s1.dwarf_info_section.data + sib_pos, u32(s1.dwarf_info_section.data_offset) - u32(s1.dState.dwarf_info.start))
 			}
 		} else if type_ == 6 {
 			sib_pos := 0
@@ -1502,7 +1502,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 			if last_pos != -1 {
 				tcc_debug_check_anon(s1, e, last_pos)
 				unsafe {
-					write32le(s1.dwarf_info_section.data + last_pos, i - s1.dState.dwarf_info.start)
+					write32le(s1.dwarf_info_section.data + last_pos, i - u32(s1.dState.dwarf_info.start))
 				}
 			}
 			last_pos = s1.dwarf_info_section.data_offset
@@ -1537,7 +1537,7 @@ fn tcc_get_dwarf_info(s1 &TCCState, s &Sym) int {
 					*p = (0)
 				}
 				unsafe {
-					write32le(s1.dwarf_info_section.data + sib_pos, s1.dwarf_info_section.data_offset - s1.dState.dwarf_info.start)
+					write32le(s1.dwarf_info_section.data + sib_pos, u32(s1.dwarf_info_section.data_offset) - u32(s1.dState.dwarf_info.start))
 				}
 			}
 			f = t.type_.ref
@@ -1791,7 +1791,7 @@ fn tcc_debug_funcend(s1 &TCCState, size int) {
 			*p = (0)
 		}
 		unsafe {
-			write32le(s1.dwarf_info_section.data + func_sib, s1.dwarf_info_section.data_offset - s1.dState.dwarf_info.start)
+			write32le(s1.dwarf_info_section.data + func_sib, u32(s1.dwarf_info_section.data_offset) - u32(s1.dState.dwarf_info.start))
 		}
 	} else {
 		tcc_debug_finish(s1, s1.dState.debug_info_root)

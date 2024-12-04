@@ -347,7 +347,7 @@ fn tcc_relocate_ex(s1 &TCCState, ptr voidptr, ptr_diff Elf64_Addr) int {
 		return -1
 	}
 	if 0 == mem {
-		return offset + max_align
+		return int(offset + max_align)
 	}
 	relocate_plt(s1)
 	relocate_sections(s1)
