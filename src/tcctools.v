@@ -79,7 +79,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 	tfile := [260]char{}
 	stmp := [20]char{}
 
-	file := &char(0)
+	cur_file := &char(0)
 	name := &char(0)
 
 	ret := 2
@@ -256,9 +256,9 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 				}
 			}
 		}
-		file = argv[i_obj]
+		cur_file = argv[i_obj]
 		unsafe {
-			for name = C.strchr(file, 0); name > file && name[-1] != `/` && name[-1] != `\\`; name-- {
+			for name = C.strchr(cur_file, 0); name > cur_file && name[-1] != `/` && name[-1] != `\\`; name-- {
 			}
 		}
 		istrlen = C.strlen(name)
