@@ -5,3 +5,7 @@ vtcc
 log
 **.out
 vlang
+
+# Intellij files
+.idea/
+*.iml
