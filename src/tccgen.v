@@ -7225,7 +7225,7 @@ fn decl_designator(p &Init_params, type_ &CType, c u32, cur_field &&Sym, flags i
 		}
 		for i = 1; i < nb_elems; i++ {
 			vdup()
-			init_putv(p, type_, c + elem_size * i)
+			init_putv(p, type_, c + u32(elem_size) * i)
 		}
 		vpop()
 	}

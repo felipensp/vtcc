@@ -176,9 +176,9 @@ pub fn tcc_run(s1 &TCCState, argc int, argv &&char) int {
 		vcc_trace('${@LOCATION}')
 		return 0
 	}
-	tcc_add_symbol(s1, c'exit', rt_exit)
-	tcc_add_symbol(s1, c'atexit', rt_atexit)
-	tcc_add_symbol(s1, c'on_exit', rt_on_exit)
+	tcc_add_symbol(s1, c'exit', &rt_exit)
+	tcc_add_symbol(s1, c'atexit', &rt_atexit)
+	tcc_add_symbol(s1, c'on_exit', &rt_on_exit)
 	if tcc_relocate(s1, voidptr(1)) < 0 {
 		return -1
 	}

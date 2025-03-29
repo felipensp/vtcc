@@ -287,7 +287,7 @@ fn tcc_tool_ar(s1 &TCCState, argc int, argv &&u8) int {
 		ret = 0
 		goto the_end // id: 0x7ffff3218a30
 	}
-	C.sprintf(stmp, c'%-10d', int((strpos + (funccnt + 1) * sizeof(int))) + fpos)
+	C.sprintf(stmp, c'%-10d', int((strpos + (funccnt + 1) * int(sizeof(int)))) + fpos)
 	C.memcpy(&arhdr.ar_size, stmp, 10)
 	C.fwrite(&arhdr, sizeof(arhdr), 1, fh)
 	afpos[0] = le2belong(funccnt)
