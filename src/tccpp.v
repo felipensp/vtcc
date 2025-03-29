@@ -1240,7 +1240,7 @@ fn tok_str_add2(s &TokenString, t int, cv &CValue) {
 		}
 		205, 206, 200, 201 {
 			{
-				nb_words := unsafe { 1 + (cv.str.size + sizeof(int) - 1) / sizeof(int) }
+				nb_words := unsafe { 1 + (cv.str.size + int(sizeof(int)) - 1) / int(sizeof(int)) }
 				if len + nb_words >= s.allocated_len {
 					str = tok_str_realloc(s, len + nb_words + 1)
 				}
