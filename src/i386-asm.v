@@ -4445,7 +4445,7 @@ fn asm_opcode(s1 &TCCState, opcode int) {
 	s = 0
 	// RRRREG again id=0x7fffe2380130
 
-	pa = asm_instrs
+	pa = &asm_instrs[0]
 	again: for pa.sym != 0 {
 		it := pa.instr_type & 112
 		s = 0
