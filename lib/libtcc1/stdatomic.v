@@ -11,6 +11,7 @@ const atomic_seq_cst = 5
 fn C.__atomic_load(voidptr, voidptr, int)
 fn C.__atomic_compare_exchange(voidptr, voidptr, voidptr, bool, int, int) bool
 
+@[export: '__atomic_thread_fence']
 @[inline]
 fn atomic_thread_fence(memorder int) {
 	$if i386 {
