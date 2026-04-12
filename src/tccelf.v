@@ -12,7 +12,7 @@ fn C.fwrite(voidptr, usize, usize, &C.FILE) usize
 fn C.strcmp(&char, &char) int
 
 const shf_relro = (1 << 1) | (1 << 0)
-const shf_private = int(0x8000_0000)
+const shf_private = -2147483648 // = 0x8000_0000 as two's complement int (INT_MIN)
 // section is dynsymtab_section
 const shf_dynsym = int(0x4000_0000)
 const shf_alloc = (1 << 1)
